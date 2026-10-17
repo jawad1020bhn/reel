@@ -64,7 +64,8 @@ XR.define("shell.layout", ["ui.dom", "ui.icons", "ui.widgets", "app.features", "
       const navEl = h("nav.hdr-nav", { "aria-label": "Primary" }, pill, primary.map((m) => navLink(m)));
       const chips = h("nav.hdr-chips", { "aria-label": "Primary" },
         primary.map((m) => chipLink(m)),
-        secondary.map((m) => chipLink(m)));
+        /* Settings lives on the corner gear; a chip for it would be a duplicate */
+        secondary.filter((m) => m.id !== "settings").map((m) => chipLink(m)));
 
       const brand = h("a.brand", { href: "#/discover", onclick: (e) => { e.preventDefault(); nav.go("discover"); }, "aria-label": "XReels home" },
         h("span.brand-word", "X"), h("span.brand-word.brand-word-rest", "REELS"));
@@ -76,7 +77,11 @@ XR.define("shell.layout", ["ui.dom", "ui.icons", "ui.widgets", "app.features", "
         search.form, search.btn,
         muteBtn,
         W.iconBtn("command", "Command palette (⌘K)", () => events.bus.emit(EV.PALETTE_OPEN, {}), { cls: "hdr-icon" }),
-        secondary.filter((m) => m.id !== "import").map((m) => W.iconBtn(m.icon, m.title, () => nav.go(m.id), { cls: "hdr-icon", size: 19 })));
+        secondary.filter((m) => m.id !== "import").map((m) => {
+          const btn = W.iconBtn(m.icon, m.title, () => nav.go(m.id), { cls: "hdr-icon", size: 19 });
+          btn.dataset.feature = m.id;            // so setActive can light the gear
+          return btn;
+        }));
 
       const inner = h("div.hdr-in", h("div.hdr-left", back, brand, navEl), actions);
       const header = h("header.hdr", inner, chips);
