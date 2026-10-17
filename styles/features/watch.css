@@ -81,7 +81,7 @@
 .watch-arrows { position: absolute; right: 18px; top: 50%; transform: translateY(-50%); z-index: 5; display: flex; flex-direction: column; gap: 10px; }
 .watch-arrow { width: 44px; height: 44px; border-radius: 50%; color: #fff; background: rgb(10 10 13 / 0.62); }
 .watch-arrow:hover { background: rgb(255 255 255 / 0.18); }
-[data-touch="on"] .watch-arrows { display: none; }
+[data-touch="on"] .watch-arrows { display: none; }   /* touch devices of any size */
 
 /* HUD + heart */
 .watch-hud { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.9); z-index: 6; padding: 10px 18px; border-radius: var(--r-pill); background: rgb(10 10 13 / 0.7); font-weight: 800; font-size: 20px; font-variant-numeric: tabular-nums; opacity: 0; pointer-events: none; transition: opacity 120ms var(--ease), transform 120ms var(--ease); }
@@ -158,8 +158,8 @@
   .carousel-next { right: 100px; }
 }
 @media (max-width: 899px) {
-  /* the recovery card owns the stage: park the side arrows behind it */
-  .watch:has(.cell.is-active.is-unplayable) .watch-arrows { opacity: 0; pointer-events: none; }
+  /* mobile: no up/down arrows — the feed is swiped (keyboard ↑/↓ still work) */
+  .watch-arrows { display: none; }
   .cell-meta { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); right: 74px; }
   .cell-bar { bottom: 0; padding: 8px 12px calc(4px + env(safe-area-inset-bottom, 0px)); }
   .watch-side { bottom: calc(58px + env(safe-area-inset-bottom, 0px)); gap: 10px; }

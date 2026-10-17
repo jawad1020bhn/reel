@@ -48,7 +48,7 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.postMenu",
             h("button.viewer-close.btn.btn-icon", { title: "Close (Esc)", onclick: () => close() }, icons.icon("x", 22)),
             h("span.viewer-pos.badge.badge-dark"))),
 
-        /* Vertical feed arrows (desktop only — touch feeds use swipes) */
+        /* Vertical feed arrows (desktop ≥900px only — mobile/touch feeds use swipes, see viewer.css) */
         h("div.viewer-vnav",
           h("button.viewer-vnav-btn.viewer-vnav-up.btn.btn-icon", { title: "Previous post (↑)", onclick: () => step(-1) }, icons.icon("chevronUp", 24)),
           h("button.viewer-vnav-btn.viewer-vnav-down.btn.btn-icon", { title: "Next post (↓)", onclick: () => step(1) }, icons.icon("chevronDown", 24))),

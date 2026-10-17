@@ -115,7 +115,8 @@
   opacity: 0.15;
   pointer-events: none;
 }
-@media (pointer: coarse) {
+/* touch devices and mobile widths: the feed is swiped, no up/down arrows */
+@media (pointer: coarse), (max-width: 899px) {
   .viewer-vnav { display: none; }
 }
 
