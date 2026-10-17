@@ -48,6 +48,8 @@ XR.define("app.activity", ["app.ports.storage", "core.events", "core.domain.even
     markSeen(post.id, true);
   }
   const creatorAffinity = () => new Map(Object.entries(data.creators));
+  /** Post ids opened most recently (newest first); falls back to most-opened when no timestamps exist. */
+  const recentOpens = (n = 12) => Object.entries(data.opens).sort((a, b) => (data.seen[b[0]] || 0) - (data.seen[a[0]] || 0) || b[1] - a[1]).slice(0, n).map(([id]) => id);
 
   /* ------------------------------------------------------------- starred -- */
   const isStarred = (id) => !!data.starred[id];
@@ -160,7 +162,7 @@ XR.define("app.activity", ["app.ports.storage", "core.events", "core.domain.even
 
   return {
     load, KEY,
-    isSeen, markSeen, noteOpen, creatorAffinity,
+    isSeen, markSeen, noteOpen, creatorAffinity, recentOpens,
     isStarred, toggleStar, starredAt,
     isHidden, toggleHidden,
     isUnavailable, markUnavailable, unavailableIds, clearUnavailable,

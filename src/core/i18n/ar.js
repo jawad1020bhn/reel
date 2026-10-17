@@ -21,7 +21,15 @@ XR.define("core.i18n.ar", ["core.i18n"], function (i18n) {
     "Let the next clip find you.": "دع المقطع التالي يجدك.", "Start watching": "ابدأ المشاهدة", "Jump back in": "عُد إلى حيث كنت", "Spotlight": "تحت الضوء", "Newest unseen": "الأحدث غير المُشاهد",
     "Shorts for you": "مقاطع قصيرة لك", "Unseen clips, shuffled daily": "مقاطع لم تُشاهد، تُخلط يوميًا", "Recently saved": "المحفوظة مؤخرًا", "Long form": "مقاطع طويلة", "Clips over 3 minutes": "مقاطع تتجاوز 3 دقائق",
     "Photo stories": "قصص مصوّرة", "Multi-image posts": "منشورات متعددة الصور", "Single stills": "صور مفردة", "On this day": "في مثل هذا اليوم", "Same date, earlier years": "نفس التاريخ في سنوات سابقة",
-    "Random picks": "اختيارات عشوائية", "A fresh shuffle every day": "خلطة جديدة كل يوم", "Unseen posts from creators you keep opening": "منشورات لم تُشاهد من حسابات تفتحها كثيرًا", "Most liked": "الأكثر إعجابًا",
+    "Random picks": "اختيارات عشوائية", "A fresh shuffle every day": "خلطة جديدة كل يوم", "A fresh shuffle every time": "خلطة جديدة في كل مرة", "Unseen clips, freshly shuffled": "مقاطع لم تُشاهد، خُلطت للتو",
+    "Shuffle": "خلط", "Discover reshuffled": "أُعيد خلط صفحة اكتشف", "New shelves and a new spotlight": "رفوف جديدة وإضاءة جديدة", "{n} shelves picked for this visit": "{n} رفًا اختيرت لهذه الزيارة",
+    "Because you watched @{x}": "لأنك شاهدت @{x}", "More like something you opened": "المزيد مما يشبه ما فتحته", "Watch again": "شاهد مجددًا", "Starred and already seen — worth a replay": "مميزة بنجمة وشوهدت من قبل — تستحق الإعادة",
+    "From {x}": "من {x}", "One of your collections": "إحدى مجموعاتك", "New this week": "جديد هذا الأسبوع", "Saved in the last 7 days, unseen first": "حُفظت خلال آخر 7 أيام، غير المشاهدة أولًا",
+    "Back in {x}": "عودة إلى {x}", "Posted that month": "نُشرت في ذلك الشهر", "You saved these in {x}": "حفظت هذه في {x}", "A bookmarking spree": "موجة حفظ", "From the archive": "من الأرشيف", "The oldest posts in your library": "أقدم المنشورات في مكتبتك",
+    "Most viewed": "الأكثر مشاهدة", "Biggest view counts": "أعلى أعداد المشاهدات", "Hidden gems": "جواهر مخفية", "Unseen posts that never went viral": "منشورات لم تُشاهد ولم تنتشر",
+    "From @{x}": "من @{x}", "{n} posts by this creator": "{n} منشورًا من هذا الحساب", "Posts carrying this tag": "منشورات تحمل هذا الوسم", "In {x}": "بلغة {x}", "Posts in another language": "منشورات بلغة أخرى",
+    "Quick hits": "لقطات سريعة", "Under 20 seconds each": "أقل من 20 ثانية لكل منها", "Settle in": "خذ راحتك", "The longest videos you saved": "أطول الفيديوهات التي حفظتها",
+    "Still unopened": "لم تُفتح بعد", "You saved these and never looked": "حفظتها ولم تنظر إليها قط", "Unseen posts from creators you keep opening": "منشورات لم تُشاهد من حسابات تفتحها كثيرًا", "Most liked": "الأكثر إعجابًا",
     "Watch all": "شاهد الكل", "All": "الكل", "See all": "عرض الكل", "Reshuffle": "إعادة الخلط", "Reshuffle Discover": "إعادة خلط اكتشف", "Shuffle more": "خلط المزيد", "Nothing to watch here": "لا شيء للمشاهدة هنا",
 
     /* library */

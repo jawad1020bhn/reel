@@ -8,6 +8,26 @@ XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "
     const h = dom.h;
     let host = null, rails = [], offs = [], refreshTimer = 0;
 
+    /* The page mix is seeded per session: stable while you browse around and come back,
+       new on a page reload or when you press Shuffle. */
+    const SEED_KEY = "xreels.discover.seed";
+    const newSeed = () => 1 + Math.floor(Math.random() * 2147483646);
+    function sessionSeed() {
+      try { const v = Number(sessionStorage.getItem(SEED_KEY)); if (v > 0) return v; } catch { /* unavailable */ }
+      return reseed();
+    }
+    function reseed() {
+      const v = newSeed();
+      try { sessionStorage.setItem(SEED_KEY, String(v)); } catch { /* ignore */ }
+      return v;
+    }
+    function shuffle() {
+      reseed();
+      render();
+      if (host) host.scrollTo?.({ top: 0, behavior: "smooth" });
+      actions.toast("Discover reshuffled");
+    }
+
     const KIND_LABEL = { photo: "Photo", carousel: "Album", short: "Short", long: "Long video", gif: "GIF", text: "Post" };
     const isFresh = (p) => Date.now() - (p.savedAt || 0) < 7 * 864e5;
 
@@ -19,10 +39,12 @@ XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "
 
       const stats = catalog.stats();
       const page = h("div.discover");
-      const spot = catalog.spotlight();
+      const seed = sessionSeed();
+      const spot = catalog.spotlight({ seed });
       if (spot) page.appendChild(billboard(spot));
 
-      const built = catalog.buildRails({ limit: 24 });
+      const built = catalog.buildRails({ limit: 24, seed });
+      page.appendChild(shelfBar(built.length));
       for (const r of built) page.appendChild(rail(r));
       page.appendChild(foot(stats));
       host.appendChild(page);
@@ -175,6 +197,13 @@ XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "
     }
 
     /* ---------------------------------------------------------------- rails -- */
+    /** Thin bar above the shelves: how many are on this mix, and the Shuffle control. */
+    function shelfBar(n) {
+      return h("div.discover-bar",
+        h("p.discover-bar-note", t("{n} shelves picked for this visit", { n })),
+        W.btn("Shuffle", { icon: "shuffle", kind: "ghost", onClick: shuffle, title: t("New shelves and a new spotlight") }));
+    }
+
     function startList(spec, label) {
       const ids = catalog.query(spec).items.map((p) => p.id);
       if (!ids.length) return actions.toast("Nothing matches right now");
@@ -183,23 +212,24 @@ XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "
 
     function rail(r) {
       const ids = r.items.map((p) => p.id);
+      const title = t(r.title, r.params), hint = r.hint ? t(r.hint, r.hintParams) : "";
       const acts = [];
-      if (r.watchable) acts.push({ label: "Watch", icon: "play", run: () => actions.watch(ids, 0, { label: r.title, spec: r.spec }) });
+      if (r.watchable) acts.push({ label: "Watch", icon: "play", run: () => actions.watch(ids, 0, { label: title, spec: r.spec }) });
       if (r.spec && !r.specDisabled) acts.push({ label: "Explore all", icon: "grid", run: () => actions.goLibrary(engine.toParams(r.spec)), title: "Open in Library" });
       const ranked = r.layout === "rank";
 
       const api = railUI.createRail({
-        id: r.id, title: r.title, hint: r.hint, size: r.layout === "wide" ? "wide" : ranked ? "rank" : "",
+        id: r.id, title, hint, size: r.layout === "wide" ? "wide" : ranked ? "rank" : "",
         actions: acts,
         /* shelves build their tiles when they approach the viewport: Discover mounts
            in one frame instead of allocating ~200 cards up front */
         items: r.items, lazy: true, skeleton: ranked ? 5 : 7,
-        render: (post, i) => ranked ? rankCard(post, i, { ids, label: r.title })
+        render: (post, i) => ranked ? rankCard(post, i, { ids, label: title })
           : tiles.make(post, {
-            ids, index: i, label: r.title,
+            ids, index: i, label: title,
             width: r.layout === "wide" ? 320 : 260,
             shape: "wide",
-            tag: r.id === "recent" && isFresh(post) ? "NEW" : "",
+            tag: (r.id === "recent" || r.id === "fresh") && isFresh(post) ? "NEW" : "",
           }),
       });
       rails.push(api);
@@ -241,7 +271,7 @@ XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "
       unmount() { for (const off of offs) off(); offs = []; for (const r of rails) r.destroy(); rails = []; host = null; },
       commands: () => [
         { id: "discover.shuffle", title: "Shuffle play", hint: "Random posts in Watch", icon: "shuffle", run: () => actions.shufflePlay() },
-        { id: "discover.refresh", title: "Reshuffle Discover", icon: "refresh", run: () => render() },
+        { id: "discover.refresh", title: "Reshuffle Discover", hint: "New shelves and a new spotlight", icon: "shuffle", run: shuffle },
       ],
     };
   });
