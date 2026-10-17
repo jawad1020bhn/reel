@@ -4,8 +4,23 @@
 .app { height: 100dvh; width: 100%; overflow: hidden; background: var(--bg); }
 .main { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; position: relative; }
 .outlet { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; position: relative; }
-.outlet > * { animation: page-in var(--dur-slow) var(--ease) both; }
+.outlet > * { animation: page-in 420ms var(--ease) both; }
 @keyframes page-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* Route transitions: the outlet is its own snapshot, so the fixed header and the
+   scrollbar never move. The new page cross-fades up over the old one in 240ms;
+   shell/outlet.js only runs this when the user has not asked for reduced motion. */
+.outlet { view-transition-name: page; }
+@supports (view-transition-name: page) {
+  ::view-transition-group(page) { animation-duration: 240ms; animation-timing-function: var(--ease); }
+  ::view-transition-old(page) { animation: page-vt-out 180ms var(--ease-soft) both; }
+  ::view-transition-new(page) { animation: page-vt-in 240ms var(--ease) both; }
+  @keyframes page-vt-out { to { opacity: 0; transform: scale(1.006); } }
+  @keyframes page-vt-in { from { opacity: 0; transform: translateY(10px) scale(0.998); } }
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(page), ::view-transition-old(page), ::view-transition-new(page) { animation: none !important; }
+}
 
 /* content pages (everything except Discover's full-bleed canvas and Watch) */
 .outlet:not([data-feature="watch"]) > :not(.discover) {
