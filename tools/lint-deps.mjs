@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* tools/lint-deps.mjs — architecture guard (docs/ARCHITECTURE.md §3 "allowed dependencies").
+/* tools/lint-deps.mjs — architecture guard (see DESIGN.md — allowed dependencies between layers).
    Parses every XR.define(name, [deps], …) in src/ and checks that each dependency edge
    respects the layer rules, that features never import each other, and that every file
    referenced by src/manifest.js exists (and vice-versa). Zero dependencies; runs with
