@@ -61,6 +61,11 @@
 .chip-row-body { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
 .lib-grid { min-height: 40vh; }
 .lib-count { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lib-sort-note { display: none; }
+@media (max-width: 700px) {
+  .lib-sort-note:not(:empty) { display: inline; }
+  .lib-sort-note:not(:empty)::before { content: " · "; }
+}
 
 /* filter sheet */
 .filter-sheet { display: flex; flex-direction: column; gap: 14px; }

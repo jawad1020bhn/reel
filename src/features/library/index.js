@@ -25,7 +25,8 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
       const chips = h("div.lib-chips");
       const gridHost = h("div.lib-grid");
       const bulkBar = buildBulkBar();
-      const head = h("header.page-head", h("div", h("h1.page-title", "Library"), h("p.page-sub.lib-count", "")));
+      const head = h("header.page-head", h("div", h("h1.page-title", "Library"),
+        h("p.page-sub.lib-count", h("span.lib-count-n"), h("span.lib-sort-note"))));
       page.append(head, toolbar, chips, gridHost);
       outlet.appendChild(page);
       /* The bar is fixed to the viewport, so it cannot live under the page's
@@ -179,7 +180,7 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
       const kc = chipCounts("kind", KIND_CHIPS);
       const sc = chipCounts("state", STATE_CHIPS);
       const kindRow = chipGroup("Type", KIND_CHIPS.map(([value, label, icon]) =>
-        chipFor("kind:" + value, W.chip({ label, icon, count: kc[value], active: S.spec.kind === value, onClick: () => setSpec({ kind: value }) }))));
+        chipFor("kind:" + value, W.chip({ label, icon, count: kc[value], active: S.spec.kind === value, onClick: () => setSpec({ kind: S.spec.kind === value ? "all" : value }) }))));
       const stateRow = chipGroup("State", STATE_CHIPS.map(([value, label, icon]) =>
         chipFor("state:" + value, W.chip({ label, icon, count: sc[value], active: S.spec.state === value, onClick: () => setSpec({ state: S.spec.state === value ? "all" : value }) }))));
       const applied = [];
@@ -204,7 +205,12 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
         /* Say the number once. When filters are on, the second number is the
            whole archive, so "1 of 41" explains what the filters cost. */
         const n = S.result.total, all = catalog.query({}).total;
-        countEl.textContent = hasFilters() ? `${dom.compact(n)} of ${dom.compact(all)} ${all === 1 ? "post" : "posts"}` : `${dom.compact(n)} ${n === 1 ? "post" : "posts"}`;
+        const narrowed = hasFilters() && n !== all;
+        const countN = countEl.querySelector(".lib-count-n");
+        if (countN) countN.textContent = narrowed ? `${dom.compact(n)} of ${dom.compact(all)} ${all === 1 ? "post" : "posts"}` : `${dom.compact(n)} ${n === 1 ? "post" : "posts"}`;
+        /* Phones fold sorting into the sheet, so the order needs a visible home. */
+        const note = countEl.querySelector(".lib-sort-note");
+        if (note) note.textContent = S.spec.sort && S.spec.sort !== "saved" ? (SORT_OPTIONS.find(([v]) => v === S.spec.sort) || [])[1] || "" : "";
         countEl.title = engine.describe(S.spec);
       }
       if (resetScroll) S.host.scrollTop = 0;
