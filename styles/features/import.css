@@ -1,0 +1,32 @@
+/* features/import.css — bring your bookmarks in */
+.import-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; margin-bottom: 18px; }
+.import-card { display: flex; flex-direction: column; gap: 10px; padding: 18px; background: rgb(255 255 255 / 0.03); border: 1px solid var(--line); border-radius: var(--r-lg); }
+.import-card-head { display: flex; align-items: center; gap: 8px; }
+.import-card-head .icon { color: var(--accent); }
+.import-card h2 { font-size: 15.5px; font-weight: 600; }
+.dropzone {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  min-height: 150px; padding: 20px; border: 2px dashed var(--line-strong); border-radius: var(--r);
+  cursor: pointer; color: var(--fg-1); text-align: center;
+  transition: border-color var(--dur) var(--ease-soft), background var(--dur) var(--ease-soft);
+}
+.dropzone:hover, .dropzone.over { border-color: var(--accent); background: var(--accent-soft); }
+.dropzone .icon { color: var(--accent); }
+.import-paste { min-height: 130px; width: 100%; }
+.steps { padding-left: 18px; list-style: decimal; display: flex; flex-direction: column; gap: 6px; color: var(--fg-1); font-size: 13.5px; }
+.url-row { display: flex; gap: 8px; width: 100%; }
+.import-result .panel-title .icon { color: var(--success); }
+.import-sample { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 14px; }
+.import-sample img { width: 64px; height: 64px; border-radius: var(--r-xs); object-fit: cover; background: var(--bg-1); }
+.import-error { display: flex; gap: 12px; padding: 16px; border-radius: var(--r); background: rgb(224 29 41 / 0.1); border: 1px solid rgb(224 29 41 / 0.3); }
+.import-error .icon { color: #ff6b74; flex: none; }
+
+/* import diff card */
+.diff-card { border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden; }
+.diff-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.diff-row { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-top: 1px solid var(--line); font-size: 13px; }
+.diff-row:first-of-type { border-top: 0; }
+.diff-pill { margin-left: auto; font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; padding: 2px 8px; border-radius: var(--r-pill); }
+.diff-pill.add { color: var(--success); background: rgb(70 212 136 / 0.12); }
+.diff-pill.chg { color: var(--warning); background: rgb(255 181 71 / 0.12); }
+.diff-pill.gone { color: #ff6b74; background: rgb(224 29 41 / 0.12); }

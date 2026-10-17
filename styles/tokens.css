@@ -1,0 +1,134 @@
+/* tokens.css — 1FLEX design tokens (2026 cinematic minimal).
+   Design language: a streaming-grade dark canvas — zinc-900 page (#18181b), pure black
+   void behind it, ONE crimson accent (#e50914) reserved for status & brand, white pill
+   CTAs, 10px-radius artwork cards, glass chrome (white/x + backdrop blur), Bebas Neue
+   display type over Geist UI type, and fast expo-eased motion (cubic-bezier(.22,1,.36,1)).
+   Dark-only by design: the artwork is authored for black. Light theme & accent picker
+   are intentionally gone. */
+
+@font-face {
+  font-family: "Bebas Neue";
+  src: url("fonts/bebas-neue.woff2") format("woff2");
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Geist";
+  src: url("fonts/geist-latin.woff2") format("woff2");
+  font-weight: 300 800; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Geist Mono";
+  src: url("fonts/geist-mono.woff2") format("woff2");
+  font-weight: 400 600; font-style: normal; font-display: swap;
+}
+
+:root {
+  color-scheme: dark;
+
+  /* ---- type -------------------------------------------------------------- */
+  --font: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --display: "Bebas Neue", "Arial Narrow", Impact, sans-serif;
+  --display-weight: 400;          /* Bebas ships one weight only — never faux-bold it */
+  --display-tracking: 0.015em;
+  --eyebrow-size: 10.5px;
+  --eyebrow-tracking: 0.16em;
+
+  /* ---- palette ----------------------------------------------------------- */
+  /* neutrals: void → app surface → elevated */
+  --void: #000000;                /* html background, header scrim origin */
+  --bg: #18181b;                  /* the page itself (zinc-900) — hero vignettes end HERE */
+  --bg-1: #101012;                /* sunken wells, code, masonry gaps */
+  --bg-2: #1f1f23;                /* inputs, quiet controls */
+  --bg-3: #2a2a2e;                /* hover fill */
+  --bg-4: #3a3a3f;                /* strong hover fill */
+  --card: #0b0b0b;                /* card/popover token */
+  --surface: #181818;             /* hover-card / modal surface (use with /95 + blur) */
+  --footer: #0a0a0a;              /* footer band */
+
+  --fg: #f8f8f8;
+  --fg-1: rgb(255 255 255 / 0.85);
+  --fg-2: #8f8f8f;                /* muted-foreground */
+  --fg-3: rgb(255 255 255 / 0.40);
+
+  --line: #222222;
+  --line-strong: rgb(255 255 255 / 0.15);
+  --overlay: rgb(0 0 0 / 0.76);
+
+  /* panels for menus/toasts/sheets: opaque, near-black */
+  --glass: #141416;
+  --glass-strong: #1c1c1f;
+
+  /* accent — one crimson, used sparingly (badges, progress, brand, focus) */
+  --accent-h: 356; --accent-s: 86%; --accent-l: 47%;   /* kept for chart code */
+  --accent: #e50914;
+  --accent-strong: #f6121d;
+  --accent-soft: rgb(229 9 20 / 0.16);
+  --accent-glow: rgb(229 9 20 / 0.4);
+  --on-accent: #ffffff;
+
+  /* the only other chromatic notes allowed */
+  --amber: #ffc425;               /* rating chip */
+  --teal: #54b9c5;                /* "explore" affordances */
+
+  --danger: #e01d29;
+  --success: #46d488;
+  --warning: #ffb547;
+
+  /* ---- elevation: functional and quiet ----------------------------------- */
+  --shadow-1: 0 2px 10px rgb(0 0 0 / 0.4);
+  --shadow-2: 0 12px 34px rgb(0 0 0 / 0.55);
+  --shadow-3: 0 24px 64px rgb(0 0 0 / 0.7);
+  --shadow-card: 0 22px 44px rgb(0 0 0 / 0.6);
+
+  /* ---- radii: artwork 10px · chrome pills · hero 14px -------------------- */
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r: 8px;
+  --r-lg: 10px;                   /* cards */
+  --r-xl: 14px;                   /* billboard */
+  --r-pill: 999px;
+
+  /* ---- layout ------------------------------------------------------------- */
+  --hdr-h: 64px;
+  --gutter: 16px;                 /* page gutter: 16 → 32 → 64 with width */
+  --content-max: 1520px;
+  --tile-gap: 8px;
+  --tile-min: 180px;
+
+  /* ---- motion: fast out, long settle -------------------------------------- */
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);          /* the signature expo curve */
+  --ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur: 200ms;
+  --dur-nav: 500ms;
+  --dur-preview: 380ms;
+  --dur-slow: 550ms;
+
+  --z-sticky: 10;
+  --z-arrow: 20;
+  --z-hdr: 50;
+  --z-menu: 60;
+  --z-viewer: 70;
+  --z-dialog: 80;
+  --z-toast: 90;
+  --z-lock: 100;
+  --z-splash: 110;
+  --z-preview: 120;
+
+  --hero-h: clamp(460px, 76vh, 780px);
+}
+
+@media (min-width: 768px)  { :root { --gutter: 32px; --hdr-h: 72px; } }
+@media (min-width: 1024px) { :root { --gutter: 64px; --hdr-h: 80px; } }
+
+/* density & motion preferences stay user-tunable */
+[data-density="compact"]     { --tile-gap: 6px;  --tile-min: 148px; }
+[data-density="cozy"]        { --tile-gap: 8px;  --tile-min: 180px; }
+[data-density="comfortable"] { --tile-gap: 12px; --tile-min: 232px; }
+
+[data-motion="reduce"] *, [data-motion="reduce"] *::before, [data-motion="reduce"] *::after {
+  transition-duration: 0.01ms !important;
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  scroll-behavior: auto !important;
+}

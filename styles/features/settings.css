@@ -1,0 +1,6 @@
+/* features/settings.css — preferences, privacy, data, about */
+.settings { max-width: 860px; }
+@media (max-width: 640px) {
+  .row { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .row-control { max-width: 100%; }
+}

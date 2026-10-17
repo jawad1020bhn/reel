@@ -1,0 +1,4 @@
+/* features/discover.css — page-level layout for Discover (billboard, rails and
+   footer visuals live in editorial.css). */
+.discover { padding: 0 0 30px; }
+.discover-foot { padding: 10px var(--gutter); }

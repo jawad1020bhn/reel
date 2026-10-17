@@ -1,0 +1,5 @@
+{
+  "compilerOptions": { "target": "ES2022", "checkJs": false, "module": "none", "lib": ["ES2022", "DOM", "DOM.Iterable"], "allowJs": true, "noEmit": true },
+  "include": ["src/**/*.js", "types.d.ts", "tests/**/*.js", "tools/**/*.mjs"],
+  "exclude": ["node_modules", "data", "vendor"]
+}

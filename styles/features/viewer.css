@@ -1,0 +1,653 @@
+﻿/* features/viewer.css â€” modern Reels & Netflix theatre overlay */
+.viewer {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-viewer);
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  transition: opacity 180ms var(--ease);
+  background: transparent;
+  overflow: hidden;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.viewer.in { opacity: 1; }
+
+.viewer-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgb(0 0 0 / 0.97);
+}
+
+/* Subtle ambient glow behind the player frame */
+.viewer-ambient {
+  position: absolute;
+  inset: -60px;
+  background-size: cover;
+  background-position: center;
+  filter: blur(90px) brightness(0.24) saturate(1.4);
+  opacity: 0.4;
+  transform: scale(1.15);
+  pointer-events: none;
+  transition: background-image 350ms ease;
+}
+
+/* Floating Top Bar */
+.viewer-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  pointer-events: none;
+  background: linear-gradient(to bottom, rgb(0 0 0 / 0.72) 0%, transparent 100%);
+}
+.viewer-top-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  pointer-events: auto;
+}
+.viewer-close {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  color: #fff;
+  background: rgb(10 10 13 / 0.62);
+  border: 1px solid rgb(255 255 255 / 0.12);
+  transition: background 120ms var(--ease), transform 120ms var(--ease);
+}
+.viewer-close:hover {
+  background: rgb(10 10 13 / 0.8);
+  transform: scale(1.05);
+}
+.viewer-pos {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 6px 14px;
+  border-radius: var(--r-pill);
+  background: rgb(0 0 0 / 0.5);
+  color: #fff;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Vertical feed arrows (desktop) */
+.viewer-vnav {
+  position: absolute;
+  left: 26px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.viewer-vnav-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  color: #fff;
+  background: rgb(10 10 13 / 0.62);
+  border: 1px solid rgb(255 255 255 / 0.14);
+  transition: background 140ms var(--ease), transform 140ms var(--ease);
+}
+.viewer-vnav-btn:hover {
+  background: rgb(10 10 13 / 0.8);
+  transform: scale(1.08);
+}
+.viewer-vnav-btn:active {
+  transform: scale(0.96);
+}
+.viewer-vnav-btn:disabled {
+  opacity: 0.15;
+  pointer-events: none;
+}
+@media (pointer: coarse) {
+  .viewer-vnav { display: none; }
+}
+
+/* Theatre Stage: Centers the adaptive frame + side rail */
+.viewer-stage {
+  position: relative;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 40px 96px 20px;
+  box-sizing: border-box;
+}
+
+/* Adaptive Media Frame (Dynamic sizing based on aspect ratio) */
+.viewer-frame {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  overflow: hidden;
+  box-shadow: 0 16px 60px rgb(0 0 0 / 0.9);
+  border: 1px solid rgb(255 255 255 / 0.08);
+  transition: width 240ms var(--ease), height 240ms var(--ease), border-radius 240ms var(--ease);
+}
+
+/* Portrait (9:16 Reels / TikTok style, like phone frame) */
+.viewer-frame[data-aspect="portrait"] {
+  height: min(88vh, 880px);
+  width: calc(min(88vh, 880px) * var(--ar, 0.5625));
+  max-width: min(90vw, 540px);
+  border-radius: var(--r-xl);
+}
+
+/* Landscape (16:9 Netflix / Cinema style) */
+.viewer-frame[data-aspect="landscape"] {
+  width: min(88vw, 1280px);
+  height: min(86vh, calc(min(88vw, 1280px) / var(--ar, 1.7778)));
+  max-height: min(86vh, 850px);
+  border-radius: var(--r-lg);
+}
+
+/* Square (1:1) */
+.viewer-frame[data-aspect="square"] {
+  width: min(84vh, 84vw, 760px);
+  height: min(84vh, 84vw, 760px);
+  border-radius: var(--r-lg);
+}
+
+/* Media Box & Elements: Always contain by default â€” zero cropping! */
+.viewer-media-box {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  background: #000;
+  overflow: hidden;
+}
+.viewer-img, .viewer-video {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  background: transparent;
+  display: block;
+}
+.viewer-frame[data-fit="cover"] .viewer-img,
+.viewer-frame[data-fit="cover"] .viewer-video {
+  object-fit: cover;
+}
+
+.viewer-img { cursor: zoom-in; }
+.viewer-frame[data-fit="cover"] .viewer-img { cursor: zoom-out; }
+
+/* Carousel Arrows inside media box for multi-image posts */
+.viewer-frame-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 5;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  color: #fff;
+  background: rgb(0 0 0 / 0.52);
+  border: 1px solid rgb(255 255 255 / 0.16);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 140ms ease, transform 140ms ease, background 140ms ease;
+}
+.viewer-frame:hover .viewer-frame-arrow {
+  opacity: 0.9;
+}
+.viewer-frame-arrow:hover {
+  opacity: 1 !important;
+  transform: translateY(-50%) scale(1.1);
+  background: rgb(10 10 13 / 0.82);
+}
+.viewer-frame-prev { left: 12px; }
+.viewer-frame-next { right: 12px; }
+[data-touch="on"] .viewer-frame-arrow { display: none; }
+
+/* Center Play/Pause Glyph */
+.viewer-playglyph {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(0.7);
+  transition: opacity 160ms var(--ease), transform 160ms var(--ease);
+}
+.viewer-playglyph.pop {
+  opacity: 1;
+  transform: scale(1);
+  animation: playglyph-anim 480ms var(--ease);
+}
+@keyframes playglyph-anim {
+  0% { opacity: 0.9; transform: scale(0.8); }
+  40% { opacity: 1; transform: scale(1.15); }
+  100% { opacity: 0; transform: scale(1.25); }
+}
+.viewer-playglyph .icon {
+  width: 76px;
+  height: 76px;
+  padding: 18px;
+  border-radius: 50%;
+  background: rgb(10 10 13 / 0.62);
+  
+  color: #fff;
+}
+
+/* Unplayable Fallback */
+.viewer-unplayable {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgb(0 0 0 / 0.8);
+  color: #fff;
+  text-align: center;
+  padding: 24px;
+  z-index: 5;
+}
+
+/* Reels/TikTok Bottom-Left Overlay on the Media */
+.viewer-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  z-index: 4;
+}
+.viewer-gradient {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 52%;
+  background: linear-gradient(to top, rgb(0 0 0 / 0.88) 0%, rgb(0 0 0 / 0.4) 60%, transparent 100%);
+  pointer-events: none;
+}
+
+.viewer-caption {
+  font-size: 14px;
+  line-height: 1.45;
+  color: #fff;
+  overflow-wrap: anywhere;
+}
+.viewer-caption.clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.viewer-caption .link {
+  color: #fff;
+  font-weight: 600;
+}
+.viewer-caption-more {
+  background: transparent;
+  border: 0;
+  color: var(--accent);
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.viewer-quote {
+  padding: 8px 10px;
+  border-left: 3px solid var(--accent);
+  background: rgb(10 10 13 / 0.62);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  font-size: 12.5px;
+  color: #fff;
+}
+.viewer-quote p { margin: 2px 0; }
+
+.viewer-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* Video Scrubber & Playback Controls (Netflix style) */
+.viewer-controls {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 18px 14px;
+  pointer-events: auto;
+  color: #fff;
+}
+.viewer-ctrl-play, .viewer-ctrl-mute, .viewer-ctrl-speed {
+  color: #fff;
+  background: transparent;
+  border-radius: 50%;
+  border: 0;
+  padding: 4px;
+  cursor: pointer;
+  flex: none;
+}
+.viewer-ctrl-play:hover, .viewer-ctrl-mute:hover {
+  background: rgb(255 255 255 / 0.16);
+}
+.viewer-scrub {
+  position: relative;
+  flex: 1;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+.viewer-scrub::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 4px;
+  border-radius: 2px;
+  background: rgb(255 255 255 / 0.28);
+  transition: height 120ms ease;
+}
+.viewer-scrub-buffer {
+  position: absolute;
+  left: 0;
+  height: 4px;
+  border-radius: 2px;
+  background: rgb(255 255 255 / 0.38);
+  width: 0;
+  transition: height 120ms ease;
+}
+.viewer-scrub-fill {
+  position: absolute;
+  left: 0;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--accent);
+  width: 0;
+  transition: height 120ms ease;
+}
+.viewer-scrub:hover::before,
+.viewer-scrub:hover .viewer-scrub-buffer,
+.viewer-scrub:hover .viewer-scrub-fill {
+  height: 6px;
+}
+.viewer-time {
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.9;
+  white-space: nowrap;
+  flex: none;
+}
+
+/* Multi-Media Carousel Filmstrip */
+.viewer-strip {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border-radius: var(--r-pill);
+  background: rgb(10 10 13 / 0.72);
+  border: 1px solid rgb(255 255 255 / 0.14);
+  max-width: calc(100% - 24px);
+  overflow-x: auto;
+}
+.viewer-strip-thumbs {
+  display: flex;
+  gap: 6px;
+}
+.viewer-thumb {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 2px solid transparent;
+  opacity: 0.65;
+  transition: opacity 120ms var(--ease), border-color 120ms var(--ease), transform 120ms var(--ease);
+  cursor: pointer;
+  flex: none;
+  background: #000;
+  padding: 0;
+}
+.viewer-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.viewer-thumb .icon {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  color: #fff;
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.8));
+}
+.viewer-thumb.on, .viewer-thumb:hover {
+  opacity: 1;
+  border-color: var(--accent);
+  transform: scale(1.05);
+}
+.viewer-strip-badge {
+  font-size: 11.5px;
+  padding: 3px 8px;
+}
+
+/* Floating Action Rail (Right) */
+.viewer-rail {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  margin-left: 20px;
+  z-index: 8;
+  flex: none;
+}
+.viewer-rail-creator .avatar {
+  width: 46px;
+  height: 46px;
+  border: 2px solid rgb(255 255 255 / 0.65);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.7);
+}
+.viewer-rail-creator .viewer-rail-label {
+  max-width: 72px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.viewer-rail-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  color: #fff;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  filter: drop-shadow(0 2px 6px rgb(0 0 0 / 0.6));
+  transition: transform 120ms var(--ease);
+  padding: 0;
+}
+.viewer-rail-btn:hover {
+  transform: scale(1.08);
+}
+.viewer-rail-btn:active {
+  transform: scale(0.94);
+}
+.viewer-rail-btn .icon {
+  width: 46px;
+  height: 46px;
+  padding: 11px;
+  border-radius: 50%;
+  background: rgb(10 10 13 / 0.62);
+  border: 1px solid rgb(255 255 255 / 0.12);
+  color: #fff;
+  transition: color 120ms ease, background 120ms ease;
+}
+.viewer-rail-btn.is-active .icon,
+.viewer-rail-btn.on .icon {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgb(255 255 255 / 0.18);
+}
+.viewer-rail-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  opacity: 0.88;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.8);
+}
+
+/* Info Card (caption + technical details on demand) */
+.viewer-info-card {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: min(340px, calc(100% - 32px));
+  max-height: min(72vh, 660px);
+  overflow: auto;
+  background: rgb(17 17 20 / 0.97);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgb(255 255 255 / 0.16);
+  border-radius: var(--r-lg);
+  padding: 16px;
+  z-index: 10;
+  box-shadow: 0 16px 40px rgb(0 0 0 / 0.85);
+  display: none;
+  color: #fff;
+}
+.viewer-info-card.on {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: info-pop 160ms var(--ease);
+}
+@keyframes info-pop {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: none; }
+}
+.viewer-info-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.viewer-info-head b { font-size: 14px; }
+.viewer-info-close {
+  color: #fff;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.viewer-info-metrics {
+  display: flex;
+  gap: 14px;
+  font-size: 12.5px;
+  color: var(--fg-2);
+}
+.viewer-info-metrics span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.viewer-info-facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 12px;
+  font-size: 12.5px;
+  margin: 0;
+}
+.viewer-info-facts div { display: flex; flex-direction: column; }
+.viewer-info-facts dt {
+  color: var(--fg-2);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.viewer-info-facts dd {
+  margin: 0;
+  color: #fff;
+}
+
+/* Mobile & Touch Screen Adaptations */
+@media (max-width: 820px) {
+  .viewer-stage {
+    padding: 0;
+  }
+  .viewer-frame {
+    width: 100vw !important;
+    height: 100dvh !important;
+    max-width: none !important;
+    max-height: none !important;
+    border-radius: 0 !important;
+    border: 0 !important;
+  }
+  .viewer-rail {
+    position: absolute;
+    right: 12px;
+    bottom: 84px;
+    margin-left: 0;
+    gap: 8px;
+  }
+  .viewer-rail-btn .icon {
+    width: 42px;
+    height: 42px;
+    padding: 10px;
+  }
+  .viewer-nav,
+  .viewer-vnav {
+    display: none;
+  }
+  .viewer-overlay {
+    padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  }
+  .viewer-controls {
+    padding: 4px 14px 10px;
+  }
+  .viewer-rail-creator .avatar {
+    width: 42px;
+    height: 42px;
+  }
+}
+
+@media (max-height: 720px) and (max-width: 820px) {
+  .viewer-rail {
+    bottom: 70px;
+    gap: 4px;
+  }
+  .viewer-rail-btn .icon {
+    width: 36px;
+    height: 36px;
+    padding: 8px;
+  }
+  .viewer-rail-label {
+    display: none;
+  }
+}
+
