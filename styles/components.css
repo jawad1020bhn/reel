@@ -208,11 +208,16 @@ kbd { display: inline-flex; align-items: center; justify-content: center; min-wi
   box-shadow: 0 2px 10px rgb(0 0 0 / 0.28);
   transition: box-shadow var(--dur) var(--ease-soft), transform var(--dur) var(--ease);
 }
-/* shimmer placeholder until the thumbnail reports back (img.is-loaded set in ui.tile) */
-.tile-media:has(.tile-img:not(.is-loaded)) {
-  background: linear-gradient(100deg, var(--bg-1) 42%, #1f1f23 50%, var(--bg-1) 58%) 0 0 / 240% 100%;
-  animation: media-sheen 1.4s linear infinite;
+/* shimmer placeholder until the thumbnail reports back (img.is-loaded set in ui.tile).
+   The sheen lives on its own layer and only moves via transform, so pending grids
+   repaint once instead of re-rasterising a gradient on every tile every frame. */
+.tile-skel { position: absolute; inset: 0; z-index: 0; overflow: hidden; background: #24242a; box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.045); }
+.tile-skel::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(100deg, transparent 28%, rgb(255 255 255 / 0.065) 50%, transparent 72%);
+  transform: translateX(-101%); animation: sk-sweep 1.5s var(--ease-soft) infinite;
 }
+.tile-media:has(.tile-img.is-loaded) .tile-skel { display: none; }
 @keyframes media-sheen { to { background-position: -240% 0; } }
 .tile:hover .tile-media { transform: translateY(-3px); box-shadow: 0 18px 42px rgb(0 0 0 / 0.55); }
 .tile-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: opacity var(--dur) var(--ease-soft); opacity: 0; }
@@ -328,6 +333,40 @@ kbd { display: inline-flex; align-items: center; justify-content: center; min-wi
 .rail-wide .rail-item { width: 316px; }
 .rail-rank .rail-item { width: 296px; }
 .rail-item .tile-media { height: auto; }
+
+/* --------------------------------------------------------------- skeleton -- */
+/* One primitive for "content is on its way": a sunken block with a single slow
+   sheen. It never invents progress and never moves on its own — only the light.
+   Reserved by rail shelves (height matched to the real cards) and by the
+   feature pages that hold a poster-sized image. */
+.sk {
+  position: relative; display: block; overflow: hidden;
+  background: linear-gradient(180deg, #27272c, #1d1d21); border-radius: var(--r-lg);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.045);
+}
+.sk::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(100deg, transparent 26%, rgb(255 255 255 / 0.1) 50%, transparent 74%);
+  transform: translateX(-101%); animation: sk-sweep 1.35s var(--ease-soft) infinite;
+}
+@keyframes sk-sweep { to { transform: translateX(101%); } }
+/* media settle: a real image fades over its own shimmer once the frame lands */
+@keyframes media-in { from { opacity: 0; } }
+
+/* shelf ghosts — same box as the card they stand in for, so nothing shifts */
+.rail-skel { pointer-events: none; }
+/* an empty shelf has nothing to page through yet */
+.rail.is-loading .rail-arrow, .rail.is-loading .rail-ticks { opacity: 0; pointer-events: none; }
+.rail-skel-card { width: 100%; height: 141px; }
+.rail-wide .rail-skel-card { height: 178px; }
+.rail-rank .rail-skel-card { width: 168px; height: 250px; margin-left: auto; }
+@media (max-width: 767px) {
+  .rail-skel-card { height: 89px; }
+  .rail-wide .rail-skel-card { height: 137px; }
+  .rail-rank .rail-skel-card { width: 126px; height: 188px; }
+}
+/* the sheen runs once per insertion; shelves that load off-screen still arrive full */
+.rail-skel-card::after { animation-delay: calc(var(--i, 0) * 60ms); }
 .rail-arrow {
   position: absolute; top: 0; bottom: 16px; width: 3.5%; min-width: 42px; z-index: var(--z-arrow);
   display: grid; place-items: center; cursor: pointer; color: #fff; border: 0; padding: 0;

@@ -118,7 +118,7 @@ XR.define("features.import", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog", "
       dom.replace(box, h("section.panel.import-result",
         h("h3.panel-title", icons.icon("check", 18), " ", t("Ready to import")),
         h("div.stat-grid.compact", W.stat(an.posts.length, "posts"), W.stat(an.withMedia, "with media"), W.stat(an.videos, "videos"), W.stat(an.creators, "creators"), W.stat(an.dropped || 0, "unreadable"), W.stat(an.adapter, "format")),
-        sample.length ? h("div.import-sample", sample.map((p) => h("img", { src: media.thumb(p.media[0], 90), alt: "", loading: "lazy" }))) : h("p.muted", t("No media posts found in this file.")),
+        sample.length ? h("div.import-sample", sample.map((p) => h("img", { src: media.thumb(p.media[0], 90), alt: "", loading: "lazy", decoding: "async" }))) : h("p.muted", t("No media posts found in this file.")),
         diffCard,
         modeSeg ? h("div.stack", h("div.row-btns", modeSeg, nameInput), goneRow) : null,
         h("div.row-btns",

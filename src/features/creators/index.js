@@ -46,7 +46,7 @@ XR.define("features.creators", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry"
       const affinity = activity.creatorAffinity().get(c.username) || 0;
       return h("button.creator-card", { onclick: () => nav.go("creators", { user: c.username }), "aria-label": `@${c.username} — ${c.count} posts` },
         h("div.creator-thumbs", { "aria-hidden": "true" },
-          thumbs.map((p) => h("img", { src: media.thumb(p.media[0], 220), alt: "", loading: "lazy", class: prefs.get("blur") ? "blurred" : "" })),
+          thumbs.map((p) => h("img", { src: media.thumb(p.media[0], 220), alt: "", loading: "lazy", decoding: "async", class: prefs.get("blur") ? "blurred" : "" })),
           h("span.creator-thumbs-scrim"),
           h("span.creator-thumbs-glyph", icons.icon("play", 16, { filled: true }))),
         h("div.creator-row",

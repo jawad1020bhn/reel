@@ -24,6 +24,12 @@
 }
 .billboard-art, .bb-mobile-art { opacity: 0; transition: opacity 600ms var(--ease-soft); }
 .billboard-art.is-loaded, .bb-mobile-art.is-loaded { opacity: 1; }
+/* the hero's black frame holds a sheen until the poster decodes */
+.billboard-frame:has(.billboard-art:not(.is-loaded)),
+.bb-mobile-card:has(.bb-mobile-art:not(.is-loaded)) {
+  background: linear-gradient(100deg, var(--bg-1) 40%, #1d1d21 50%, var(--bg-1) 60%) 0 0 / 240% 100%;
+  animation: media-sheen 1.4s linear infinite;
+}
 @keyframes art-drift { from { transform: scale(1.04) translateX(0); } to { transform: scale(1.1) translateX(-1.6%); } }
 [data-motion="reduce"] .billboard-art, [data-motion="reduce"] .billboard-video { animation: none; }
 

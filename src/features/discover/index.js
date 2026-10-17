@@ -113,7 +113,7 @@ XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "
       /* mobile: portrait poster card with stacked pills */
       const mobile = h("div.bb-mobile",
         h("div.bb-mobile-card",
-          bg ? artReveal(h("img.bb-mobile-art", { src: bg, alt: m?.alt || "", draggable: false })) : h("div.bb-mobile-art"),
+          bg ? artReveal(h("img.bb-mobile-art", { src: bg, alt: m?.alt || "", draggable: false, decoding: "async" })) : h("div.bb-mobile-art"),
           h("div.bb-mobile-scrim"),
           h("p.bb-mobile-slate", h("span.bb-dot", { "aria-hidden": "true" }), t("Spotlight"), h("i", "·"), h("span.bb-slate-soft", t("Newest unseen"))),
           h("div.bb-mobile-info",
@@ -191,6 +191,9 @@ XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "
       const api = railUI.createRail({
         id: r.id, title: r.title, hint: r.hint, size: r.layout === "wide" ? "wide" : ranked ? "rank" : "",
         actions: acts,
+        /* shelves build their tiles when they approach the viewport: Discover mounts
+           in one frame instead of allocating ~200 cards up front */
+        items: r.items, lazy: true, skeleton: ranked ? 5 : 7,
         render: (post, i) => ranked ? rankCard(post, i, { ids, label: r.title })
           : tiles.make(post, {
             ids, index: i, label: r.title,
@@ -199,7 +202,6 @@ XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "
             tag: r.id === "recent" && isFresh(post) ? "NEW" : "",
           }),
       });
-      api.setItems(r.items);
       rails.push(api);
       return api.el;
     }

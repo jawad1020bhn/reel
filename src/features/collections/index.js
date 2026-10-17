@@ -45,7 +45,7 @@ XR.define("features.collections", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialo
           h("div.coll-cover-empty", icons.icon("folder", 26), h("span", emptyText || "Nothing here yet")));
       }
       return h("div.coll-cover", { class: "n" + withMedia.length },
-        withMedia.map((p) => h("img", { src: media.thumb(p.media[0], 240), alt: "", loading: "lazy" })),
+        withMedia.map((p) => h("img", { src: media.thumb(p.media[0], 240), alt: "", loading: "lazy", decoding: "async" })),
         posts.length > 4 ? h("span.coll-cover-count", `+${posts.length - 4}`) : null);
     }
     function collMenu(c, anchor) {

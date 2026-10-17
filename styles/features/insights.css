@@ -5,6 +5,11 @@
 .top-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 5px; border-radius: var(--r-sm); text-align: left; transition: background var(--dur) var(--ease-soft); }
 .top-item:hover { background: rgb(255 255 255 / 0.06); }
 .top-item img { width: 42px; height: 42px; border-radius: var(--r-xs); object-fit: cover; flex: none; }
+/* micro-thumbs keep their own sheen (no fade: a 42px pop is quieter than a dissolve) */
+.top-item img:not(.is-loaded), .recap-pick img:not(.is-loaded) {
+  background: linear-gradient(100deg, var(--bg-1) 40%, #1d1d21 50%, var(--bg-1) 60%) 0 0 / 240% 100%;
+  animation: media-sheen 1.4s linear infinite;
+}
 .top-text { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.3; font-size: 13px; }
 .top-text span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--fg-2); }
 .top-num { display: inline-flex; align-items: center; gap: 4px; color: var(--fg-2); font-size: 12px; font-variant-numeric: tabular-nums; }

@@ -59,7 +59,7 @@ XR.define("features.insights", ["ui.dom", "ui.icons", "ui.widgets", "ui.charts",
         panel("When posts were published", h("div.stack", h("div.heat-wrap", h("span.small.muted", "Hour of day"), charts.heat(hours, hours.map((_, i) => `${i}:00`))), h("div.heat-wrap", h("span.small.muted", "Weekday"), charts.heat(days, ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"])))),
         panel("Orientation", charts.hbars([{ label: "Vertical", value: aspects.vertical }, { label: "Square", value: aspects.square }, { label: "Landscape", value: aspects.landscape }], { format: (v) => String(v) })),
         savingRhythmPanel(),
-        panel("Most liked posts", h("ol.top-list", topLiked.map((p, i) => h("li", h("button.top-item", { onclick: () => actions.view(topLiked.map((x) => x.id), i, { label: "Most liked" }) }, h("img", { src: media.thumb(p.media[0], 80), alt: "", loading: "lazy" }), h("span.top-text", h("b", "@" + p.author.username), h("span.muted", util.truncate(p.text || catalog.ctx.kindOf(p), 60))), h("span.top-num", icons.icon("heart", 12, { filled: true }), dom.compact(p.metrics.likes))))))),
+        panel("Most liked posts", h("ol.top-list", topLiked.map((p, i) => h("li", h("button.top-item", { onclick: () => actions.view(topLiked.map((x) => x.id), i, { label: "Most liked" }) }, h("img", { src: media.thumb(p.media[0], 80), alt: "", loading: "lazy", decoding: "async" }), h("span.top-text", h("b", "@" + p.author.username), h("span.muted", util.truncate(p.text || catalog.ctx.kindOf(p), 60))), h("span.top-num", icons.icon("heart", 12, { filled: true }), dom.compact(p.metrics.likes))))))),
       ]);
       page.appendChild(grid);
       host.appendChild(page);
@@ -120,7 +120,7 @@ XR.define("features.insights", ["ui.dom", "ui.icons", "ui.widgets", "ui.charts",
             topCreator ? stat(dom.compact(topCreator[1]), "from @" + topCreator[0]) : null,
             stat(String(cur.filter((p) => p.metrics.likes > 0).length), "with likes"),
             h("button.recap-pick", { title: top.text || "", onclick: () => actions.view(cur.map((p) => p.id), cur.indexOf(top), { label: "Top pick" }) },
-              bestMedia ? h("img", { src: media.thumb(bestMedia, 160), alt: "", loading: "lazy" }) : null,
+              bestMedia ? h("img", { src: media.thumb(bestMedia, 160), alt: "", loading: "lazy", decoding: "async" }) : null,
               h("span.recap-pick-text",
                 h("i", "Top pick"),
                 h("b", "@" + (top?.author.username || "")),
