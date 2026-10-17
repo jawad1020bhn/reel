@@ -71,6 +71,7 @@ window.XREELS_MANIFEST = {
     "src/infrastructure/platform/index.js",
     "src/infrastructure/workers/index.js",
     "src/ui/dom.js",
+    "src/ui/imageload.js",
     "src/ui/icons.js",
     "src/ui/toast.js",
     "src/ui/dialog.js",

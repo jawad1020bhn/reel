@@ -44,6 +44,9 @@ XR.define("ui.dialog", ["ui.dom", "ui.icons", "core.i18n"], function (dom, icons
     const close = api.close;
     function onKey(e) {
       if (stack[stack.length - 1] !== api) return;
+      /* Capture only what the dialog owns. Swallowing the rest here would stop
+         keydown before it ever reaches an input inside the dialog, which breaks
+         Enter-to-submit; app shortcuts are muted by ui.keys via .has-dialog. */
       if (e.key === "Escape" && opts.dismissable !== false) { e.preventDefault(); e.stopPropagation(); close(undefined); }
       else if (e.key === "Tab") {
         const f = [...panel.querySelectorAll(FOCUSABLE)].filter((x) => x.offsetParent !== null);
@@ -51,7 +54,7 @@ XR.define("ui.dialog", ["ui.dom", "ui.icons", "core.i18n"], function (dom, icons
         const first = f[0], last = f[f.length - 1];
         if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
         else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-      } else e.stopPropagation();  // keep app shortcuts out of dialogs
+      }
     }
     document.addEventListener("keydown", onKey, true);
     document.body.appendChild(backdrop);

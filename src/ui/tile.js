@@ -65,7 +65,7 @@ XR.define("ui.tile", ["ui.dom", "ui.icons", "ui.preview"], function (dom, icons,
       tabindex: "0", role: "button", dataset: { id: post.id, index: opts.index ?? "" },
       "aria-label": `${post.author.name}: ${post.text ? post.text.slice(0, 80) : kind}`,
       style: { "--aspect": aspect.toFixed(3) },
-    }, h("div.tile-media", img, h("div.tile-scrim"), badges, tag, star, progress, more, check, kind === "short" || kind === "long" ? h("span.tile-play", icons.icon("play", 24, { filled: true })) : null), info);
+    }, h("div.tile-media", h("span.tile-skel", { "aria-hidden": "true" }), img, h("div.tile-scrim"), badges, tag, star, progress, more, check, kind === "short" || kind === "long" ? h("span.tile-play", icons.icon("play", 24, { filled: true })) : null), info);
 
     const open = (e) => {
       if (opts.onToggleSelect && opts.selectActive?.()) { opts.onToggleSelect(post, e); return; }

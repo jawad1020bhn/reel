@@ -30,6 +30,7 @@ XR.define("ui.icons", [], function () {
     chevronUp: "M18 15l-6-6-6 6",
     arrowLeft: "M19 12H5M12 19l-7-7 7-7",
     arrowUp: "M12 19V5M5 12l7-7 7 7",
+    arrowDown: "M12 5v14M19 12l-7 7-7-7",
     external: "M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3",
     copy: "M9 9h11v11H9zM5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1",
     link: "M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7",

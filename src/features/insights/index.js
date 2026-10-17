@@ -27,6 +27,7 @@ XR.define("features.insights", ["ui.dom", "ui.icons", "ui.widgets", "ui.charts",
       /* per month: posted (createdAt) and saved (captured) */
       const toSeries = (list) => list.slice().reverse().map((m) => ({ label: m.label, short: m.key.slice(2).replace("-", "/"), value: m.count, key: m.key }));
       const postedByMonth = toSeries(catalog.months.slice(0, 36));
+      /* a single saved month is a fact, not a chart: only plot once there is a series */
       const savedByMonth = toSeries(catalog.savedMonths);
       /* duration buckets */
       const buckets = [["≤15s", 0, 15], ["15–60s", 15, 60], ["1–3m", 60, 180], ["3–10m", 180, 600], ["10–30m", 600, 1800], ["30m+", 1800, Infinity]].map(([label, lo, hi]) => ({ label, value: 0, lo, hi }));
@@ -44,9 +45,13 @@ XR.define("features.insights", ["ui.dom", "ui.icons", "ui.widgets", "ui.charts",
 
       const grid = h("div.insight-grid");
       dom.append(grid, [
-        panel("What you save", h("div.row-flex", charts.donut(kindData, { size: 140 }), charts.legend(kindData)), "Click a kind in Library to filter it."),
+        panel("What you save", h("div.row-flex", charts.donut(kindData, { size: 140 }), charts.legend(kindData)), "Choose a kind in Library to filter it."),
         panel("Posted per month", charts.bars(postedByMonth, { height: 120, onClick: (d) => actions.goLibrary({ month: d.key }) }), "When the posts were published (last 36 months). Click a bar to open that month."),
-        savedByMonth.length > 1 ? panel("Saved per month", charts.bars(savedByMonth, { height: 120, onClick: (d) => actions.goLibrary({ savedMonth: d.key }) }), "When you bookmarked them.") : null,
+        savedByMonth.length > 1
+          ? panel("Saved per month", charts.bars(savedByMonth, { height: 120, onClick: (d) => actions.goLibrary({ savedMonth: d.key }) }), "When you bookmarked them.")
+          : savedByMonth.length === 1
+            ? panel("Saved per month", h("div.saved-single", h("b", savedByMonth[0].value), h("span", `saved in ${savedByMonth[0].label}`)), "Add another import to see a trend.")
+            : null,
         panel("Video length", charts.hbars(buckets, { onClick: (d) => actions.goLibrary({ q: d.hi === Infinity ? `dur:>${d.lo}s` : `dur:${d.lo}s-${d.hi}s` }), format: (v) => String(v) })),
         panel("Top creators", charts.hbars(topCreators, { onClick: (d) => actions.goCreator(d.username), format: (v) => String(v) })),
         topTags.length ? panel("Top hashtags", charts.hbars(topTags, { onClick: (d) => actions.goTag(d.tag), format: (v) => String(v) })) : null,
@@ -54,7 +59,7 @@ XR.define("features.insights", ["ui.dom", "ui.icons", "ui.widgets", "ui.charts",
         panel("When posts were published", h("div.stack", h("div.heat-wrap", h("span.small.muted", "Hour of day"), charts.heat(hours, hours.map((_, i) => `${i}:00`))), h("div.heat-wrap", h("span.small.muted", "Weekday"), charts.heat(days, ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"])))),
         panel("Orientation", charts.hbars([{ label: "Vertical", value: aspects.vertical }, { label: "Square", value: aspects.square }, { label: "Landscape", value: aspects.landscape }], { format: (v) => String(v) })),
         savingRhythmPanel(),
-        panel("Most liked posts", h("ol.top-list", topLiked.map((p, i) => h("li", h("button.top-item", { onclick: () => actions.view(topLiked.map((x) => x.id), i, { label: "Most liked" }) }, h("img", { src: media.thumb(p.media[0], 80), alt: "", loading: "lazy" }), h("span.top-text", h("b", "@" + p.author.username), h("span.muted", util.truncate(p.text || catalog.ctx.kindOf(p), 60))), h("span.top-num", icons.icon("heart", 12, { filled: true }), dom.compact(p.metrics.likes))))))),
+        panel("Most liked posts", h("ol.top-list", topLiked.map((p, i) => h("li", h("button.top-item", { onclick: () => actions.view(topLiked.map((x) => x.id), i, { label: "Most liked" }) }, h("img", { src: media.thumb(p.media[0], 80), alt: "", loading: "lazy", decoding: "async" }), h("span.top-text", h("b", "@" + p.author.username), h("span.muted", util.truncate(p.text || catalog.ctx.kindOf(p), 60))), h("span.top-num", icons.icon("heart", 12, { filled: true }), dom.compact(p.metrics.likes))))))),
       ]);
       page.appendChild(grid);
       host.appendChild(page);
@@ -115,7 +120,7 @@ XR.define("features.insights", ["ui.dom", "ui.icons", "ui.widgets", "ui.charts",
             topCreator ? stat(dom.compact(topCreator[1]), "from @" + topCreator[0]) : null,
             stat(String(cur.filter((p) => p.metrics.likes > 0).length), "with likes"),
             h("button.recap-pick", { title: top.text || "", onclick: () => actions.view(cur.map((p) => p.id), cur.indexOf(top), { label: "Top pick" }) },
-              bestMedia ? h("img", { src: media.thumb(bestMedia, 160), alt: "", loading: "lazy" }) : null,
+              bestMedia ? h("img", { src: media.thumb(bestMedia, 160), alt: "", loading: "lazy", decoding: "async" }) : null,
               h("span.recap-pick-text",
                 h("i", "Top pick"),
                 h("b", "@" + (top?.author.username || "")),

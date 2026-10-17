@@ -42,7 +42,13 @@ XR.define("ui.widgets", ["ui.dom", "ui.icons", "core.i18n"], function (dom, icon
   const pageHead = (title, subtitle, ...right) => h("header.page-head", h("div", h("h1.page-title", t(title)), subtitle ? h("p.page-sub", t(subtitle)) : null), right.length ? h("div.page-actions", ...right) : null);
   const btn = (label, { icon, kind = "", size = "", onClick, title, cls = "", disabled = false } = {}) => h("button.btn", { class: `${kind ? "btn-" + kind : ""} ${size ? "btn-" + size : ""} ${cls}`, onclick: onClick, title: t(title) || (label ? undefined : ""), disabled, "aria-label": t(label || title) }, icon ? icons.icon(icon, size === "sm" ? 15 : 18) : null, label ? h("span", t(label)) : null);
   const iconBtn = (icon, title, onClick, { cls = "", size = 20 } = {}) => h("button.btn.btn-icon", { class: cls, title: t(title), "aria-label": t(title), onclick: onClick }, icons.icon(icon, size));
-  const avatar = (src, name, px = 40) => src ? h("img.avatar", { src, alt: "", width: px, height: px, loading: "lazy", style: { width: px + "px", height: px + "px" }, onerror: (e) => e.target.replaceWith(avatar("", name, px)) }) : h("span.avatar.avatar-fallback", { style: { width: px + "px", height: px + "px", fontSize: Math.round(px / 2.4) + "px" } }, (name || "?")[0].toUpperCase());
+  /* A missing avatar is a visual decision, not an error: a mono initial for people and
+     small chips, the brand wordmark for a creator's own page hero. */
+  const avatar = (src, name, px = 40, opts = {}) => src
+    ? h("img.avatar", { src, alt: "", width: px, height: px, loading: "lazy", style: { width: px + "px", height: px + "px" }, onerror: (e) => e.target.replaceWith(avatar("", name, px, opts)) })
+    : opts.mark
+      ? h("span.avatar.avatar-fallback.avatar-mark", { style: { width: px + "px", height: px + "px" }, "aria-hidden": "true" }, h("span.avatar-mark-x", "X"))
+      : h("span.avatar.avatar-fallback", { style: { width: px + "px", height: px + "px", fontSize: Math.round(px / 2.4) + "px" } }, (name || "?")[0].toUpperCase());
 
   return { chip, segmented, toggle, select, numberInput, row, section, empty, spinner, stat, kbd, pageHead, btn, iconBtn, avatar };
 });

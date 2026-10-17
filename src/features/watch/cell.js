@@ -32,7 +32,16 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "core.util
       video.addEventListener("pause", () => { if (active) el.classList.add("is-paused"); });
       video.addEventListener("play", () => el.classList.remove("is-paused"));
       video.addEventListener("progress", () => { try { if (video.buffered.length && video.duration) progress.firstChild.style.width = (video.buffered.end(video.buffered.length - 1) / video.duration * 100) + "%"; } catch { /* ignore */ } });
-      video.addEventListener("xr:unplayable", () => { el.classList.add("is-unplayable"); env.onUnplayable?.(post, m); });
+      video.addEventListener("xr:unplayable", () => {
+        el.classList.add("is-unplayable");
+        /* keep the frame's poster as a still so the stage reads as a lost clip,
+           not a hole in the layout */
+        if (!stage.querySelector(".cell-still")) {
+          const still = media.poster(m, 1400);
+          if (still) stage.appendChild(h("img.cell-still", { src: still, alt: m.alt || "", "aria-hidden": "true", draggable: false }));
+        }
+        env.onUnplayable?.(post, m);
+      });
       if (primary) handle = hd;
       return { video, hd };
     }
@@ -110,7 +119,7 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "core.util
     }
     const unplayable = h("div.cell-unplayable", icons.icon("alert", 28), h("p", "This video can't be played — it may have been deleted on X."),
       h("div.cell-unplayable-actions",
-        W.btn("Next", { icon: "chevronDown", kind: "primary", onClick: (e) => { e.stopPropagation(); env.onEnded?.(); } }),
+        W.btn("Next", { icon: "arrowDown", kind: "primary", onClick: (e) => { e.stopPropagation(); env.onEnded?.(); } }),
         W.btn("Retry", { icon: "refresh", onClick: (e) => { e.stopPropagation(); el.classList.remove("is-unplayable"); env.onRetry?.(post); } }),
         W.btn("Open on X", { icon: "external", onClick: (e) => { e.stopPropagation(); env.onOpenX?.(post); } }),
         W.btn("Hide post", { icon: "eyeOff", onClick: (e) => { e.stopPropagation(); env.onHide?.(post); } })));

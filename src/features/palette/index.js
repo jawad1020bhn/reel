@@ -4,7 +4,7 @@ XR.define("features.palette", ["ui.dom", "ui.icons", "ui.widgets", "ui.keys", "u
   function (dom, icons, W, keys, dialog, features, nav, catalog, actions, events, EV, util, i18n) {
     "use strict";
     const h = dom.h;
-    let el = null, input = null, list = null, items = [], cursor = 0, baseCommands = [];
+    let el = null, input = null, list = null, items = [], cursor = 0, baseCommands = [], prevFocus = null;
 
     function collect() {
       const cmds = [];
@@ -17,7 +17,7 @@ XR.define("features.palette", ["ui.dom", "ui.icons", "ui.widgets", "ui.keys", "u
       if (el) { input.value = query; filter(); input.focus(); return; }
       if (query === "?") return showShortcuts();
       baseCommands = collect();
-      input = h("input.palette-input", { type: "text", placeholder: "Type a command, a creator, #tag, or search…", value: query, autocomplete: "off", spellcheck: false, oninput: filter,
+      input = h("input.palette-input", { type: "text", placeholder: innerWidth < 600 ? "Search or run a command…" : "Type a command, a creator, #tag, or search…", value: query, autocomplete: "off", spellcheck: false, oninput: filter,
         onkeydown: (e) => {
           if (e.key === "ArrowDown") { e.preventDefault(); move(1); }
           else if (e.key === "ArrowUp") { e.preventDefault(); move(-1); }
@@ -25,13 +25,44 @@ XR.define("features.palette", ["ui.dom", "ui.icons", "ui.widgets", "ui.keys", "u
           else if (e.key === "Escape") { e.preventDefault(); close(); }
           e.stopPropagation();
         } });
-      list = h("div.palette-list", { role: "listbox" });
-      el = h("div.palette-backdrop", { onclick: (e) => { if (e.target === el) close(); } }, h("div.palette", { role: "dialog", "aria-label": "Command palette" }, h("div.palette-head", icons.icon("command", 18), input, W.kbd("esc")), list, h("div.palette-foot.muted.small", "↑↓ navigate · ↵ run · type to search posts, @creator, #tag, >command")));
+      list = h("div.palette-list", { role: "listbox", "aria-label": "Commands and results", "aria-activedescendant": "" });
+      input.setAttribute("aria-controls", "palette-list");
+      input.setAttribute("role", "combobox");
+      input.setAttribute("aria-expanded", "true");
+      input.setAttribute("aria-autocomplete", "list");
+      list.id = "palette-list";
+      prevFocus = document.activeElement;
+      el = h("div.palette-backdrop", { onclick: (e) => { if (e.target === el) close(); } },
+        h("div.palette", { role: "dialog", "aria-label": "Command palette" },
+          h("div.palette-head", icons.icon("command", 18), input,
+            h("button.palette-close", { type: "button", "aria-label": "Close palette", title: "Close (esc)", onclick: () => close() }, icons.icon("x", 18)),
+            h("span.palette-esc", W.kbd("esc"))),
+          list,
+          h("div.palette-foot", h("span.foot-hint", W.kbd("↑↓"), " navigate · ", W.kbd("↵"), " run · ", W.kbd("esc"), " close"), h("span.palette-foot-end", "XREELS · ⌘K"))));
       document.body.appendChild(el);
       requestAnimationFrame(() => { el.classList.add("in"); input.focus(); });
       filter();
     }
-    function close() { if (!el) return; const node = el; el = null; node.classList.remove("in"); setTimeout(() => node.remove(), 150); }
+    function close() {
+      if (!el) return;
+      const node = el; el = null;
+      node.classList.remove("in");
+      setTimeout(() => node.remove(), 150);
+      if (prevFocus && prevFocus.isConnected && prevFocus.focus) prevFocus.focus({ preventScroll: true });
+      prevFocus = null;
+    }
+
+    /** Rows are visually grouped so navigation, actions and results never blur together. */
+    function groupOf(it) {
+      const id = it.id || "";
+      if (id.startsWith("go:")) return "Navigate";
+      if (id.startsWith("c:") || id.startsWith("creator:")) return "Creators";
+      if (id.startsWith("t:")) return "Tags";
+      if (id.startsWith("coll:") || id === "collections.new") return "Collections";
+      if (id.startsWith("p:") || id === "search" || id === "watch-search") return "Posts";
+      if (id === "help") return "Help";
+      return "Actions";
+    }
     function filter() {
       const q = input.value.trim();
       const ql = q.toLowerCase();
@@ -56,8 +87,31 @@ XR.define("features.palette", ["ui.dom", "ui.icons", "ui.widgets", "ui.keys", "u
     }
     function score(title, q) { if (title.includes(q)) return 10 - title.indexOf(q) / 100; let i = 0; for (const ch of title) if (ch === q[i]) i++; return i === q.length ? 1 : 0; }
     function renderList() {
-      dom.replace(list, items.length ? items.map((it, i) => h("button.palette-item", { role: "option", class: i === cursor ? "active" : "", "aria-selected": i === cursor ? "true" : "false", onclick: () => run(it), onmousemove: () => { if (cursor !== i) { cursor = i; renderList(); } } },
-        icons.icon(it.icon || "sparkles", 16), h("span.palette-title", i18n.t(it.title)), it.hint ? h("span.palette-hint", it.hint) : null, it.keys ? W.kbd(it.keys) : null)) : h("p.muted.palette-empty", "No matches"));
+      if (!items.length) {
+        const q = input.value.trim();
+        dom.replace(list, h("div.palette-empty",
+          h("b", q ? `Nothing matches “${q}”` : "Start typing"),
+          h("span.palette-tip", q ? "Try a shorter word — or browse with an empty field." : "Search your library, jump to a creator, or run a command.")));
+        input.setAttribute("aria-activedescendant", "");
+        return;
+      }
+      const nodes = [];
+      let lastGroup = "";
+      items.forEach((it, i) => {
+        const g = groupOf(it);
+        if (g !== lastGroup) { nodes.push(h("div.palette-group", { role: "presentation" }, g)); lastGroup = g; }
+        nodes.push(h("button.palette-item", {
+          id: "palette-opt-" + i, role: "option", class: i === cursor ? "active" : "", "aria-selected": i === cursor ? "true" : "false",
+          onclick: () => run(it),
+          onmousemove: () => { if (cursor !== i) { cursor = i; renderList(); } },
+        },
+          icons.icon(it.icon || "sparkles", 16),
+          h("span.palette-title", i18n.t(it.title)),
+          it.hint ? h("span.palette-hint", it.hint) : null,
+          it.keys ? W.kbd(it.keys) : null));
+      });
+      dom.replace(list, nodes);
+      input.setAttribute("aria-activedescendant", "palette-opt-" + cursor);
       list.querySelector(".active")?.scrollIntoView({ block: "nearest" });
     }
     function move(d) { if (!items.length) return; cursor = (cursor + d + items.length) % items.length; renderList(); }

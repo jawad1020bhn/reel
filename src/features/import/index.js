@@ -1,7 +1,7 @@
 /* features.import — getting posts in: drop/pick a file, paste JSON, or put the
    file at data/posts.js. Shows a preview (format, counts) before committing. */
-XR.define("features.import", ["ui.dom", "ui.icons", "ui.widgets", "app.importer", "app.catalog", "app.actions", "app.media", "app.nav", "app.ports.platform", "app.ports.dataSources", "core.events", "core.domain.events", "app.activity", "core.i18n"],
-  function (dom, icons, W, importer, catalog, actions, media, nav, platform, sources, events, EV, activity, i18n) {
+XR.define("features.import", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog", "app.importer", "app.catalog", "app.actions", "app.media", "app.nav", "app.ports.platform", "app.ports.dataSources", "core.events", "core.domain.events", "app.activity", "core.i18n"],
+  function (dom, icons, W, dialog, importer, catalog, actions, media, nav, platform, sources, events, EV, activity, i18n) {
     "use strict";
     const h = dom.h;
     let host = null, offs = [], preview = null, pendingFile = null;
@@ -9,14 +9,21 @@ XR.define("features.import", ["ui.dom", "ui.icons", "ui.widgets", "app.importer"
     function render() {
       dom.clear(host);
       const src = catalog.source;
+      const empty = !catalog.size;
       const page = h("div.import",
-        W.pageHead(catalog.size ? "Import posts" : "Welcome to XReels", catalog.size ? `Currently showing ${src.count} posts from ${src.label}` : "Your X bookmarks, as a private video & photo feed. Let's load them."),
+        W.pageHead(catalog.size ? "Import posts" : "Welcome to XReels",
+          catalog.size ? `Currently showing ${src.count} posts from ${src.label}` : "Your X bookmarks, as a private video & photo feed.",
+          catalog.size ? W.btn("Manage libraries", { icon: "database", onClick: () => nav.go("settings") }) : null),
+        empty ? demoBanner() : null,
         h("div.import-grid",
           card("upload", "Upload a file", "Drop it anywhere in the app, or pick it.", h("div.stack",
             h("label.dropzone", { for: "xr-file", ondragover: (e) => { e.preventDefault(); e.currentTarget.classList.add("over"); }, ondragleave: (e) => e.currentTarget.classList.remove("over"), ondrop: (e) => { e.preventDefault(); e.currentTarget.classList.remove("over"); const f = e.dataTransfer.files[0]; if (f) analyzeFile(f); } },
-              icons.icon("upload", 28), h("span", "Drop .json or .js here"), h("span.muted.small", "or click to choose"),
+              h("span.dropzone-glyph", icons.icon("upload", 26)),
+              h("span.dropzone-title", "Drop your export here"),
+              h("span.dropzone-sub", ".json or .js — or click to choose a file"),
               h("input", { id: "xr-file", type: "file", accept: ".json,.js,.txt,application/json,text/javascript", style: { display: "none" }, onchange: (e) => { const f = e.target.files[0]; if (f) analyzeFile(f); } })),
-            h("p.muted.small", "Formats: xdash POSTS.json · twitter-web-exporter · X bookmark Chrome extensions · X API v2 · XReels export · any JSON with tweet-like objects. ", h("a.link", { href: "docs/DATA-FORMATS.md", target: "_blank" }, "Details")))),
+            h("p.muted.small", "Accepts xdash, twitter-web-exporter, X bookmark extensions, X API v2 and XReels exports. ",
+              h("button.link.link-btn", { onclick: showFormats }, "See accepted formats")))),
           card("paste", "Paste JSON", "Copy the export's content and paste it here.", (() => {
             const ta = h("textarea.input.import-paste", { placeholder: '{"export_version":1,"bookmarks":[…]}  or  window.XREELS_DATA = {…};', rows: 6, spellcheck: false });
             return h("div.stack", ta, h("div.row-btns", W.btn("Analyse", { icon: "search", kind: "primary", onClick: () => { if (ta.value.trim()) analyzeText(ta.value, "Pasted JSON"); } }), W.btn("Paste from clipboard", { icon: "paste", onClick: async () => { try { ta.value = await navigator.clipboard.readText(); analyzeText(ta.value, "Clipboard"); } catch { actions.toast("Clipboard not available — paste manually (Ctrl+V)", "error"); } } })));
@@ -35,7 +42,46 @@ XR.define("features.import", ["ui.dom", "ui.icons", "ui.widgets", "app.importer"
       host.appendChild(page);
       if (pendingFile) { const f = pendingFile; pendingFile = null; analyzeFile(f); }
     }
-    const card = (icon, title, text, body) => h("section.import-card", h("div.import-card-head", icons.icon(icon, 20), h("h2", title)), h("p.muted", text), body);
+
+    /** First run: the demo is the fastest path to the aha moment. Import is still primary. */
+    function demoBanner() {
+      const btn = W.btn("Explore the sample library", { icon: "sparkles", kind: "primary", onClick: async () => {
+        btn.disabled = true;
+        try {
+          await importer.loadSample();
+          actions.toast("Sample library loaded", "success");
+          nav.go("discover");
+        } catch (err) { actions.toast(err.message, "error"); btn.disabled = false; }
+      } });
+      return h("section.import-demo",
+        h("div.import-demo-mark", icons.icon("play", 22, { filled: true })),
+        h("div.import-demo-text",
+          h("b", "No export handy?"),
+          h("p", "Open a 42-post demo library with six creators, arcs, albums and a Watch feed. It lives in this browser — nothing leaves your machine.")),
+        h("div.import-demo-actions", btn,
+          h("span.import-demo-note", "or bring your own below")));
+    }
+    const card = (icon, title, text, body) => h("section.import-card",
+      h("div.import-card-head", icons.icon(icon, 18), h("h2", title)),
+      h("p.import-lede", text),
+      body);
+
+    /** Supported export shapes, documented in-app instead of behind a dead link. */
+    function showFormats() {
+      const row = (name, what, how) => h("div.fmt-row", h("b", name), h("span", what), h("code", how));
+      dialog.open({
+        title: "Accepted formats", size: "md",
+        body: h("div.fmt-sheet",
+          h("p.muted", "XReels detects the shape of the file for you. If detection fails, the first lines are usually enough to add an adapter."),
+          row("xdash", "POSTS.json from the xdash exporter", "bookmarks[]"),
+          row("twitter-web-exporter", "The bookmarks JSON this extension saves", "tweets[] · data[]"),
+          row("X bookmark extensions", "Chrome exports that dump tweet-like objects", "any array"),
+          row("X API v2", "Raw /2/tweets payloads with includes", "data[] · includes"),
+          row("XReels", "A library exported from Settings → Export library", "posts[]"),
+          h("p.muted.small", "Minimum needed per post: an id, a URL (or author + id) and media when there is any. Text-only posts are kept out of the feed unless you enable them in Settings.")),
+        actions: [{ label: "Got it", kind: "primary" }],
+      });
+    }
 
     async function splashless(fn) { try { await fn(); actions.toast(`Loaded ${catalog.size} posts`, "success"); render(); } catch (err) { actions.toast(err.message, "error"); } }
     const analyzeFile = (file) => analyze(() => importer.importFile(file));
@@ -72,7 +118,7 @@ XR.define("features.import", ["ui.dom", "ui.icons", "ui.widgets", "app.importer"
       dom.replace(box, h("section.panel.import-result",
         h("h3.panel-title", icons.icon("check", 18), " ", t("Ready to import")),
         h("div.stat-grid.compact", W.stat(an.posts.length, "posts"), W.stat(an.withMedia, "with media"), W.stat(an.videos, "videos"), W.stat(an.creators, "creators"), W.stat(an.dropped || 0, "unreadable"), W.stat(an.adapter, "format")),
-        sample.length ? h("div.import-sample", sample.map((p) => h("img", { src: media.thumb(p.media[0], 90), alt: "", loading: "lazy" }))) : h("p.muted", t("No media posts found in this file.")),
+        sample.length ? h("div.import-sample", sample.map((p) => h("img", { src: media.thumb(p.media[0], 90), alt: "", loading: "lazy", decoding: "async" }))) : h("p.muted", t("No media posts found in this file.")),
         diffCard,
         modeSeg ? h("div.stack", h("div.row-btns", modeSeg, nameInput), goneRow) : null,
         h("div.row-btns",
