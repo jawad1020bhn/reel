@@ -11,6 +11,11 @@ XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "
     const KIND_LABEL = { photo: "Photo", carousel: "Album", short: "Short", long: "Long video", gif: "GIF", text: "Post" };
     const isFresh = (p) => Date.now() - (p.savedAt || 0) < 7 * 864e5;
 
+    /* Every visit draws its own page: which shelves appear, in what order,
+       which topic/creator/month they follow, and which post headlines it. */
+    let seed = 0;
+    const freshSeed = () => (Math.random() * 2 ** 31) >>> 0;
+
     function render() {
       if (!host) return;
       for (const r of rails) r.destroy(); rails = [];
@@ -19,10 +24,10 @@ XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "
 
       const stats = catalog.stats();
       const page = h("div.discover");
-      const spot = catalog.spotlight();
+      const spot = catalog.spotlight(seed);
       if (spot) page.appendChild(billboard(spot));
 
-      const built = catalog.buildRails({ limit: 24 });
+      const built = catalog.buildRails({ limit: 24, seed });
       for (const r of built) page.appendChild(rail(r));
       page.appendChild(foot(stats));
       host.appendChild(page);
@@ -73,12 +78,13 @@ XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "
         W.btn("More info", { icon: "info", kind: "glass", onClick: () => actions.view([post.id], 0, { label: "Spotlight" }) }),
         starBtn);
 
-      /* a genuine state marker instead of a decorative eyebrow: this is the newest unseen post */
+      /* a genuine state marker instead of a decorative eyebrow: the hero is one
+         of the newest unseen posts, rotating each visit */
       const slate = h("p.billboard-slate",
         h("span.billboard-slate-dot", { "aria-hidden": "true" }),
         h("span", t("Spotlight")),
         h("i", { "aria-hidden": "true" }, "·"),
-        h("span.billboard-slate-soft", t("newest unseen")));
+        h("span.billboard-slate-soft", t("unseen in your library")));
       const content = h("div.billboard-content",
         h("h1.billboard-title", headline),
         meta,
@@ -115,7 +121,7 @@ XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "
         h("div.bb-mobile-card",
           bg ? artReveal(h("img.bb-mobile-art", { src: bg, alt: m?.alt || "", draggable: false, decoding: "async" })) : h("div.bb-mobile-art"),
           h("div.bb-mobile-scrim"),
-          h("p.bb-mobile-slate", h("span.bb-dot", { "aria-hidden": "true" }), t("Spotlight"), h("i", "·"), h("span.bb-slate-soft", t("Newest unseen"))),
+          h("p.bb-mobile-slate", h("span.bb-dot", { "aria-hidden": "true" }), t("Spotlight"), h("i", "·"), h("span.bb-slate-soft", t("unseen in your library"))),
           h("div.bb-mobile-info",
             h("h2.bb-mobile-title", headline),
             h("div.bb-mobile-meta", h("b", "@" + post.author.username), h("i.dot", "•"), h("span", KIND_LABEL[kind] || "Post"), m?.duration && m.kind !== "photo" ? [h("i.dot", "•"), h("span", dom.duration(m.duration))] : []),
@@ -231,6 +237,7 @@ XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "
       id: "discover", title: "Discover", icon: "sparkles", route: "/discover", nav: true, order: 10, key: "d",
       mount(outlet) {
         host = outlet;
+        seed = freshSeed();
         render();
         offs = [
           events.bus.on(EV.ACTIVITY_CHANGED, ({ kind }) => { if (kind === "bulk" || kind === "hide") render(); else scheduleRefresh(); }),
@@ -241,7 +248,7 @@ XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "
       unmount() { for (const off of offs) off(); offs = []; for (const r of rails) r.destroy(); rails = []; host = null; },
       commands: () => [
         { id: "discover.shuffle", title: "Shuffle play", hint: "Random posts in Watch", icon: "shuffle", run: () => actions.shufflePlay() },
-        { id: "discover.refresh", title: "Reshuffle Discover", icon: "refresh", run: () => render() },
+        { id: "discover.refresh", title: "Reshuffle Discover", icon: "refresh", run: () => { seed = freshSeed(); render(); } },
       ],
     };
   });

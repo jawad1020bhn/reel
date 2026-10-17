@@ -18,10 +18,13 @@ XR.define("core.i18n.ar", ["core.i18n"], function (i18n) {
     "Good morning": "صباح الخير", "Good afternoon": "مساء الخير", "Good evening": "مساء الخير", "Good night": "ليلة سعيدة",
     "Your private feed": "خلاصتك الخاصة", "What would you like to watch tonight?": "ماذا تودّ أن تشاهد الليلة؟", "{n} posts you haven't opened yet": "{n} منشورًا لم تفتحها بعد",
     "Shuffle play": "تشغيل عشوائي", "Unseen shorts": "مقاطع قصيرة لم تُشاهد", "Starred": "المميزة بنجمة", "Continue watching": "متابعة المشاهدة", "Pick up where you stopped": "أكمل من حيث توقفت",
-    "Let the next clip find you.": "دع المقطع التالي يجدك.", "Start watching": "ابدأ المشاهدة", "Jump back in": "عُد إلى حيث كنت", "Spotlight": "تحت الضوء", "Newest unseen": "الأحدث غير المُشاهد",
-    "Shorts for you": "مقاطع قصيرة لك", "Unseen clips, shuffled daily": "مقاطع لم تُشاهد، تُخلط يوميًا", "Recently saved": "المحفوظة مؤخرًا", "Long form": "مقاطع طويلة", "Clips over 3 minutes": "مقاطع تتجاوز 3 دقائق",
+    "Let the next clip find you.": "دع المقطع التالي يجدك.", "Start watching": "ابدأ المشاهدة", "Jump back in": "عُد إلى حيث كنت", "Spotlight": "تحت الضوء", "Newest unseen": "الأحدث غير المُشاهد", "unseen in your library": "غير مُشاهد في مكتبتك",
+    "Shorts for you": "مقاطع قصيرة لك", "Unseen clips, shuffled daily": "مقاطع لم تُشاهد، تُخلط يوميًا", "Unseen clips, reshuffled every visit": "مقاطع لم تُشاهد، تُخلط في كل زيارة", "Recently saved": "المحفوظة مؤخرًا", "Long form": "مقاطع طويلة", "Clips over 3 minutes": "مقاطع تتجاوز 3 دقائق",
     "Photo stories": "قصص مصوّرة", "Multi-image posts": "منشورات متعددة الصور", "Single stills": "صور مفردة", "On this day": "في مثل هذا اليوم", "Same date, earlier years": "نفس التاريخ في سنوات سابقة",
-    "Random picks": "اختيارات عشوائية", "A fresh shuffle every day": "خلطة جديدة كل يوم", "Unseen posts from creators you keep opening": "منشورات لم تُشاهد من حسابات تفتحها كثيرًا", "Most liked": "الأكثر إعجابًا",
+    "Random picks": "اختيارات عشوائية", "A fresh shuffle every day": "خلطة جديدة كل يوم", "A fresh shuffle every visit": "خلطة جديدة في كل زيارة", "Unseen posts from creators you keep opening": "منشورات لم تُشاهد من حسابات تفتحها كثيرًا", "Most liked": "الأكثر إعجابًا",
+    "Most viewed": "الأكثر مشاهدة", "The most played in your library": "الأكثر تشغيلًا في مكتبتك", "Newest posts": "أحدث المنشورات", "By post date": "حسب تاريخ النشر", "Deep cuts": "كنوز قديمة", "The oldest posts you kept": "أقدم المنشورات التي احتفظت بها",
+    "Quick hits": "مشاهد سريعة", "Short clips, back to back": "مقاطع قصيرة متتالية", "Unseen queue": "طابور المشاهدة", "Everything you haven't watched yet": "كل ما لم تشاهده بعد", "Saved this week": "حُفظ هذا الأسبوع", "Your newest captures": "أحدث ما التقطته",
+    "Saved twice": "حُفظ مرتين", "The same clip, bookmarked again": "نفس المقطع، محفوظ مرة أخرى", "Tagged in your library": "موسومة في مكتبتك", "Their saved posts": "منشوراتهم المحفوظة", "That month, in your library": "ذاك الشهر في مكتبتك", "From your collections": "من مجموعاتك",
     "Watch all": "شاهد الكل", "All": "الكل", "See all": "عرض الكل", "Reshuffle": "إعادة الخلط", "Reshuffle Discover": "إعادة خلط اكتشف", "Shuffle more": "خلط المزيد", "Nothing to watch here": "لا شيء للمشاهدة هنا",
 
     /* library */

@@ -101,8 +101,10 @@ XR.define("app.catalog", ["core.domain.model", "core.query.engine", "core.rankin
       return list;
     }
     const topHashtags = (n = 30) => [...state.hashtags.entries()].sort((a, b) => b[1] - a[1]).slice(0, n);
-    const buildRails = (opts) => rails.build(state.posts, ctx, opts);
-    const spotlight = () => rails.spotlight(state.posts, ctx);
+    /* Discover draws its shelves from a per-visit seed; collections ride along
+       so a "collection" shelf can be part of the draw. */
+    const buildRails = (opts) => rails.build(state.posts, ctx, { ...opts, collections: activity.collections() });
+    const spotlight = (seed) => rails.spotlight(state.posts, ctx, { seed });
 
     /** Headline numbers for Discover footer and Insights. */
     function stats() {
