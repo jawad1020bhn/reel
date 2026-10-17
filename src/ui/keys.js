@@ -37,6 +37,8 @@ XR.define("ui.keys", ["ui.dom"], function (dom) {
   }
   function onKey(e) {
     if (e.defaultPrevented) return;
+    /* A modal owns the keyboard: typing, Enter and arrows belong to its fields. */
+    if (document.documentElement.classList.contains("has-dialog")) return;
     const inInput = dom.isEditable(e.target);
     const key = norm(e);
     if (pendingPrefix) {
