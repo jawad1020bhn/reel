@@ -4,7 +4,7 @@
   display: flex; justify-content: center; align-items: flex-start;
   padding: max(12vh, 72px) 16px calc(16px + env(safe-area-inset-bottom, 0px));
   opacity: 0; transition: opacity 160ms var(--ease-soft);
- 
+
 }
 .palette-backdrop.in { opacity: 1; }
 .palette {
