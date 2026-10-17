@@ -6,14 +6,19 @@
    rail and its full list can never disagree.
 
    Composition: "Continue watching" is the only anchor. Everything else comes from a
-   POOL of builders; each build picks ~COUNT of them with a seeded weighted draw, never
-   two of the same `family`, shuffles the order and de-duplicates posts across shelves.
-   A different `seed` ⇒ a different page. New rails: add a builder to POOL. */
+   POOL of builders; each build picks COUNT of them with a seeded weighted draw (one per
+   `family` first, then a second pass if the library is too small to fill the page),
+   shuffles the order and limits how many shelves a post can sit on. The items inside a
+   shelf rotate too: sorted shelves draw from a 2× window and reshuffle it per seed, so
+   even the same shelf shows a different line-up on every shuffle (ranked and resume
+   shelves keep their order). A different `seed` ⇒ a different page.
+   New rails: add a builder to POOL. */
 XR.define("core.ranking.rails", ["core.query.engine", "core.util"], function (engine, util) {
   "use strict";
 
   const LIMIT = 24;
-  const COUNT = 11;          // pool rails per page (+ the anchor ≈ 12)
+  const COUNT = 13;          // shelves per page (anchor included when it exists)
+  const PER_POST = 3;        // a post may sit on at most this many shelves per page
   const WEEK = 7 * 864e5;
 
   /* ------------------------------------------------------------- helpers -- */
@@ -27,6 +32,11 @@ XR.define("core.ranking.rails", ["core.query.engine", "core.util"], function (en
     return list[list.length - 1];
   }
   const visible = (ctx) => (p) => p.media.length > 0 && !ctx.isHidden(p.id);
+  /** Items for a sorted shelf: take a 2× window off the top of the ordering and reshuffle
+      it, so the shelf stays "recent"/"popular" but its line-up rotates with the seed. */
+  const windowed = (list, seed, limit) => util.shuffle(list.slice(0, limit * 2), seed).slice(0, limit);
+  const HOUR = (ms) => new Date(ms).getHours();
+  const primaryAspect = (p) => (p.media[0] && p.media[0].aspect) || 1;
   const byUser = (posts) => { const m = new Map(); for (const p of posts) { const u = p.author.username; m.set(u, (m.get(u) || 0) + 1); } return m; };
 
   /* ---------------------------------------------------------------- pool -- */
@@ -47,7 +57,7 @@ XR.define("core.ranking.rails", ["core.query.engine", "core.util"], function (en
       const items = B.ctx.related(src.id, 60).filter((p) => visible(B.ctx)(p) && !B.ctx.isSeen(p.id));
       return { title: "Because you watched @{x}", params: { x: src.author.username }, hint: util.truncate((src.text || "").replace(/\s+/g, " ").trim(), 60) || "More like something you opened", items: util.shuffle(items, B.seed).slice(0, B.limit), spec: null, min: 4 };
     } },
-    { id: "starred", family: "starred", weight: 2, build: (B) => ({ title: "My list", hint: "Posts you starred", items: B.q({ state: "starred", sort: "saved" }), spec: { state: "starred" }, min: 4 }) },
+    { id: "starred", family: "starred", weight: 2, build: (B) => ({ title: "My list", hint: "Posts you starred", items: B.qw({ state: "starred", sort: "saved" }), spec: { state: "starred" }, min: 4 }) },
     { id: "again", family: "starred", weight: 1, build: (B) => {
       const items = B.posts.filter((p) => visible(B.ctx)(p) && B.ctx.isSeen(p.id) && B.ctx.isStarred(p.id));
       return { title: "Watch again", hint: "Starred and already seen — worth a replay", items: util.shuffle(items, B.seed + 3).slice(0, B.limit), spec: { state: "starred" }, min: 4 };
@@ -59,14 +69,14 @@ XR.define("core.ranking.rails", ["core.query.engine", "core.util"], function (en
     } },
 
     /* ---- freshness / time ---- */
-    { id: "recent", family: "recent", weight: 4, build: (B) => ({ title: "Recently saved", hint: "Your newest bookmarks", items: B.q({ sort: "saved" }), spec: { sort: "saved" } }) },
+    { id: "recent", family: "recent", weight: 4, build: (B) => ({ title: "Recently saved", hint: "Your newest bookmarks", items: B.qw({ sort: "saved" }), spec: { sort: "saved" } }) },
     { id: "fresh", family: "recent", weight: 2, build: (B) => {
       const items = B.posts.filter((p) => visible(B.ctx)(p) && B.now - (p.savedAt || 0) < WEEK).sort((a, b) => (B.ctx.isSeen(a.id) - B.ctx.isSeen(b.id)) || b.savedAt - a.savedAt);
-      return { title: "New this week", hint: "Saved in the last 7 days, unseen first", items: items.slice(0, B.limit), spec: null, min: 4 };
+      return { title: "New this week", hint: "Saved in the last 7 days, unseen first", items: windowed(items, B.seed, B.limit), spec: null, min: 4 };
     } },
     { id: "onthisday", family: "time", weight: 2, build: (B) => {
       const otd = B.posts.filter((p) => visible(B.ctx)(p) && (util.sameMonthDay(p.createdAt, B.now) || util.sameMonthDay(p.savedAt, B.now)));
-      return { title: "On this day", hint: "Same date, earlier years", items: otd.slice(0, B.limit), spec: null, min: 2 };
+      return { title: "On this day", hint: "Same date, earlier years", items: util.shuffle(otd, B.seed).slice(0, B.limit), spec: null, min: 2 };
     } },
     { id: "month", family: "time", weight: 3, build: (B) => {
       const months = (B.ctx.months ? B.ctx.months() : []).filter((m) => m.count >= 6);
@@ -78,11 +88,11 @@ XR.define("core.ranking.rails", ["core.query.engine", "core.util"], function (en
       const m = pickWeighted(months, (x) => x.count, B.rnd); if (!m) return null;
       return { title: "You saved these in {x}", params: { x: monthLabel(m.key) }, hint: "A bookmarking spree", items: B.q({ savedMonth: m.key, sort: "random", seed: B.seed + 1 }), spec: { savedMonth: m.key } };
     } },
-    { id: "archive", family: "time", weight: 1, build: (B) => ({ title: "From the archive", hint: "The oldest posts in your library", items: B.q({ sort: "oldest" }), spec: { sort: "oldest" } }) },
+    { id: "archive", family: "time", weight: 1, build: (B) => ({ title: "From the archive", hint: "The oldest posts in your library", items: B.qw({ sort: "oldest" }), spec: { sort: "oldest" } }) },
 
     /* ---- popularity ---- */
     { id: "top10", family: "popular", weight: 4, build: (B) => ({ title: "Top 10 in your library", hint: "What the crowd loved most", items: B.q({ sort: "likes" }).slice(0, 10), spec: { sort: "likes" }, layout: "rank", min: 5 }) },
-    { id: "views", family: "popular", weight: 2, build: (B) => ({ title: "Most viewed", hint: "Biggest view counts", items: B.q({ sort: "views" }), spec: { sort: "views" } }) },
+    { id: "views", family: "popular", weight: 2, build: (B) => ({ title: "Most viewed", hint: "Biggest view counts", items: B.qw({ sort: "views" }), spec: { sort: "views" } }) },
     { id: "gems", family: "popular", weight: 2, build: (B) => {
       const pool = B.posts.filter((p) => visible(B.ctx)(p) && !B.ctx.isSeen(p.id)).sort((a, b) => a.metrics.likes - b.metrics.likes);
       const quiet = pool.slice(0, Math.max(10, Math.floor(pool.length / 2)));
@@ -91,13 +101,15 @@ XR.define("core.ranking.rails", ["core.query.engine", "core.util"], function (en
 
     /* ---- entity spotlights ---- */
     { id: "creator", family: "creator", weight: 3, build: (B) => {
-      const counts = [...byUser(B.posts.filter(visible(B.ctx))).entries()].filter(([, n]) => n >= 5);
+      const counts = [...byUser(B.posts.filter(visible(B.ctx))).entries()].filter(([u, n]) => n >= 5 && !B.used.creators.has(u));
       const c = pickWeighted(counts, ([, n]) => n, B.rnd); if (!c) return null;
+      B.used.creators.add(c[0]);
       return { title: "From @{x}", params: { x: c[0] }, hint: "{n} posts by this creator", hintParams: { n: c[1] }, items: B.q({ creator: c[0], sort: "random", seed: B.seed }), spec: { creator: c[0] } };
     } },
     { id: "hashtag", family: "hashtag", weight: 3, build: (B) => {
-      const tags = (B.ctx.hashtags ? B.ctx.hashtags(40) : []).filter(([, n]) => n >= 4);
+      const tags = (B.ctx.hashtags ? B.ctx.hashtags(40) : []).filter(([t, n]) => n >= 4 && !B.used.tags.has(t));
       const tg = pickWeighted(tags, ([, n]) => n, B.rnd); if (!tg) return null;
+      B.used.tags.add(tg[0]);
       const tag = String(tg[0]).replace(/^#/, "");
       return { title: "#" + tag, hint: "Posts carrying this tag", items: B.q({ q: "#" + tag, sort: "random", seed: B.seed }), spec: { q: "#" + tag } };
     } },
@@ -116,16 +128,63 @@ XR.define("core.ranking.rails", ["core.query.engine", "core.util"], function (en
     /* ---- format ---- */
     { id: "shorts", family: "video", weight: 4, build: (B) => ({ title: "Shorts for you", hint: "Unseen clips, freshly shuffled", items: B.q({ kind: "short", state: "unseen", sort: "random", seed: B.seed }), spec: { kind: "short", state: "unseen", sort: "random", seed: B.seed } }) },
     { id: "quick", family: "video", weight: 2, build: (B) => {
-      const items = B.q({ kind: "video", state: "unseen", sort: "shortest" }).filter((p) => B.ctx.duration(p) > 0 && B.ctx.duration(p) <= 20);
+      const items = engine.run(B.posts, { kind: "video", state: "unseen", sort: "shortest", limit: B.limit * 3 }, B.ctx).items.filter((p) => B.ctx.duration(p) > 0 && B.ctx.duration(p) <= 20);
       return { title: "Quick hits", hint: "Under 20 seconds each", items: util.shuffle(items, B.seed).slice(0, B.limit), spec: { kind: "video", sort: "shortest" }, min: 5 };
     } },
     { id: "long", family: "long", weight: 2, build: (B) => ({ title: "Long form", hint: "Clips over 3 minutes", items: B.q({ kind: "long", sort: "random", seed: B.seed }), spec: { kind: "long" }, layout: "wide" }) },
-    { id: "binge", family: "long", weight: 1, build: (B) => ({ title: "Settle in", hint: "The longest videos you saved", items: B.q({ kind: "video", sort: "longest" }), spec: { kind: "video", sort: "longest" }, layout: "wide", min: 4 }) },
+    { id: "binge", family: "long", weight: 1, build: (B) => ({ title: "Settle in", hint: "The longest videos you saved", items: B.qw({ kind: "video", sort: "longest" }), spec: { kind: "video", sort: "longest" }, layout: "wide", min: 4 }) },
     { id: "albums", family: "photo", weight: 2, build: (B) => ({ title: "Photo stories", hint: "Multi-image posts", items: B.q({ kind: "carousel", sort: "random", seed: B.seed }), spec: { kind: "carousel" } }) },
     { id: "photos", family: "photo", weight: 3, build: (B) => ({ title: "Photos", hint: "Single stills", items: B.q({ kind: "photo", sort: "random", seed: B.seed + 7 }), spec: { kind: "photo", sort: "random", seed: B.seed + 7 } }) },
     { id: "gifs", family: "gif", weight: 1, build: (B) => ({ title: "GIFs", hint: "Loops", items: B.q({ kind: "gif", sort: "random", seed: B.seed }), spec: { kind: "gif" } }) },
     { id: "random", family: "random", weight: 3, build: (B) => ({ title: "Random picks", hint: "A fresh shuffle every time", items: B.q({ sort: "random", seed: B.seed + 99 }), spec: { sort: "random", seed: B.seed + 99 } }) },
     { id: "unseen", family: "random", weight: 2, build: (B) => ({ title: "Still unopened", hint: "You saved these and never looked", items: B.q({ state: "unseen", sort: "random", seed: B.seed + 11 }), spec: { state: "unseen", sort: "random", seed: B.seed + 11 } }) },
+
+    /* ---- second spotlights (different entity than the first, see B.used) ---- */
+    { id: "creator2", family: "creator2", weight: 2, build: (B) => POOL.find((d) => d.id === "creator").build(B) },
+    { id: "hashtag2", family: "hashtag2", weight: 2, build: (B) => POOL.find((d) => d.id === "hashtag").build(B) },
+
+    /* ---- shape ---- */
+    { id: "vertical", family: "shape", weight: 2, build: (B) => {
+      const items = B.posts.filter((p) => visible(B.ctx)(p) && primaryAspect(p) < 0.8 && p.media[0].kind !== "photo");
+      return { title: "Vertical", hint: "Shot for a phone screen", items: util.shuffle(items, B.seed).slice(0, B.limit), spec: null, min: 5 };
+    } },
+    { id: "cinematic", family: "shape", weight: 2, build: (B) => {
+      const items = B.posts.filter((p) => visible(B.ctx)(p) && primaryAspect(p) >= 1.6);
+      return { title: "Widescreen", hint: "Landscape frames, best on a big display", items: util.shuffle(items, B.seed).slice(0, B.limit), spec: null, min: 5, layout: "wide" };
+    } },
+
+    /* ---- more popularity / discovery ---- */
+    { id: "missed", family: "popular2", weight: 2, build: (B) => ({ title: "Popular, but you missed it", hint: "Unseen posts with the most likes", items: B.qw({ state: "unseen", sort: "likes" }, 21), spec: { state: "unseen", sort: "likes" }, min: 5 }) },
+    { id: "deepcuts", family: "time2", weight: 1, build: (B) => ({ title: "Deep cuts", hint: "The oldest posts you never opened", items: B.qw({ state: "unseen", sort: "oldest" }, 22), spec: { state: "unseen", sort: "oldest" }, min: 5 }) },
+    { id: "thisyear", family: "time2", weight: 2, build: (B) => {
+      const y = new Date(B.now).getFullYear();
+      const items = B.posts.filter((p) => visible(B.ctx)(p) && new Date(p.createdAt).getFullYear() === y);
+      return { title: "Posted in {x}", params: { x: String(y) }, hint: "This year's posts", items: util.shuffle(items, B.seed).slice(0, B.limit), spec: null, min: 5 };
+    } },
+    { id: "yearago", family: "time2", weight: 2, build: (B) => {
+      const lo = B.now - 395 * 864e5, hi = B.now - 335 * 864e5;
+      const items = B.posts.filter((p) => visible(B.ctx)(p) && p.savedAt >= lo && p.savedAt <= hi);
+      return { title: "A year ago", hint: "What you were saving twelve months back", items: util.shuffle(items, B.seed).slice(0, B.limit), spec: null, min: 4 };
+    } },
+    { id: "latenight", family: "mood", weight: 1, build: (B) => {
+      const items = B.posts.filter((p) => visible(B.ctx)(p) && p.savedAt && HOUR(p.savedAt) < 5);
+      return { title: "Late-night saves", hint: "Bookmarked between midnight and 5 am", items: util.shuffle(items, B.seed).slice(0, B.limit), spec: null, min: 5 };
+    } },
+    { id: "quoted", family: "mood", weight: 1, build: (B) => {
+      const items = B.posts.filter((p) => visible(B.ctx)(p) && p.quoted);
+      return { title: "With a quote", hint: "Posts that quote another post", items: util.shuffle(items, B.seed).slice(0, B.limit), spec: null, min: 4 };
+    } },
+    { id: "sampler", family: "sampler", weight: 3, build: (B) => {
+      /* one random post per creator, creators in seeded order */
+      const seen = new Set(), items = [];
+      for (const p of util.shuffle(B.posts.filter(visible(B.ctx)), B.seed + 31)) { if (seen.has(p.author.username)) continue; seen.add(p.author.username); items.push(p); if (items.length >= B.limit) break; }
+      return { title: "One from everyone", hint: "A single pick per creator", items, spec: null, min: 6 };
+    } },
+    { id: "newcreators", family: "creator3", weight: 2, build: (B) => {
+      const aff = B.ctx.creatorAffinity ? B.ctx.creatorAffinity() : new Map();
+      const items = B.posts.filter((p) => visible(B.ctx)(p) && !aff.has(p.author.username) && !B.ctx.isSeen(p.id));
+      return { title: "Creators you haven't opened yet", hint: "Accounts in your library you never tapped", items: util.shuffle(items, B.seed + 41).slice(0, B.limit), spec: null, min: 5 };
+    } },
   ];
 
   /**
@@ -140,14 +199,17 @@ XR.define("core.ranking.rails", ["core.query.engine", "core.util"], function (en
     const count = opts.count || COUNT;
     const rnd = util.seededRandom(seed);
     const q = (spec) => engine.run(posts, { ...spec, limit }, ctx).items;
-    const B = { posts, ctx, q, rnd, seed, now, limit };
+    /* sorted shelves: 2× window, reshuffled per seed (see header) */
+    const qw = (spec, salt = 0) => windowed(engine.run(posts, { ...spec, limit: limit * 2 }, ctx).items, seed + salt, limit);
+    const used = { creators: new Set(), tags: new Set() };          // entity spotlights never repeat on one page
+    const B = { posts, ctx, q, qw, rnd, seed, now, limit, used };
 
     const rails = [];
     const seenIds = new Map();                                 // postId → shelves it already sits in
     const finish = (def, rail) => {
       if (!rail) return false;
-      /* a post may sit on at most two shelves per page; ranked rails keep their order intact */
-      const items = rail.layout === "rank" ? rail.items : rail.items.filter((p) => (seenIds.get(p.id) || 0) < 2);
+      /* a post may sit on at most PER_POST shelves per page; ranked rails keep their order intact */
+      const items = rail.layout === "rank" ? rail.items : rail.items.filter((p) => (seenIds.get(p.id) || 0) < PER_POST);
       if (items.length < (rail.min ?? 3)) return false;
       for (const p of items) seenIds.set(p.id, (seenIds.get(p.id) || 0) + 1);
       rails.push({ id: def.id, family: def.family, watchable: true, layout: "", specDisabled: false, ...rail, items });
@@ -158,17 +220,23 @@ XR.define("core.ranking.rails", ["core.query.engine", "core.util"], function (en
     const resume = engine.run(posts, { state: "progress" }, ctx).items.sort((a, b) => ctx.progressAt(b) - ctx.progressAt(a)).slice(0, limit);
     finish({ id: "continue", family: "anchor" }, { title: "Continue watching", hint: "Pick up where you stopped", items: resume, spec: { state: "progress" }, min: 1, layout: "wide" });
 
-    /* Pool — seeded weighted draw without replacement, one rail per family. */
-    const candidates = POOL.slice();
-    const usedFamilies = new Set();
+    /* Pool — seeded weighted draw without replacement. Pass 1: one rail per family.
+       Pass 2 (small libraries): the families that lost out get another go so the page
+       still reaches COUNT shelves whenever the data allows it. */
+    const target = count - rails.length;
+    const usedFamilies = new Set(), tried = new Set();
     let picked = 0;
-    while (picked < count && candidates.length) {
-      const def = pickWeighted(candidates, (d) => d.weight * d.weight, rnd);
-      candidates.splice(candidates.indexOf(def), 1);
-      if (usedFamilies.has(def.family)) continue;
-      let rail = null;
-      try { rail = def.build(B); } catch { rail = null; }
-      if (finish(def, rail)) { usedFamilies.add(def.family); picked++; }
+    for (let pass = 0; pass < 2 && picked < target; pass++) {
+      const candidates = POOL.filter((d) => !tried.has(d.id));
+      while (picked < target && candidates.length) {
+        const def = pickWeighted(candidates, (d) => d.weight * d.weight, rnd);
+        candidates.splice(candidates.indexOf(def), 1);
+        if (pass === 0 && usedFamilies.has(def.family)) continue;
+        tried.add(def.id);
+        let rail = null;
+        try { rail = def.build(B); } catch { rail = null; }
+        if (finish(def, rail)) { usedFamilies.add(def.family); picked++; }
+      }
     }
 
     /* Order: anchor first, then a seeded shuffle; keep the ranked shelf out of the very first slot. */
