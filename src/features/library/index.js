@@ -5,7 +5,7 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
   function (dom, icons, W, masonryUI, tiles, menu, dialog, keys, catalog, activity, actions, prefs, nav, platform, engine, events, EV, util) {
     "use strict";
     const h = dom.h;
-    const S = { host: null, spec: engine.normalizeSpec({}), result: { items: [], total: 0 }, grid: null, els: {}, offs: [], queryTimer: 0, sel: { on: false, set: new Set(), last: -1 } };
+    const S = { host: null, spec: engine.normalizeSpec({}), result: { items: [], total: 0 }, grid: null, els: {}, offs: [], queryTimer: 0, empty: null, sel: { on: false, set: new Set(), last: -1 } };
 
     const KIND_CHIPS = [["all", "All", "grid"], ["video", "Videos", "play"], ["short", "Shorts", "zap"], ["long", "Long", "film"], ["photo", "Photos", "image"], ["carousel", "Albums", "layers"], ["gif", "GIFs", "gif"]];
     const STATE_CHIPS = [["unseen", "Unseen", "eye"], ["starred", "Starred", "star"], ["progress", "In progress", "clock"], ["seen", "Seen", "check"], ["hidden", "Hidden", "eyeOff"]];
@@ -29,6 +29,7 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
       renderToolbar();
       S.grid = masonryUI.createMasonry(gridHost, {
         scroller: outlet, colMin: colMin(), gap: gapPx(), overscan: 900,
+        minCols: innerWidth < 700 ? 2 : 1,
         aspectOf: (p) => tiles.aspectOf(p), extraHeight: () => tiles.infoHeight(),
         render: (post, i, w) => tiles.make(post, { ids: S.ids, index: i, label: label(), width: w, ...selectOpts() }),
       });
@@ -45,7 +46,7 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
     }
     function recreateGrid() {
       S.grid.destroy();
-      return masonryUI.createMasonry(S.els.gridHost, { scroller: S.host, colMin: colMin(), gap: gapPx(), overscan: 900, aspectOf: (p) => tiles.aspectOf(p), extraHeight: () => tiles.infoHeight(), render: (post, i, w) => tiles.make(post, { ids: S.ids, index: i, label: label(), width: w, ...selectOpts() }) });
+      return masonryUI.createMasonry(S.els.gridHost, { scroller: S.host, colMin: colMin(), gap: gapPx(), overscan: 900, minCols: innerWidth < 700 ? 2 : 1, aspectOf: (p) => tiles.aspectOf(p), extraHeight: () => tiles.infoHeight(), render: (post, i, w) => tiles.make(post, { ids: S.ids, index: i, label: label(), width: w, ...selectOpts() }) });
     }
     const colMin = () => ({ compact: 140, cozy: 180, comfortable: 230 }[prefs.get("density")] || 180);
     const gapPx = () => ({ compact: 6, cozy: 10, comfortable: 14 }[prefs.get("density")] || 10);
@@ -61,24 +62,71 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
       const next = engine.fromParams(route.query);
       const changed = JSON.stringify(next) !== JSON.stringify(S.spec);
       S.spec = next;
-      if (changed) { renderToolbar(); runQuery(); }
+      if (changed) { syncToolbar(); runQuery(); }
     }
 
+    /* The toolbar is built once; typing must never lose focus to a re-render. */
     function renderToolbar() {
       const { toolbar } = S.els;
-      const q = h("input.input.lib-search", { type: "search", placeholder: "Search… @user #tag is:short dur:>5m", value: S.spec.q, autocomplete: "off", spellcheck: false,
+      const narrow = innerWidth < 700;
+      const q = h("input.input.lib-search", {
+        type: "search", placeholder: narrow ? "Search your library…" : "Search… @user #tag is:short dur:>5m",
+        value: S.spec.q, autocomplete: "off", spellcheck: false, "aria-label": "Search library",
         oninput: () => { clearTimeout(S.queryTimer); S.queryTimer = setTimeout(() => setSpec({ q: q.value.trim() }), 260); },
-        onkeydown: (e) => { if (e.key === "Escape") { q.value = ""; setSpec({ q: "" }); q.blur(); } if (e.key === "Enter") { clearTimeout(S.queryTimer); setSpec({ q: q.value.trim() }); } } });
-      const sort = W.select(SORT_OPTIONS.map(([value, label]) => ({ value, label })), S.spec.sort, (v) => setSpec({ sort: v, seed: v === "random" ? util.daySeed() : 0 }));
-      const monthSel = W.select([{ value: "", label: "Any month posted" }, ...catalog.months.map((m) => ({ value: m.key, label: `${m.label} (${m.count})` }))], S.spec.month, (v) => setSpec({ month: v }));
-      const savedSel = W.select([{ value: "", label: "Any month saved" }, ...catalog.savedMonths.map((m) => ({ value: m.key, label: `${m.label} (${m.count})` }))], S.spec.savedMonth, (v) => setSpec({ savedMonth: v }));
+        onkeydown: (e) => { if (e.key === "Escape") { q.value = ""; setSpec({ q: "" }); q.blur(); } if (e.key === "Enter") { clearTimeout(S.queryTimer); setSpec({ q: q.value.trim() }); } },
+      });
+      const sort = W.select(SORT_OPTIONS.map(([value, label]) => ({ value, label })), S.spec.sort, (v) => setSpec({ sort: v, seed: v === "random" ? util.daySeed() : 0 }), { cls: "lib-sort" });
+      const filterCount = h("span.lib-filter-count", { hidden: true });
+      const filterBtn = h("button.btn.lib-filter", { title: "Filters & sorting", "aria-label": "Filters and sorting", onclick: () => openFilters() },
+        icons.icon("sliders", 16), h("span.lib-act-label", "Filters"), filterCount);
+      const selectBtn = W.btn("Select", { icon: "check", title: "Select mode (v)", cls: "lib-act", onClick: () => toggleBulk() });
+      const shuffleBtn = W.btn("", { icon: "shuffle", title: "Shuffle (r)", cls: "lib-act", onClick: shuffle });
+      const viewsBtn = W.btn("", { icon: "bookmark", title: "Saved views", cls: "lib-act", onClick: (e) => viewsMenu(e.currentTarget) });
       dom.replace(toolbar,
-        h("div.lib-search-wrap", icons.icon("search", 16), q, h("button.btn.btn-icon.btn-ghost.lib-help", { title: "Search syntax", onclick: showSyntax }, icons.icon("info", 16))),
-        h("div.lib-controls",
-          sort, monthSel, savedSel,
-          W.btn("Select", { icon: "check", title: "Select mode (v)", onClick: () => toggleBulk() }),
-          W.btn("", { icon: "shuffle", title: "Shuffle (r)", onClick: shuffle }),
-          W.btn("", { icon: "bookmark", title: "Saved views", onClick: (e) => viewsMenu(e.currentTarget) })));
+        h("div.lib-search-wrap", icons.icon("search", 16), q,
+          h("button.btn.btn-icon.btn-ghost.lib-help", { title: "Search syntax", "aria-label": "Search syntax help", onclick: showSyntax }, icons.icon("info", 16))),
+        h("div.lib-controls", sort, filterBtn, selectBtn, shuffleBtn, viewsBtn));
+      S.els.search = q; S.els.sort = sort; S.els.filterBtn = filterBtn; S.els.filterCount = filterCount;
+      syncToolbar();
+    }
+
+    const filterCount = () => ["kind", "state", "creator", "collection", "month", "savedMonth", "q"].filter((k) => S.spec[k] && S.spec[k] !== "all").length + (S.spec.sort && S.spec.sort !== "saved" ? 1 : 0);
+
+    /** Reflect spec changes without rebuilding inputs. */
+    function syncToolbar() {
+      const { sort, search, filterCount: badge } = S.els;
+      if (sort && sort.value !== (S.spec.sort || "saved")) sort.value = S.spec.sort || "saved";
+      if (search && document.activeElement !== search && search.value !== (S.spec.q || "")) search.value = S.spec.q || "";
+      const n = filterCount();
+      if (badge) { badge.hidden = n === 0; badge.textContent = String(n); }
+    }
+
+    function field(label, control) {
+      return h("label.filter-field", h("span.filter-label", label), control);
+    }
+
+    /** Filters & sorting live in one sheet so the toolbar stays a single line. */
+    function openFilters() {
+      const sort = W.select(SORT_OPTIONS.map(([value, label]) => ({ value, label })), S.spec.sort, (v) => setSpec({ sort: v, seed: v === "random" ? util.daySeed() : 0 }), { cls: "filter-control" });
+      const month = W.select([{ value: "", label: "Any month posted" }, ...catalog.months.map((m) => ({ value: m.key, label: `${m.label} (${m.count})` }))], S.spec.month, (v) => setSpec({ month: v }), { cls: "filter-control" });
+      const saved = W.select([{ value: "", label: "Any month saved" }, ...catalog.savedMonths.map((m) => ({ value: m.key, label: `${m.label} (${m.count})` }))], S.spec.savedMonth, (v) => setSpec({ savedMonth: v }), { cls: "filter-control" });
+      const body = h("div.filter-sheet",
+        field("Sort by", sort),
+        field("Month posted", month),
+        field("Month saved", saved),
+        h("div.filter-actions",
+          W.btn("Select posts", { icon: "check", onClick: () => { d.close(); toggleBulk(true); } }),
+          W.btn("Shuffle order", { icon: "shuffle", onClick: () => { d.close(); shuffle(); } }),
+          W.btn("Saved views", { icon: "bookmark", onClick: (e) => { d.close(); viewsMenu(e.currentTarget); } }),
+          W.btn("Search syntax", { icon: "info", onClick: () => { d.close(); showSyntax(); } })),
+        h("p.muted.small", "Filters combine. Kind and state chips stay one tap away above the grid."));
+      const d = dialog.open({
+        title: "Filters & sorting", size: "sm", body,
+        actions: [
+          { label: "Reset all", kind: "ghost", close: false, run: () => { nav.setQuery({}); d.close(); } },
+          { label: "Done", kind: "primary" },
+        ],
+      });
     }
     function renderChips() {
       const f = catalog.facets();
@@ -103,7 +151,18 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
       if (countEl) countEl.textContent = `${dom.compact(S.result.total)} ${S.result.total === 1 ? "post" : "posts"} · ${engine.describe(S.spec)}${S.spec.sort === "random" ? " · seed " + S.spec.seed : ""}`;
       if (resetScroll) S.host.scrollTop = 0;
       S.grid.setItems(S.result.items);
-      if (!S.result.items.length) S.els.gridHost.appendChild(W.empty({ icon: S.spec.state === "hidden" ? "eyeOff" : "search", title: "No posts match", text: S.spec.q ? "Try fewer words, or check the search syntax (ⓘ)." : "Try another filter.", action: { label: "Clear filters", run: () => nav.setQuery({}) } }));
+      if (S.empty) { S.empty.remove(); S.empty = null; }
+      if (!S.result.items.length) {
+        const emptyLib = !catalog.posts.length;
+        S.empty = W.empty({
+          icon: emptyLib ? "inbox" : S.spec.state === "hidden" ? "eyeOff" : "search",
+          title: emptyLib ? "Your library is empty" : "No posts match",
+          text: emptyLib ? "Import an X bookmarks export to start your private cinema." : S.spec.q ? "Try fewer words, or open the search syntax guide." : "Try another filter — or clear them all to see everything.",
+          action: { label: emptyLib ? "Import posts" : "Clear filters", icon: emptyLib ? "upload" : "refresh", run: () => (emptyLib ? nav.go("import") : nav.setQuery({})) },
+        });
+        S.els.gridHost.appendChild(S.empty);
+      }
+      syncToolbar();
       syncBulkBar();
     }
 

@@ -7,11 +7,57 @@ XR.define("features.settings", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog",
     const P = (key) => prefs.get(key);
     const set = (key) => (v) => prefs.set({ [key]: v });
 
+    const SECTIONS = [
+      ["appearance", "Appearance", "grid"],
+      ["playback", "Playback", "play"],
+      ["privacy", "Privacy", "shield"],
+      ["data", "Data", "database"],
+      ["about", "About & shortcuts", "keyboard"],
+    ];
+
     function render() {
       dom.clear(host);
-      const page = h("div.settings", W.pageHead("Settings", `XReels · storage: ${storage.kind} · ${platform.isFile() ? "running from file://" : location.origin}`));
-      page.append(appearance(), playback(), privacy(), data(), about());
+      const page = h("div.settings", W.pageHead("Settings", `Local-first · ${storage.kind} · ${catalog.size} posts in this browser`));
+      const nav = h("nav.settings-nav", { "aria-label": "Settings sections" },
+        h("p.settings-nav-title", "On this page"),
+        SECTIONS.map(([id, label, icon]) => h("a.settings-nav-link", { href: "#set-" + id, dataset: { section: id }, onclick: (e) => { e.preventDefault(); scrollToSection(id); } }, icons.icon(icon, 14), h("span", label))),
+        h("div.settings-nav-foot",
+          W.btn("Reset preferences", { size: "sm", onClick: async () => { if (await dialog.confirm("Reset all preferences to defaults?")) { prefs.reset(); render(); } } }),
+          h("p.muted.small", "Changes save instantly in this browser.")));
+      const body = h("div.settings-body", mark(appearance(), "appearance"), mark(playback(), "playback"), mark(privacy(), "privacy"), mark(data(), "data"), mark(about(), "about"));
+      page.append(h("div.settings-cols", nav, body));
       host.appendChild(page);
+      observeSections(body, nav);
+    }
+    function mark(section, id) {
+      section.id = "set-" + id;
+      section.dataset.section = id;
+      section.classList.add("settings-section");
+      return section;
+    }
+    function scrollToSection(id) {
+      const target = host.querySelector("#set-" + id);
+      if (!target) return;
+      const top = target.getBoundingClientRect().top - host.getBoundingClientRect().top + host.scrollTop - 96;
+      host.scrollTo({ top, behavior: "smooth" });
+      setNavActive(id);
+    }
+    function setNavActive(id) {
+      for (const a of host.querySelectorAll(".settings-nav-link")) a.classList.toggle("is-active", a.dataset.section === id);
+    }
+    let spy = null;
+    function observeSections(body, nav) {
+      spy?.disconnect();
+      const links = nav.querySelectorAll(".settings-nav-link");
+      const tops = () => [...body.querySelectorAll(".settings-section")].map((el) => ({ id: el.dataset.section, top: el.getBoundingClientRect().top }));
+      const onScroll = () => {
+        const list = tops();
+        const mark = list.filter((x) => x.top <= host.getBoundingClientRect().top + 160).pop() || list[0];
+        if (mark) for (const a of links) a.classList.toggle("is-active", a.dataset.section === mark.id);
+      };
+      host.addEventListener("scroll", onScroll, { passive: true });
+      spy = { disconnect: () => host.removeEventListener("scroll", onScroll) };
+      onScroll();
     }
     function appearance() {
       return W.section("Appearance", "Cinematic dark — tuned so the artwork does the talking",
@@ -25,7 +71,7 @@ XR.define("features.settings", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog",
         W.row("Start on", "", W.segmented([{ value: "discover", label: "Discover" }, { value: "library", label: "Library" }, { value: "watch", label: "Watch" }], P("landing"), set("landing"))));
     }
     function playback() {
-      return W.section("Playback", "",
+      return W.section("Playback", "How the feed behaves while you watch",
         W.row("Tiles open in", "Auto sends videos to the Watch feed, photos & albums to the Viewer", W.segmented([{ value: "auto", label: "Auto" }, { value: "viewer", label: "Viewer" }, { value: "watch", label: "Watch feed" }], P("tileOpens"), set("tileOpens"))),
         W.row("Start muted", "Browsers block autoplay with sound until you interact", W.toggle(P("startMuted"), set("startMuted"))),
         W.row("Loop short clips", "Clips up to 60 s repeat instead of advancing", W.toggle(P("loopShorts"), set("loopShorts"))),
@@ -70,7 +116,7 @@ XR.define("features.settings", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog",
       const libs = h("div.lib-list", W.spinner());
       importer.libraries().then((items) => dom.replace(libs, items.map((d) => libraryRow(d, d.id === (src?.id === "auto" ? "auto" : src?.library?.id || src?.id)))));
       const dead = activity.unavailableIds().length;
-      return W.section("Data", "",
+      return W.section("Data", "Libraries, backups and the storage this browser gives us",
         W.row("Libraries", "Switch, rename or remove the libraries stored in this browser", h("div.stack", libs, h("div.row-btns",
           W.btn("Import / replace", { icon: "upload", kind: "primary", size: "sm", onClick: () => nav.go("import") }),
           W.btn("Re-read file", { icon: "refresh", size: "sm", title: "Clear the cache of data/posts.js and read it again", onClick: async () => { await importer.reload(); actions.toast("Posts reloaded", "success"); render(); } }),
@@ -146,7 +192,6 @@ XR.define("features.settings", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog",
       mount(outlet) { host = outlet; render(); }, unmount() { host = null; },
       commands: () => [
         { id: "settings.open", title: "Open Settings", icon: "settings", run: () => nav.go("settings") },
-        { id: "settings.theme", title: "Toggle dark / light theme", icon: "sun", run: () => prefs.set({ theme: prefs.get("theme") === "dark" ? "light" : "dark" }) },
         { id: "settings.blur", title: "Toggle privacy blur", icon: "eyeOff", run: () => prefs.set({ blur: !prefs.get("blur") }) },
         { id: "settings.discreet", title: "Toggle discreet tab title", icon: "shield", run: () => prefs.set({ discreet: !prefs.get("discreet") }) },
         { id: "settings.lock", title: lock.isEnabled() ? "Lock now" : "Set a PIN", icon: "lock", run: () => (lock.isEnabled() ? lock.lock() : nav.go("settings")) },

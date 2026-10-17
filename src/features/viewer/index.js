@@ -56,6 +56,7 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.postMenu",
         /* Central Theatre Stage */
         h("div.viewer-stage",
           h("div.viewer-frame",
+            h("div.viewer-fill", { "aria-hidden": "true" }),
             h("div.viewer-media-box"),
             h("div.viewer-overlay",
               h("div.viewer-gradient"),
@@ -169,7 +170,9 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.postMenu",
       dom.clear(rail);
 
       /* Update top counters & nav buttons */
-      posBadge.textContent = `${S.index + 1} / ${S.ids.length}${S.label ? " · " + S.label : ""}`;
+      posBadge.replaceChildren(
+        `${S.index + 1} / ${S.ids.length}`,
+        S.label ? h("span.viewer-pos-label", " · " + S.label) : "");
       S.el.querySelector(".viewer-vnav-up").disabled = S.index === 0;
       S.el.querySelector(".viewer-vnav-down").disabled = S.index >= S.ids.length - 1;
 
@@ -195,6 +198,12 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.postMenu",
       frame.dataset.fit = S.fit;
       frame.dataset.kind = m ? m.kind : "text";
       frame.style.setProperty("--ar", aspect.toFixed(4));
+
+      /* Letterbox areas get a scaled, dimmed copy of the same frame so the
+         stage never reads as a black hole around contain-fitted media. */
+      let fill = frame.querySelector(".viewer-fill");
+      if (!fill) { fill = h("div.viewer-fill", { "aria-hidden": "true" }); frame.insertBefore(fill, frame.firstChild); }
+      fill.style.backgroundImage = m ? `url("${media.poster(m, 600)}")` : "none";
 
       /* Subtle ambient glow behind the player (not in foreground) */
       if (m) {
@@ -320,6 +329,9 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.postMenu",
       } else {
         stripBox.style.display = "none";
       }
+
+      /* On-media footer: who made it and what it says. Info keeps the full text. */
+      renderFoot(post);
 
       /* Info Popover Card (details on demand) */
       renderInfoCard(infoCard, post, m);
@@ -523,6 +535,33 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.postMenu",
         starBtn.appendChild(icons.icon("star", 24, { filled: on }));
         starBtn.appendChild(h("span.viewer-rail-label", "Star"));
       }
+    }
+
+    /* Bottom-left identity + clamped caption, the way a cinema programme note reads.
+       Tapping the text opens the info card for the full caption and facts. */
+    function renderFoot(post) {
+      const overlay = S.el.querySelector(".viewer-overlay");
+      if (!overlay) return;
+      overlay.querySelector(".viewer-foot")?.remove();
+      const text = (post.text || "").trim();
+      const tags = (post.hashtags || []).slice(0, 3);
+      const who = h("button.viewer-foot-who", {
+        title: "Open @" + post.author.username,
+        onclick: (e) => { e.stopPropagation(); close(); actions.goCreator(post.author.username); },
+      },
+        W.avatar(media.avatar(post, 64), post.author.name, 30),
+        h("span.viewer-foot-id", h("b", post.author.name), h("span", "@" + post.author.username)));
+      const textEl = text
+        ? h("p.viewer-foot-text",
+            h("span.viewer-foot-clamp", text),
+            text.length > 110 || post.quoted ? h("button.viewer-foot-more", {
+              onclick: (e) => { e.stopPropagation(); S.showInfo = true; renderInfoCard(S.el.querySelector(".viewer-info-card"), post, post.media[S.mediaIndex] || post.media[0]); },
+            }, "More") : null)
+        : null;
+      const tagRow = tags.length ? h("div.viewer-foot-tags", tags.map((tg) => h("button.viewer-foot-tag", {
+        onclick: (e) => { e.stopPropagation(); close(); actions.goTag(tg); },
+      }, "#" + tg))) : null;
+      overlay.appendChild(h("div.viewer-foot", who, textEl, tagRow));
     }
 
     /* Info Popover Card — caption + details, displayed only on demand */

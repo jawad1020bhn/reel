@@ -27,6 +27,7 @@ XR.define("features.insights", ["ui.dom", "ui.icons", "ui.widgets", "ui.charts",
       /* per month: posted (createdAt) and saved (captured) */
       const toSeries = (list) => list.slice().reverse().map((m) => ({ label: m.label, short: m.key.slice(2).replace("-", "/"), value: m.count, key: m.key }));
       const postedByMonth = toSeries(catalog.months.slice(0, 36));
+      /* a single saved month is a fact, not a chart: only plot once there is a series */
       const savedByMonth = toSeries(catalog.savedMonths);
       /* duration buckets */
       const buckets = [["≤15s", 0, 15], ["15–60s", 15, 60], ["1–3m", 60, 180], ["3–10m", 180, 600], ["10–30m", 600, 1800], ["30m+", 1800, Infinity]].map(([label, lo, hi]) => ({ label, value: 0, lo, hi }));
@@ -44,9 +45,13 @@ XR.define("features.insights", ["ui.dom", "ui.icons", "ui.widgets", "ui.charts",
 
       const grid = h("div.insight-grid");
       dom.append(grid, [
-        panel("What you save", h("div.row-flex", charts.donut(kindData, { size: 140 }), charts.legend(kindData)), "Click a kind in Library to filter it."),
+        panel("What you save", h("div.row-flex", charts.donut(kindData, { size: 140 }), charts.legend(kindData)), "Choose a kind in Library to filter it."),
         panel("Posted per month", charts.bars(postedByMonth, { height: 120, onClick: (d) => actions.goLibrary({ month: d.key }) }), "When the posts were published (last 36 months). Click a bar to open that month."),
-        savedByMonth.length > 1 ? panel("Saved per month", charts.bars(savedByMonth, { height: 120, onClick: (d) => actions.goLibrary({ savedMonth: d.key }) }), "When you bookmarked them.") : null,
+        savedByMonth.length > 1
+          ? panel("Saved per month", charts.bars(savedByMonth, { height: 120, onClick: (d) => actions.goLibrary({ savedMonth: d.key }) }), "When you bookmarked them.")
+          : savedByMonth.length === 1
+            ? panel("Saved per month", h("div.saved-single", h("b", savedByMonth[0].value), h("span", `saved in ${savedByMonth[0].label}`)), "Add another import to see a trend.")
+            : null,
         panel("Video length", charts.hbars(buckets, { onClick: (d) => actions.goLibrary({ q: d.hi === Infinity ? `dur:>${d.lo}s` : `dur:${d.lo}s-${d.hi}s` }), format: (v) => String(v) })),
         panel("Top creators", charts.hbars(topCreators, { onClick: (d) => actions.goCreator(d.username), format: (v) => String(v) })),
         topTags.length ? panel("Top hashtags", charts.hbars(topTags, { onClick: (d) => actions.goTag(d.tag), format: (v) => String(v) })) : null,

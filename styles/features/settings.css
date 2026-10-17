@@ -1,6 +1,74 @@
-/* features/settings.css — preferences, privacy, data, about */
-.settings { max-width: 860px; }
+/* features/settings.css — a two-pane preferences sheet: sticky index, quiet cards */
+.settings { max-width: 1180px; }
+.settings-cols { display: grid; grid-template-columns: 208px minmax(0, 1fr); gap: 34px; align-items: start; }
+.settings-nav {
+  position: sticky; top: calc(var(--hdr-offset) + 22px);
+  display: flex; flex-direction: column; gap: 2px;
+  padding-top: 4px;
+}
+.settings-nav-title {
+  margin: 0 0 8px; padding-left: 12px;
+  font-family: var(--mono); font-size: 9.5px; font-weight: 500; letter-spacing: 0.18em;
+  text-transform: uppercase; color: var(--fg-3);
+}
+.settings-nav-link {
+  position: relative; display: flex; align-items: center; gap: 9px;
+  height: 34px; padding: 0 12px; border-radius: var(--r-sm);
+  font-size: 13px; font-weight: 500; color: var(--fg-2);
+  transition: color var(--dur) var(--ease-soft), background var(--dur) var(--ease-soft);
+}
+.settings-nav-link .icon { opacity: 0.7; }
+.settings-nav-link:hover { color: var(--fg); background: rgb(255 255 255 / 0.05); }
+.settings-nav-link.is-active { color: var(--fg); background: rgb(255 255 255 / 0.09); }
+.settings-nav-link.is-active .icon { color: var(--accent); opacity: 1; }
+.settings-nav-foot { margin-top: 18px; padding: 14px 12px 0; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 9px; }
+.settings-nav-foot .btn { justify-content: center; }
+.settings-nav-foot p { line-height: 1.45; }
+
+.settings-body { min-width: 0; max-width: 780px; }
+.settings-body .section {
+  scroll-margin-top: calc(var(--hdr-offset) + 24px);
+  background: rgb(255 255 255 / 0.028); border: 1px solid var(--line); border-radius: var(--r-xl);
+  padding: 4px 24px 10px; margin-bottom: 20px;
+}
+.settings-body .section-head { padding: 20px 0 12px; border-bottom: 1px solid var(--line); }
+.settings-body .section-title {
+  font-family: var(--display); font-weight: 400; font-size: 25px; line-height: 1;
+  letter-spacing: 0.02em; text-transform: none; color: var(--fg);
+}
+.settings-body .section-desc { margin-top: 5px; color: var(--fg-2); font-size: 12.5px; max-width: 62ch; }
+.settings-body .row { padding: 14px 2px; gap: 20px; }
+.settings-body .row:first-of-type { border-top: 0; }
+.settings-body .row:hover .row-label { color: #fff; }
+.settings-body .row-label { transition: color var(--dur) var(--ease-soft); }
+.settings-body .row-desc { max-width: 52ch; line-height: 1.4; }
+.settings-body .row-btns { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.settings-body .segmented { flex-wrap: wrap; justify-content: flex-end; }
+.settings-body .lib-list { margin-top: 4px; }
+.settings-body .lib-row { background: rgb(0 0 0 / 0.28); }
+.settings-body .lib-main { flex: 1; text-align: left; display: flex; align-items: center; gap: 10px; min-width: 0; }
+.settings-body .lib-main:hover .lib-name { color: var(--accent-strong); }
+.settings-body .lib-name { transition: color var(--dur) var(--ease-soft); }
+.settings-body .row-control > .input { width: 180px; max-width: 100%; }
+.settings-body .row-error { border-color: rgb(224 29 41 / 0.3); }
+
+@media (max-width: 1000px) {
+  .settings-cols { grid-template-columns: 1fr; gap: 18px; }
+  .settings-nav { position: static; flex-direction: row; flex-wrap: wrap; gap: 6px; padding: 0; }
+  .settings-nav-title, .settings-nav-foot { display: none; }
+  .settings-nav-link { height: 32px; padding: 0 12px; border-radius: var(--r-pill); background: rgb(255 255 255 / 0.05); font-size: 12.5px; }
+  .settings-nav-link.is-active { background: rgb(255 255 255 / 0.1); }
+  .settings-nav-link.is-active::before { display: none; }
+  .settings-body { max-width: none; }
+}
 @media (max-width: 640px) {
-  .row { flex-direction: column; align-items: flex-start; gap: 10px; }
-  .row-control { max-width: 100%; }
+  .settings-body .section { padding: 2px 16px 8px; border-radius: var(--r-lg); }
+  .settings-body .section-head { padding: 16px 0 10px; }
+  .settings-body .section-title { font-size: 22px; }
+  .settings-body .row { flex-direction: column; align-items: flex-start; gap: 10px; padding: 13px 0; }
+  .settings-body .row-control { max-width: 100%; width: 100%; justify-content: flex-start; }
+  .settings-body .row-control .segmented { justify-content: flex-start; }
+  .settings-body .row-btns { justify-content: flex-start; }
+  .settings-body .row-control > .input { width: 100%; }
+  .settings-body .select { max-width: none; }
 }

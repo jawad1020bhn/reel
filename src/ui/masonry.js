@@ -4,6 +4,7 @@
    createMasonry(host, {
      scroller,                 // scrolling element (default: nearest overflow ancestor or window)
      colMin: 170, gap: 10,     // px
+     minCols: 1, maxCols: 8,   // phone layouts want 2 columns even when colMin would give 1
      overscan: 900,            // px above/below the viewport to keep mounted
      aspectOf(item) → number,  // width / height of the media box
      extraHeight(item) → px,   // e.g. an always-visible info strip
@@ -20,7 +21,7 @@ XR.define("ui.masonry", ["ui.dom"], function (dom) {
   }
 
   function createMasonry(host, opts) {
-    const o = { colMin: 170, gap: 10, overscan: 900, aspectOf: () => 1, extraHeight: () => 0, ...opts };
+    const o = { colMin: 170, gap: 10, overscan: 900, minCols: 1, maxCols: 8, aspectOf: () => 1, extraHeight: () => 0, ...opts };
     const scroller = o.scroller || findScroller(host);
     const isWin = scroller === window;
     host.classList.add("masonry");
@@ -50,7 +51,7 @@ XR.define("ui.masonry", ["ui.dom"], function (dom) {
     function layout() {
       hostWidth = host.clientWidth;
       if (!hostWidth) return;
-      cols = Math.max(1, Math.floor((hostWidth + o.gap) / (o.colMin + o.gap)));
+      cols = Math.min(o.maxCols, Math.max(o.minCols, Math.floor((hostWidth + o.gap) / (o.colMin + o.gap))));
       colWidth = (hostWidth - o.gap * (cols - 1)) / cols;
       const heights = new Array(cols).fill(0);
       pos = new Array(items.length);

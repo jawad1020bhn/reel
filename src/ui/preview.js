@@ -77,13 +77,14 @@ XR.define("ui.preview", ["ui.dom", "ui.icons"], function (dom, icons) {
 
     /* ---- meta chips ---- */
     const chips = [];
-    chips.push(h("span.pv-chip.pv-chip-kind", { class: "is-" + kind }, kind === "carousel" ? "ALBUM" : kind.toUpperCase()));
     if (media.kind !== "photo" && media.duration) chips.push(h("span.pv-chip", dom.duration(media.duration)));
     if (post.metrics.likes) chips.push(h("span.pv-chip.pv-chip-likes", icons.icon("heart", 11, { filled: true }), dom.compact(post.metrics.likes)));
     if (media.kind !== "photo" && media.duration > 60) chips.push(h("span.pv-chip.pv-chip-hd", "HD"));
 
-    /* ---- caption + tags ---- */
-    const caption = post.text ? h("p.pv-caption", dom.richText(post.text.length > 220 ? post.text.slice(0, 220) + "…" : post.text)) : null;
+    /* ---- caption + tags: the tags live in their own line, never twice ---- */
+    const captionText = String(post.text || "").replace(/#[\p{L}\p{N}_]+/gu, "").replace(/\s+/g, " ").trim();
+    const clippedText = captionText.length > 220 ? captionText.slice(0, 220) + "…" : captionText;
+    const caption = clippedText ? h("p.pv-caption", dom.richText(clippedText)) : null;
     const tags = post.hashtags.length ? h("p.pv-tags", post.hashtags.slice(0, 4).map((t) => "#" + t).join(" • ")) : null;
 
     /* ---- progress ---- */

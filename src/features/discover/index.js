@@ -46,20 +46,23 @@ XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "
       /* title treatment: a short headline (first sentence, hashtags stripped) in Bebas */
       const headline = headlineOf(post) || KIND_LABEL[kind] || "Spotlight";
 
-      /* meta line: @creator • kind • duration • date — crimson dots */
+      /* meta line: @creator • kind • duration • date • likes — crimson dots */
       const meta = h("div.billboard-meta",
         h("b", "@" + post.author.username),
         h("i.dot", "•"), h("span", KIND_LABEL[kind] || "Post"),
         m?.duration && m.kind !== "photo" ? [h("i.dot", "•"), h("span", dom.duration(m.duration))] : [],
-        post.createdAt ? [h("i.dot", "•"), h("span", dom.date(post.createdAt))] : []);
+        post.createdAt ? [h("i.dot", "•"), h("span", dom.date(post.createdAt))] : [],
+        post.metrics.likes ? [h("i.dot", "•"), h("span.billboard-likes", icons.icon("heart", 12, { filled: true }), dom.compact(post.metrics.likes))] : []);
 
-      /* description: 160 chars + Read more */
-      const descText = post.text || "";
-      const clipped = descText.length > 160;
-      const desc = h("p.billboard-desc", clipped ? descText.slice(0, 160).trimEnd() + "…" : descText);
+      /* description: only the part the headline did not already say */
+      const descText = (post.text || "").trim();
+      const title = headlineOf(post);
+      const descBody = descBodyOf(post, title);
+      const clipped = descBody.length > 160;
+      const desc = descBody ? h("p.billboard-desc", clipped ? descBody.slice(0, 160).trimEnd() + "…" : descBody) : null;
       const moreBtn = clipped ? h("button.billboard-more", { onclick: () => {
         const open = document.body.contains(desc) && desc.classList.toggle("is-open");
-        desc.textContent = open ? descText : descText.slice(0, 160).trimEnd() + "…";
+        desc.textContent = open ? descBody : descBody.slice(0, 160).trimEnd() + "…";
         moreBtn.firstChild.textContent = open ? t(" Less") : t(" Read more");
       } }, " Read more") : null;
 
@@ -70,16 +73,21 @@ XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "
         W.btn("More info", { icon: "info", kind: "glass", onClick: () => actions.view([post.id], 0, { label: "Spotlight" }) }),
         starBtn);
 
-      const kicker = h("p.billboard-kicker", icons.icon("sparkles", 13), " ", t("Spotlight · newest unseen"));
+      /* a genuine state marker instead of a decorative eyebrow: this is the newest unseen post */
+      const slate = h("p.billboard-slate",
+        h("span.billboard-slate-dot", { "aria-hidden": "true" }),
+        h("span", t("Spotlight")),
+        h("i", { "aria-hidden": "true" }, "·"),
+        h("span.billboard-slate-soft", t("newest unseen")));
       const content = h("div.billboard-content",
-        kicker,
         h("h1.billboard-title", headline),
         meta,
-        h("div.billboard-desc-wrap", desc, moreBtn),
+        desc ? h("div.billboard-desc-wrap", desc, moreBtn) : null,
         actions_);
 
-      /* callout, bottom right */
-      const callout = h("div.billboard-callout", icons.icon("heart", 16, { filled: true }), h("span", post.metrics.likes ? `${dom.compact(post.metrics.likes)} likes` : t("Saved today")));
+      /* callout, bottom right: when it entered your library (the like count now lives in the meta row) */
+      const callout = h("div.billboard-callout", icons.icon("bookmark", 14),
+        h("span", post.savedAt ? `${t("Saved")} ${dom.relative(post.savedAt)}` : t("In your library")));
 
       /* mute control for the trailer (desktop) */
       let video = null, muteBtn = null;
@@ -100,18 +108,18 @@ XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "
         video || (bg ? artReveal(h("img.billboard-art", { src: bg, alt: m?.alt || "", draggable: false, fetchpriority: "high", decoding: "async" })) : h("div.billboard-art")),
         h("div.billboard-scrim-x"),
         h("div.billboard-vignette"),
-        content, callout, muteBtn);
+        slate, content, callout, muteBtn);
 
       /* mobile: portrait poster card with stacked pills */
       const mobile = h("div.bb-mobile",
         h("div.bb-mobile-card",
           bg ? artReveal(h("img.bb-mobile-art", { src: bg, alt: m?.alt || "", draggable: false })) : h("div.bb-mobile-art"),
           h("div.bb-mobile-scrim"),
+          h("p.bb-mobile-slate", h("span.bb-dot", { "aria-hidden": "true" }), t("Spotlight"), h("i", "·"), h("span.bb-slate-soft", t("Newest unseen"))),
           h("div.bb-mobile-info",
-            h("p.bb-mobile-kicker", t("Spotlight")),
             h("h2.bb-mobile-title", headline),
             h("div.bb-mobile-meta", h("b", "@" + post.author.username), h("i.dot", "•"), h("span", KIND_LABEL[kind] || "Post"), m?.duration && m.kind !== "photo" ? [h("i.dot", "•"), h("span", dom.duration(m.duration))] : []),
-            (descText && headline !== descText) ? h("p.bb-mobile-desc", util.truncate(descText, 110)) : null,
+            descBody ? h("p.bb-mobile-desc", descBody) : null,
             h("div.bb-mobile-actions",
               W.btn(kind === "photo" || kind === "carousel" ? "View" : "Play", { icon: "play", kind: "light", onClick: () => open() }),
               W.btn("More info", { icon: "info", kind: "glass", onClick: () => actions.view([post.id], 0, { label: "Spotlight" }) })))));
@@ -119,6 +127,16 @@ XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "
       const section = h("section.billboard", frame, mobile);
       if (bg) dominantColor(bg).then((rgb) => { if (rgb) section.style.setProperty("--dom", rgb); });
       return section;
+    }
+
+    /** The part of the caption the headline did not already say; a bare tag is not a caption. */
+    function descBodyOf(post, title) {
+      const text = (post.text || "").trim();
+      const base = String(title || "").replace(/…$/, "").trim();
+      let body = text;
+      if (base && body.toLowerCase().startsWith(base.toLowerCase())) body = body.slice(base.length).trim();
+      body = body.replace(/^[-—–:;,.\s]+/, "").trim();
+      return body.length >= 24 ? body : "";
     }
 
     /** First sentence of the caption (hashtags stripped), trimmed to a headline. */
@@ -188,9 +206,9 @@ XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "
 
     /* ranked Top-10 card: giant gradient numeral + portrait poster */
     function rankCard(post, i, { ids, label }) {
-      const opacity = [0.65, 0.6, 0.55, 0.5, 0.45, 0.45, 0.45, 0.45, 0.45, 0.45][i] || 0.45;
+      const tone = i === 0 ? "1" : i < 3 ? "2" : "3";
       const tile = tiles.make(post, { ids, index: i, label, width: 167, shape: "poster" });
-      return { el: h("div.rank-card", h("span.rank-num", { style: { "--o": opacity }, "aria-hidden": "true" }, String(i + 1)), h("div.rank-tile", tile.el)), post, update: tile.update.bind(tile), destroy: () => tile.destroy() };
+      return { el: h("div.rank-card", h("span.rank-num", { "data-tone": tone, "aria-hidden": "true" }, String(i + 1)), h("div.rank-tile", tile.el)), post, update: tile.update.bind(tile), destroy: () => tile.destroy() };
     }
 
     /* --------------------------------------------------------------- footer -- */

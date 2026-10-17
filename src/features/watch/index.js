@@ -105,7 +105,7 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
         onOpenX: (p) => actions.openOnX(p),
         onRetry: () => { const c = S.cells.get(S.index); if (c) { c.deactivate(); c.activate(); } },
         onHide: (p) => { actions.hide(p); if (!go(1)) go(-1); },
-        onUnplayable: () => {},
+        onUnplayable: () => { S.els?.upnext?.classList.remove("on"); },
         onCarouselEnd: () => {}, onCarouselStart: () => {},
         markSeen: () => {},
       };

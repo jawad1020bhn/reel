@@ -1,0 +1,18 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "Geist",
+        "reason": "Self-hosted brand asset: neutral UI face under the Bebas Neue display voice"
+      },
+      {
+        "rule": "overused-font",
+        "value": "Geist Mono",
+        "reason": "Self-hosted brand asset: micro-label face, part of the same family"
+      }
+    ]
+  }
+}

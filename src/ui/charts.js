@@ -5,22 +5,37 @@ XR.define("ui.charts", ["ui.dom"], function (dom) {
   const s = (tag, attrs = {}, ...kids) => { const el = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v); for (const k of kids) el.appendChild(typeof k === "string" ? document.createTextNode(k) : k); return el; };
 
   /** bars([{label, value, hint}], {height, color, onClick}) — vertical bars with labels */
-  function bars(data, { height = 140, color = "var(--accent)", onClick, maxLabels = 12, format = (v) => String(v) } = {}) {
-    const w = Math.max(240, data.length * 28), max = Math.max(1, ...data.map((d) => d.value));
-    const svg = s("svg", { viewBox: `0 0 ${w} ${height + 22}`, class: "chart chart-bars", preserveAspectRatio: "none" });
+  function bars(data, { height = 140, color = "var(--accent)", onClick, maxLabels = 12, format = (v) => String(v), minBar = 5, grid = true } = {}) {
+    /* a 2–6 point series is a comparison, not a time axis: cap the canvas so bars stay bars */
+    const narrow = data.length <= 6;
+    const w = narrow ? Math.max(180, data.length * 76) : Math.max(240, data.length * 28);
+    const max = Math.max(1, ...data.map((d) => d.value));
+    /* fill the panel; text is authored at 10px so scaling shrinks it sparingly */
+    const svg = s("svg", { viewBox: `0 0 ${w} ${height + 22}`, class: "chart chart-bars" + (narrow ? " chart-bars-narrow" : ""), preserveAspectRatio: "none", style: narrow ? `max-width:${w}px` : null });
     const bw = w / data.length;
+    /* a sparse series (19 months, 2 of them with saves) must not read as two giant slabs */
+    const sparse = data.filter((d) => d.value > 0).length <= Math.max(2, data.length / 6);
+    if (sparse && grid) {
+      const steps = 3;
+      for (let k = 1; k <= steps; k++) svg.appendChild(s("line", { x1: 0, x2: w, y1: (height - 8) * k / steps + 4, y2: (height - 8) * k / steps + 4, stroke: "rgb(255 255 255 / 0.07)", "stroke-width": 1, "stroke-dasharray": "2 4" }));
+    }
     data.forEach((d, i) => {
       const bh = Math.round((d.value / max) * (height - 8));
       const g = s("g", { class: "bar" + (onClick ? " clickable" : ""), tabindex: onClick ? "0" : null });
       if (onClick) { g.addEventListener("click", () => onClick(d, i)); }
+      const barW = Math.min(bw * 0.7, 56), bx = i * bw + (bw - barW) / 2;
       /* quiet track so bars read as bars, not a solid slab */
-      g.appendChild(s("rect", { x: i * bw + bw * 0.15, y: 4, width: bw * 0.7, height: height - 4, rx: 3, fill: "rgb(255 255 255 / 0.05)" }));
-      g.appendChild(s("rect", { x: i * bw + bw * 0.15, y: height - bh, width: bw * 0.7, height: bh, rx: 3, fill: color, opacity: d.muted ? 0.35 : 0.88 }));
+      if (!sparse) g.appendChild(s("rect", { x: bx, y: 4, width: barW, height: height - 4, rx: 3, fill: "rgb(255 255 255 / 0.05)" }));
+      else g.appendChild(s("rect", { x: bx, y: height - 1, width: barW, height: 1, rx: 1, fill: "rgb(255 255 255 / 0.08)" }));
+      const h = d.value > 0 ? Math.max(bh, minBar) : 0;
+      if (h) g.appendChild(s("rect", { x: bx, y: height - h, width: barW, height: h, rx: 2, fill: color, opacity: d.muted ? 0.35 : 0.9 }));
       g.appendChild(s("title", {}, `${d.label}: ${format(d.value)}${d.hint ? " · " + d.hint : ""}`));
       svg.appendChild(g);
     });
     const step = Math.ceil(data.length / maxLabels);
-    data.forEach((d, i) => { if (i % step === 0) svg.appendChild(s("text", { x: i * bw + bw / 2, y: height + 16, "text-anchor": "middle", class: "chart-label" }, d.short || d.label)); });
+    /* labels only where they fit: ~34px of room each, never overlapping */
+    const labelEvery = Math.max(step, Math.ceil(data.length * 34 / w));
+    data.forEach((d, i) => { if (i % labelEvery === 0) svg.appendChild(s("text", { x: i * bw + bw / 2, y: height + 16, "text-anchor": "middle", class: "chart-label" }, d.short || d.label)); });
     return svg;
   }
   /** hbars([{label, value, sub}], {max, color, onClick}) — horizontal bars as HTML (labels wrap nicely) */

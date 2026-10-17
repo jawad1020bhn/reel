@@ -7,8 +7,6 @@ XR.define("app.prefs", ["app.ports.storage", "core.events", "core.domain.events"
 
   const DEFAULTS = Object.freeze({
     /* appearance */
-    theme: "dark",            // dark | light | system
-    accent: "blue",           // blue | lime | magenta | violet | cyan | amber | rose
     language: "auto",         // auto | en | ar
     density: "cozy",          // compact | cozy | comfortable
     tileShape: "natural",     // natural | portrait | square

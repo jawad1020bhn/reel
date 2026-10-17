@@ -46,7 +46,7 @@ XR.define("core.adapters.xdash", ["core.adapters.registry", "core.adapters.commo
         createdAt: util.parseDate(p.tweet_created_at || legacy.created_at),
         savedAt: util.parseDate(p.captured_at || p.first_seen_at),
         order: util.toNumber(p.capture_order) || i + 1,
-        author: { id: p.author_id, username, name: p.author_name || p.author_name_at_capture, avatar: p.author_profile_image_url },
+        author: { id: p.author_id, username, name: p.author_name || p.author_name_at_capture, avatar: common.pick(p, "author_profile_image_url", "author_avatar", "author_avatar_url", "author_profile_image_url_https") },
         metrics: {
           likes: p.like_count_at_capture ?? legacy.favorite_count, reposts: p.retweet_count_at_capture ?? legacy.retweet_count,
           replies: p.reply_count_at_capture ?? legacy.reply_count, views: p.view_count_at_capture || util.toNumber(p.raw?.views?.count),

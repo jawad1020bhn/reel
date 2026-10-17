@@ -10,7 +10,27 @@
 .top-num { display: inline-flex; align-items: center; gap: 4px; color: var(--fg-2); font-size: 12px; font-variant-numeric: tabular-nums; }
 .top-num .icon { color: #ff6b74; }
 .chart-donut { width: 140px; height: 140px; flex: none; }
-.insights .stat-grid { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+.insights .stat-grid { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+.insights .stat { padding: 13px 15px; position: relative; overflow: hidden; }
+.insights .stat::after { content: ""; position: absolute; inset: auto 0 0; height: 1px; background: linear-gradient(90deg, transparent, rgb(229 9 20 / 0.35), transparent); opacity: 0; transition: opacity var(--dur) var(--ease-soft); }
+.insights .stat:hover::after { opacity: 1; }
+.insights .page-head { margin-bottom: 4px; }
+@media (max-width: 640px) {
+  /* ten tiles must not push every chart below the fold: one swipeable ledger line */
+  .insights .stat-grid {
+    display: grid; grid-auto-flow: column; grid-template-columns: none; grid-auto-columns: 104px;
+    gap: 8px; overflow-x: auto; scroll-snap-type: x proximity; padding-bottom: 6px; margin-bottom: 14px;
+    scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 26px), transparent 100%);
+    mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 26px), transparent 100%);
+  }
+  .insights .stat-grid::-webkit-scrollbar { display: none; }
+  .insights .stat { padding: 10px 12px; scroll-snap-align: start; }
+  .insights .stat-value { font-size: 21px; }
+  .insights .stat-label { font-size: 8.5px; letter-spacing: 0.08em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .insights .stat .icon { width: 14px; height: 14px; margin-bottom: 1px; }
+  .insight-grid { grid-template-columns: 1fr; gap: 10px; }
+}
 
 /* ---- recap strip: last 30 days as an editorial banner -------------------- */
 .recap { margin: 0 0 16px; }
@@ -55,3 +75,8 @@
 .cal-empty { opacity: 1 !important; }
 .cal-today { box-shadow: 0 0 0 1px rgb(255 255 255 / 0.45); }
 @media (prefers-reduced-motion: reduce), [data-motion="reduce"] { .cal-cell:not(:disabled):hover { transform: none; } }
+
+/* one saved month: state the fact instead of drawing a two-bar "trend" */
+.saved-single { display: flex; align-items: baseline; gap: 10px; padding: 18px 0 8px; }
+.saved-single b { font-family: var(--display); font-weight: 400; font-size: 54px; line-height: 0.9; letter-spacing: var(--display-tracking); color: var(--accent); font-variant-numeric: tabular-nums; }
+.saved-single span { color: var(--fg-2); font-size: 13px; }

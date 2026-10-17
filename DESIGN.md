@@ -20,6 +20,54 @@ colors:
   teal: "#54b9c5"
   success: "#46d488"
   warning: "#ffb547"
+  white: "#ffffff"                    # text/icons over media only
+  crimson-tint: "#ff6b74"             # crimson text on dark surfaces (contrast-safe)
+  crimson-ripple: "#ff4b55"           # star glyph on dark chrome
+  teal-light: "#7fd4de"               # teal hover
+  plum-void: "#241014"                # crimson-tinted well (avatar mark)
+  white-o0055: "rgba(255, 255, 255, 0.055)"
+  danger-o009: "rgba(224, 29, 41, 0.09)"
+  danger-o012: "rgba(224, 29, 41, 0.12)"
+  danger-o016: "rgba(224, 29, 41, 0.16)"
+  danger-o028: "rgba(224, 29, 41, 0.28)"
+  danger-o030: "rgba(224, 29, 41, 0.30)"
+  white-o006: "rgba(255, 255, 255, 0.06)"
+  white-o007: "rgba(255, 255, 255, 0.07)"
+  white-o0075: "rgba(255, 255, 255, 0.075)"
+  white-o008: "rgba(255, 255, 255, 0.08)"
+  white-o009: "rgba(255, 255, 255, 0.09)"
+  white-o01: "rgba(255, 255, 255, 0.1)"
+  white-o012: "rgba(255, 255, 255, 0.12)"
+  white-o013: "rgba(255, 255, 255, 0.13)"
+  white-o014: "rgba(255, 255, 255, 0.14)"
+  white-o016: "rgba(255, 255, 255, 0.16)"
+  white-o018: "rgba(255, 255, 255, 0.18)"
+  white-o02: "rgba(255, 255, 255, 0.2)"
+  white-o024: "rgba(255, 255, 255, 0.24)"
+  white-o025: "rgba(255, 255, 255, 0.25)"
+  white-o028: "rgba(255, 255, 255, 0.28)"
+  white-o03: "rgba(255, 255, 255, 0.3)"
+  white-o035: "rgba(255, 255, 255, 0.35)"
+  white-o036: "rgba(255, 255, 255, 0.36)"
+  white-o038: "rgba(255, 255, 255, 0.38)"
+  white-o04: "rgba(255, 255, 255, 0.4)"
+  white-o045: "rgba(255, 255, 255, 0.45)"
+  white-o05: "rgba(255, 255, 255, 0.5)"
+  white-o055: "rgba(255, 255, 255, 0.55)"
+  white-o06: "rgba(255, 255, 255, 0.6)"
+  white-o062: "rgba(255, 255, 255, 0.62)"
+  white-o065: "rgba(255, 255, 255, 0.65)"
+  white-o068: "rgba(255, 255, 255, 0.68)"
+  white-o07: "rgba(255, 255, 255, 0.7)"
+  white-o072: "rgba(255, 255, 255, 0.72)"
+  white-o075: "rgba(255, 255, 255, 0.75)"
+  white-o08: "rgba(255, 255, 255, 0.8)"
+  white-o082: "rgba(255, 255, 255, 0.82)"
+  white-o085: "rgba(255, 255, 255, 0.85)"
+  white-o086: "rgba(255, 255, 255, 0.86)"
+  white-o088: "rgba(255, 255, 255, 0.88)"
+  white-o09: "rgba(255, 255, 255, 0.9)"
+  white-o092: "rgba(255, 255, 255, 0.92)"
 typography:
   display:
     fontFamily: "Bebas Neue, Arial Narrow, Impact, sans-serif"
@@ -43,7 +91,189 @@ typography:
     fontSize: "11px"
     fontWeight: 500
     lineHeight: 1.4
+  micro-2:
+    fontFamily: "Geist, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "8.5px"
+    fontWeight: 400
+    lineHeight: 1.45
+  micro-1:
+    fontFamily: "Geist, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "9px"
+    fontWeight: 400
+    lineHeight: 1.45
+  micro:
+    fontFamily: "Geist, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "9.5px"
+    fontWeight: 400
+    lineHeight: 1.45
+  caption:
+    fontFamily: "Geist, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "12px"
+    fontWeight: 400
+    lineHeight: 1.45
+  caption-lg:
+    fontFamily: "Geist, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "12.5px"
+    fontWeight: 400
+    lineHeight: 1.45
+  body-sm:
+    fontFamily: "Geist, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "13px"
+    fontWeight: 400
+    lineHeight: 1.45
+  body-sm-2:
+    fontFamily: "Geist, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "15px"
+    fontWeight: 400
+    lineHeight: 1.45
+  body-sm-3:
+    fontFamily: "Geist, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "15.5px"
+    fontWeight: 400
+    lineHeight: 1.45
+  title-xs:
+    fontFamily: "Geist, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "16px"
+    fontWeight: 400
+    lineHeight: 1.45
+  title-sm:
+    fontFamily: "Geist, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "16.5px"
+    fontWeight: 400
+    lineHeight: 1.45
+  title-sm-2:
+    fontFamily: "Geist, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "17px"
+    fontWeight: 400
+    lineHeight: 1.45
+  title:
+    fontFamily: "Geist, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "18px"
+    fontWeight: 400
+    lineHeight: 1.45
+  title-lg:
+    fontFamily: "Geist, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "19px"
+    fontWeight: 400
+    lineHeight: 1.45
+  title-lg-2:
+    fontFamily: "Geist, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "20px"
+    fontWeight: 400
+    lineHeight: 1.45
+  title-lg-3:
+    fontFamily: "Geist, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "21px"
+    fontWeight: 400
+    lineHeight: 1.45
+  title-xl:
+    fontFamily: "Geist, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "22px"
+    fontWeight: 400
+    lineHeight: 1.45
+  title-xl-2:
+    fontFamily: "Geist, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "23px"
+    fontWeight: 400
+    lineHeight: 1.45
+  title-xl-3:
+    fontFamily: "Geist, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "24px"
+    fontWeight: 400
+    lineHeight: 1.45
+  title-xl-4:
+    fontFamily: "Geist, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "25px"
+    fontWeight: 400
+    lineHeight: 1.45
+  title-xl-5:
+    fontFamily: "Geist, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "26px"
+    fontWeight: 400
+    lineHeight: 1.45
+  title-xl-6:
+    fontFamily: "Geist, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "27px"
+    fontWeight: 400
+    lineHeight: 1.45
+  title-xl-7:
+    fontFamily: "Geist, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "28px"
+    fontWeight: 400
+    lineHeight: 1.45
+  heading-sm:
+    fontFamily: "Geist, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "30px"
+    fontWeight: 400
+    lineHeight: 1.45
+  heading-sm-2:
+    fontFamily: "Geist, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "31px"
+    fontWeight: 400
+    lineHeight: 1.45
+  heading:
+    fontFamily: "Geist, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "32px"
+    fontWeight: 400
+    lineHeight: 1.45
+  heading-lg:
+    fontFamily: "Geist, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "34px"
+    fontWeight: 400
+    lineHeight: 1.45
+  heading-xl:
+    fontFamily: "Geist, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "38px"
+    fontWeight: 400
+    lineHeight: 1.45
+  heading-xxl:
+    fontFamily: "Geist, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "40px"
+    fontWeight: 400
+    lineHeight: 1.45
+  display-sm:
+    fontFamily: "Geist, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "64px"
+    fontWeight: 400
+    lineHeight: 1.45
+  display-md:
+    fontFamily: "Geist, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "92px"
+    fontWeight: 400
+    lineHeight: 1.45
+  rank-sm:
+    fontFamily: "Geist, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "168px"
+    fontWeight: 400
+    lineHeight: 1.45
+  display-3xl:
+    fontFamily: "Bebas Neue, Arial Narrow, Impact, sans-serif"
+    fontSize: "48px"
+    fontWeight: 400
+    lineHeight: 1
+  display-4xl:
+    fontFamily: "Bebas Neue, Arial Narrow, Impact, sans-serif"
+    fontSize: "58px"
+    fontWeight: 400
+    lineHeight: 1
+  display-5xl:
+    fontFamily: "Bebas Neue, Arial Narrow, Impact, sans-serif"
+    fontSize: "72px"
+    fontWeight: 400
+    lineHeight: 1
+  display-6xl:
+    fontFamily: "Bebas Neue, Arial Narrow, Impact, sans-serif"
+    fontSize: "120px"
+    fontWeight: 400
+    lineHeight: 1
+  rank:
+    fontFamily: "Geist, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "224px"
+    fontWeight: 400
+    lineHeight: 1.45
 rounded:
+  xxs: "2px"
+  hair: "3px"
   xs: "4px"
   sm: "6px"
   md: "8px"
@@ -129,6 +359,14 @@ brand, focus, progress, live status. If a screen glows red on a whim, it is wron
 **The Black Mat Rule.** Media never sits on gray. Artwork mats directly on
 #000 or #18181b; mid-gray frames are forbidden.
 
+### The White-Alpha Ladder
+Depth on this canvas comes from one pigment — white at low opacity — never from
+new grays. Fills run `white-o0055` → `white-o035` (resting panels, tracks,
+dividers); hairlines and rims `white-o008` → `white-o02`; text on artwork
+`white-o055` → `white-o092`; chrome over media uses the same ladder so a pill on
+a poster matches a pill in a menu. Opacity is the only knob: do not introduce a
+second hue to separate two layers.
+
 ## 3. Typography
 
 **Display Font:** Bebas Neue (single weight 400, never faux-bolded)
@@ -144,6 +382,13 @@ on media; body text caps at comfortable measure on dark surfaces.
 - **Eyebrow** (400, 10.5px, tracking 0.16em, uppercase): section labels, colophon text.
 - **Body** (400, 14px, line-height 1.55): paragraphs, descriptions, meta rows.
 - **Label** (mono 500, 11px): metrics, timestamps, keyboard hints, data readouts.
+
+### Utility Ramp
+Between those four anchors sits one deliberate half-step ramp, because the UI runs
+dense: 8.5 / 9 / 9.5 (mono micro-labels), 12 / 12.5 / 13 (captions and meta rows),
+15 / 15.5 / 16.5 (list titles), 17–28 (card and panel titles), 30–40 (page and
+section heads), 48–120 (billboard display, clamp endpoints), 168 / 224 (Top-10
+ghost numerals). Steps exist for a reason — never invent a size between them.
 
 ### Named Rules
 **The Single Weight Rule.** Bebas Neue ships one weight; faux-bold, faux-italic,
@@ -180,7 +425,7 @@ on lift (hover, focus, dialog, preview) and return instantly on settle.
 - **State:** selected = crimson fill with white text; unselected = neutral glass.
 
 ### Cards / Containers
-- **Corner Style:** 10px radius for artwork cards; 14px for billboards; 6–8px for chrome.
+- **Corner Style:** 10px radius for artwork cards; 14px for billboards; 6–8px for chrome; 2–3px only for hairlines, progress fills, and heat cells.
 - **Background:** card void #0b0b0b or transparent over media with black scrims.
 - **Shadow Strategy:** see Floating Rule; lift 2–4px + Tier 1 shadow on hover.
 - **Border:** 1px #222222 hairline on chrome; no borders on artwork.

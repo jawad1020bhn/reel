@@ -19,7 +19,9 @@ XR.define("ui.rail", ["ui.dom", "ui.icons", "core.i18n"], function (dom, icons, 
     }
     const title = h("h2.rail-title", h("span.rail-title-text", i18n.t(opts.title)));
     const el = h("section.rail", { class: opts.size ? "rail-" + opts.size : "", dataset: { rail: opts.id || "" } },
-      h("header.rail-head", h("div.rail-titles", title, opts.hint ? h("p.rail-hint", i18n.t(opts.hint)) : null, actions), ticks),
+      h("header.rail-head",
+        h("div.rail-titles", title, opts.hint ? h("p.rail-hint", i18n.t(opts.hint)) : null),
+        actions, ticks),
       h("div.rail-body", left, track, right));
 
     const apis = [];
