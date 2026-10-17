@@ -10,3 +10,17 @@
 .discover-bar .btn:hover svg { transform: rotate(180deg); }
 .discover-bar .btn svg { transition: transform 0.4s cubic-bezier(0.2, 0.7, 0.2, 1); }
 @media (max-width: 640px) { .discover-bar { padding-top: 12px; } .discover-bar-note { display: none; } }
+
+/* pull-to-shuffle pill (touch): follows the finger from under the header, turns crimson when armed */
+.discover-pull {
+  position: fixed; left: 50%; top: calc(var(--hdr-offset) - 46px + env(safe-area-inset-top, 0px)); z-index: var(--z-toast);
+  display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: var(--r-pill);
+  background: rgb(24 24 27 / 0.92); border: 1px solid rgb(255 255 255 / 0.16); color: var(--fg-1); font-size: 12.5px; font-weight: 600;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.45); pointer-events: none; opacity: 0;
+  transform: translate(-50%, var(--pull, 0px)) scale(0.9);
+  transition: opacity 160ms var(--ease-soft), background 160ms var(--ease-soft), color 160ms var(--ease-soft), transform 80ms linear;
+}
+.discover-pull.is-pulling { opacity: 1; }
+.discover-pull.is-armed { background: var(--accent); color: #fff; border-color: transparent; transform: translate(-50%, var(--pull, 0px)) scale(1); }
+.discover-pull .icon { transition: transform 240ms var(--ease); }
+.discover-pull.is-armed .icon { transform: rotate(180deg); }

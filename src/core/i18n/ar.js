@@ -15,14 +15,12 @@ XR.define("core.i18n.ar", ["core.i18n"], function (i18n) {
     "Starting…": "جارٍ البدء…", "Opening local storage…": "فتح التخزين المحلي…", "Loading your activity…": "تحميل نشاطك…", "Reading posts…": "قراءة المنشورات…", "Building the interface…": "بناء الواجهة…",
 
     /* discover */
-    "Good morning": "صباح الخير", "Good afternoon": "مساء الخير", "Good evening": "مساء الخير", "Good night": "ليلة سعيدة",
-    "Your private feed": "خلاصتك الخاصة", "What would you like to watch tonight?": "ماذا تودّ أن تشاهد الليلة؟", "{n} posts you haven't opened yet": "{n} منشورًا لم تفتحها بعد",
-    "Shuffle play": "تشغيل عشوائي", "Unseen shorts": "مقاطع قصيرة لم تُشاهد", "Starred": "المميزة بنجمة", "Continue watching": "متابعة المشاهدة", "Pick up where you stopped": "أكمل من حيث توقفت",
-    "Let the next clip find you.": "دع المقطع التالي يجدك.", "Start watching": "ابدأ المشاهدة", "Jump back in": "عُد إلى حيث كنت", "Spotlight": "تحت الضوء", "Newest unseen": "الأحدث غير المُشاهد",
+    "Good morning": "صباح الخير", "Good afternoon": "مساء الخير", "Good evening": "مساء الخير", "Good night": "ليلة سعيدة", "What would you like to watch tonight?": "ماذا تودّ أن تشاهد الليلة؟", "{n} posts you haven't opened yet": "{n} منشورًا لم تفتحها بعد",
+    "Shuffle play": "تشغيل عشوائي", "Unseen shorts": "مقاطع قصيرة لم تُشاهد", "Starred": "المميزة بنجمة", "Continue watching": "متابعة المشاهدة", "Pick up where you stopped": "أكمل من حيث توقفت", "Start watching": "ابدأ المشاهدة", "Jump back in": "عُد إلى حيث كنت", "Spotlight": "تحت الضوء", "Newest unseen": "الأحدث غير المُشاهد",
     "Shorts for you": "مقاطع قصيرة لك", "Unseen clips, shuffled daily": "مقاطع لم تُشاهد، تُخلط يوميًا", "Recently saved": "المحفوظة مؤخرًا", "Long form": "مقاطع طويلة", "Clips over 3 minutes": "مقاطع تتجاوز 3 دقائق",
     "Photo stories": "قصص مصوّرة", "Multi-image posts": "منشورات متعددة الصور", "Single stills": "صور مفردة", "On this day": "في مثل هذا اليوم", "Same date, earlier years": "نفس التاريخ في سنوات سابقة",
     "Random picks": "اختيارات عشوائية", "A fresh shuffle every day": "خلطة جديدة كل يوم", "A fresh shuffle every time": "خلطة جديدة في كل مرة", "Unseen clips, freshly shuffled": "مقاطع لم تُشاهد، خُلطت للتو",
-    "Shuffle": "خلط", "Discover reshuffled": "أُعيد خلط صفحة اكتشف", "New shelves and a new spotlight": "رفوف جديدة وإضاءة جديدة", "{n} shelves picked for this visit": "{n} رفًا اختيرت لهذه الزيارة",
+    "Shuffle": "خلط", "Shuffle Discover": "خلط اكتشف", "Release to shuffle": "اترك للخلط", "Discover reshuffled": "أُعيد خلط صفحة اكتشف", "New shelves and a new spotlight": "رفوف جديدة وإضاءة جديدة", "{n} shelves picked for this visit": "{n} رفًا اختيرت لهذه الزيارة",
     "Because you watched @{x}": "لأنك شاهدت @{x}", "More like something you opened": "المزيد مما يشبه ما فتحته", "Watch again": "شاهد مجددًا", "Starred and already seen — worth a replay": "مميزة بنجمة وشوهدت من قبل — تستحق الإعادة",
     "From {x}": "من {x}", "One of your collections": "إحدى مجموعاتك", "New this week": "جديد هذا الأسبوع", "Saved in the last 7 days, unseen first": "حُفظت خلال آخر 7 أيام، غير المشاهدة أولًا",
     "Back in {x}": "عودة إلى {x}", "Posted that month": "نُشرت في ذلك الشهر", "You saved these in {x}": "حفظت هذه في {x}", "A bookmarking spree": "موجة حفظ", "From the archive": "من الأرشيف", "The oldest posts in your library": "أقدم المنشورات في مكتبتك",
@@ -33,11 +31,10 @@ XR.define("core.i18n.ar", ["core.i18n"], function (i18n) {
     "Watch all": "شاهد الكل", "All": "الكل", "See all": "عرض الكل", "Reshuffle": "إعادة الخلط", "Reshuffle Discover": "إعادة خلط اكتشف", "Shuffle more": "خلط المزيد", "Nothing to watch here": "لا شيء للمشاهدة هنا",
 
     /* library */
-    "Explore your library": "استكشف مكتبتك", "Search… try  @user  #tag  is:short  dur:>5m  likes:>10k  sort:likes": "ابحث… جرّب  @user  #tag  is:short  dur:>5m",
+    "Search… try  @user  #tag  is:short  dur:>5m  likes:>10k  sort:likes": "ابحث… جرّب  @user  #tag  is:short  dur:>5m",
     "Search syntax": "صيغة البحث", "Filters": "التصفية", "Videos": "فيديوهات", "Shorts": "قصيرة", "Long": "طويلة", "Photos": "صور", "Albums": "ألبومات", "GIFs": "صور متحركة", "Text posts": "منشورات نصية",
     "Unseen": "لم تُشاهد", "Seen": "تمت مشاهدتها", "In progress": "قيد المشاهدة", "Hidden": "مخفية", "Unavailable": "غير متاحة", "Duplicates": "مكررة",
-    "Any month posted": "أي شهر نُشر فيه", "Any month saved": "أي شهر حُفظ فيه", "Recently saved": "المحفوظة مؤخرًا", "Newest": "الأحدث", "Oldest": "الأقدم", "Most liked": "الأكثر إعجابًا", "Most viewed": "الأكثر مشاهدة", "Longest": "الأطول", "Shortest": "الأقصر", "Shuffle": "عشوائي", "By creator": "حسب الحساب",
-    "Clear all": "مسح الكل", "Clear filters": "مسح التصفية", "Save this view": "حفظ هذا العرض", "Save current view…": "حفظ العرض الحالي…", "Saved views": "العروض المحفوظة", "Delete a view…": "حذف عرض…", "View saved": "تم حفظ العرض",
+    "Any month posted": "أي شهر نُشر فيه", "Any month saved": "أي شهر حُفظ فيه", "Recently saved": "المحفوظة مؤخرًا", "Newest": "الأحدث", "Oldest": "الأقدم", "Most liked": "الأكثر إعجابًا", "Most viewed": "الأكثر مشاهدة", "Longest": "الأطول", "Shortest": "الأقصر", "Shuffle": "عشوائي", "By creator": "حسب الحساب", "Clear filters": "مسح التصفية", "Save this view": "حفظ هذا العرض", "Save current view…": "حفظ العرض الحالي…", "Saved views": "العروض المحفوظة", "Delete a view…": "حذف عرض…", "View saved": "تم حفظ العرض",
     "No posts match": "لا توجد منشورات مطابقة", "Nothing matches right now": "لا شيء مطابق حاليًا", "Everything": "كل شيء", "Star": "نجمة", "Unstar": "إزالة النجمة", "Hide": "إخفاء", "Hide post": "إخفاء المنشور", "Unhide": "إظهار", "Add to collection": "إضافة إلى مجموعة", "Add to collection (c)": "إضافة إلى مجموعة (c)",
     "Open on X": "فتح في X", "Open on X (o)": "فتح في X (o)", "Copy link": "نسخ الرابط", "Copy caption": "نسخ النص", "Open media file": "فتح ملف الوسائط", "Download": "تنزيل", "Watch from here": "شاهد من هنا", "View": "عرض", "Related": "ذات صلة",
 
@@ -47,12 +44,12 @@ XR.define("core.i18n.ar", ["core.i18n"], function (i18n) {
     "Browsers block autoplay with sound until you interact": "تمنع المتصفحات التشغيل التلقائي مع الصوت حتى تتفاعل مع الصفحة", "Watch gestures: swipe or wheel to move · tap to pause · double-tap to star · hold for 2× · drag sideways to seek.": "إيماءات المشاهدة: اسحب أو استخدم العجلة للتنقل · انقر للإيقاف · انقر مرتين للنجمة · اضغط مطولًا للسرعة 2× · اسحب جانبيًا للتقديم.",
 
     /* creators / collections */
-    "{n} accounts in your library": "{n} حسابًا في مكتبتك", "Filter creators…": "تصفية الحسابات…", "Most saved": "الأكثر حفظًا", "Recent": "الأحدث", "A–Z": "أ–ي", "All creators": "كل الحسابات", "Posts": "منشورات", "In Library": "في المكتبة",
+    "Filter creators…": "تصفية الحسابات…", "Most saved": "الأكثر حفظًا", "Recent": "الأحدث", "A–Z": "أ–ي", "All creators": "كل الحسابات", "Posts": "منشورات", "In Library": "في المكتبة",
     "All collections": "كل المجموعات", "New collection": "مجموعة جديدة", "Create": "إنشاء", "Name": "الاسم", "Rename…": "إعادة تسمية…", "Rename collection": "إعادة تسمية المجموعة", "Collection not found": "المجموعة غير موجودة", "Empty collection": "مجموعة فارغة",
     "Add posts from any tile's ⋯ menu, or press c while watching.": "أضف منشورات من قائمة ⋯ لأي بطاقة، أو اضغط c أثناء المشاهدة.", "Starred, in progress, and your own lists": "المميزة بنجمة، قيد المشاهدة، وقوائمك الخاصة", "Recently seen": "شوهدت مؤخرًا", "Nothing in progress": "لا شيء قيد المشاهدة", "Gone from X bookmarks": "لم تعد في إشارات X المرجعية",
 
     /* insights */
-    "{n} media posts · {h} h of video": "{n} منشور وسائط · {h} ساعة فيديو", "What you save": "ما تحفظه", "Posted per month": "المنشور شهريًا", "Saved per month": "المحفوظ شهريًا", "Video length": "مدة الفيديو", "Top creators": "أبرز الحسابات", "Top hashtags": "أبرز الوسوم",
+    "What you save": "ما تحفظه", "Posted per month": "المنشور شهريًا", "Saved per month": "المحفوظ شهريًا", "Video length": "مدة الفيديو", "Top creators": "أبرز الحسابات", "Top hashtags": "أبرز الوسوم",
     "Creators you open most": "الحسابات التي تفتحها أكثر", "When posts were published": "متى نُشرت المنشورات", "Hour of day": "ساعة اليوم", "Weekday": "يوم الأسبوع", "Orientation": "الاتجاه", "Vertical": "عمودي", "Square": "مربع", "Landscape": "أفقي", "Most liked posts": "أكثر المنشورات إعجابًا",
     "Long videos": "فيديوهات طويلة", "Footage": "مقاطع", "Albums": "ألبومات", "Click a bar to open that month.": "انقر على عمود لفتح ذلك الشهر.", "Based on what you watched here.": "استنادًا إلى ما شاهدته هنا.", "Duplicates": "مكررة", "{n} groups of posts share the same media": "{n} مجموعات من المنشورات تشترك في نفس الوسائط",
 

@@ -45,6 +45,8 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
           W.iconBtn("list", "Up next (q)", (e) => queueSheet(e.currentTarget), { cls: "watch-queue" }),
           W.iconBtn("expand", "Fullscreen (f)", () => platform.fullscreen(S.root), { cls: "watch-fs" })));
       const side = h("div.watch-side",
+        h("button.side-btn.side-creator", { title: "View profile", onclick: (e) => { e.stopPropagation(); const p = current(); if (p) actions.goCreator(p.author.username); } },
+          h("span.side-avatar"), h("span.side-label.side-creator-name", "")),
         h("button.side-btn.side-mute", { title: "Mute (m)", onclick: () => playback.toggleMuted() }, icons.icon(playback.muted ? "mute" : "volume", 26), h("span.side-label", "Sound")),
         h("button.side-btn.side-info", { title: "Caption & details (i)", onclick: (e) => { e.stopPropagation(); toggleInfo(); } }, icons.icon("info", 26), h("span.side-label", "Info")),
         h("button.side-btn", { title: "More", onclick: (e) => { const p = current(); if (p) postMenu.open(p, e.currentTarget, { ids: S.ids, index: S.index, label: S.label, noWatch: true, noOpen: true }); } }, icons.icon("more", 26), h("span.side-label", "More")));
@@ -136,6 +138,7 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
         else { c.deactivate(); if (Math.abs(i - S.index) === 1) c.prepare(); }
       }
       S.els.counter.textContent = S.ids.length ? `${S.index + 1} / ${S.ids.length}` : "";
+      renderSideCreator();
       renderUpNext();
       S.els.arrows.querySelector(".watch-arrow-up").disabled = S.index <= 0;
       S.els.arrows.querySelector(".watch-arrow-down").disabled = S.index >= S.ids.length;
@@ -177,6 +180,17 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
       S.seenTimer = setTimeout(() => { if (current() === p) activity.noteOpen(p); }, 1500);
     }
     /* ----------------------------------------------------- info & rail -- */
+    /** Side rail creator button: avatar + @handle of the active post. */
+    function renderSideCreator() {
+      const btn = S.els.side?.querySelector(".side-creator"); if (!btn) return;
+      const p = current();
+      btn.classList.toggle("hidden", !p);
+      if (!p) return;
+      dom.replace(btn.querySelector(".side-avatar"), h("span.side-avatar", W.avatar(media.avatar(p, 64), p.author.name, 48)));
+      btn.querySelector(".side-creator-name").textContent = "@" + p.author.username;
+      btn.title = p.author.name + " · @" + p.author.username;
+    }
+
     function toggleInfo() { if (S.infoOpen) closeInfo(); else openInfo(); }
     function openInfo() {
       S.infoOpen = true;

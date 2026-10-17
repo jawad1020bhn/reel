@@ -106,12 +106,8 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "core.util
 
     /* ----------------------------------------------------------- overlay -- */
     const m0 = post.media[0];
-    const meta = h("div.cell-meta",
-      h("button.cell-creator", { onclick: (e) => { e.stopPropagation(); env.onOpenCreator?.(post.author.username); } },
-        W.avatar(media.avatar(post, 40), post.author.name, 40),
-        h("span.cell-creator-text", h("b", post.author.name), h("span", "@" + post.author.username))));
+    /* no on-media creator block: the creator lives in the Watch side rail (above Sound) */
     stage.appendChild(h("div.cell-gradient"));
-    el.appendChild(meta);
     if (m0 && m0.kind !== "photo") {
       el.appendChild(h("div.cell-bar", progress, timeLabel));
       progress.addEventListener("pointerdown", (e) => { e.stopPropagation(); seekTo(e); const move = (ev) => seekTo(ev); const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); }; window.addEventListener("pointermove", move); window.addEventListener("pointerup", up); });
