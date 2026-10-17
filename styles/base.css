@@ -81,11 +81,11 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; }
 /* privacy blur: stills blurred until hover / focus / tap */
 [data-blur="on"] .tile .tile-img, [data-blur="on"] .coll-cover img, [data-blur="on"] .creator-thumbs img,
 [data-blur="on"] .billboard-art, [data-blur="on"] .billboard-video, [data-blur="on"] .top-item img,
-[data-blur="on"] .import-sample img, [data-blur="on"] .viewer-thumb img, [data-blur="on"] .preview-art {
+[data-blur="on"] .import-sample img, [data-blur="on"] .viewer-thumb img {
   filter: blur(18px) saturate(0.7); transform: scale(1.08); transition: filter var(--dur-slow) var(--ease);
 }
 [data-blur="on"] .tile:hover .tile-img, [data-blur="on"] .tile:focus-visible .tile-img,
-[data-blur="on"] .tile.unblur .tile-img, [data-blur="on"] .preview-card:hover .preview-art { filter: none; transform: none; }
+[data-blur="on"] .tile.unblur .tile-img { filter: none; transform: none; }
 
 /* drag-and-drop hint */
 .is-dragging body::after {
