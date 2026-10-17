@@ -4,12 +4,27 @@
 .app { height: 100dvh; width: 100%; overflow: hidden; background: var(--bg); }
 .main { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; position: relative; }
 .outlet { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; position: relative; }
-.outlet > * { animation: page-in var(--dur-slow) var(--ease) both; }
+.outlet > * { animation: page-in 420ms var(--ease) both; }
 @keyframes page-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* Route transitions: the outlet is its own snapshot, so the fixed header and the
+   scrollbar never move. The new page cross-fades up over the old one in 240ms;
+   shell/outlet.js only runs this when the user has not asked for reduced motion. */
+.outlet { view-transition-name: page; }
+@supports (view-transition-name: page) {
+  ::view-transition-group(page) { animation-duration: 240ms; animation-timing-function: var(--ease); }
+  ::view-transition-old(page) { animation: page-vt-out 180ms var(--ease-soft) both; }
+  ::view-transition-new(page) { animation: page-vt-in 240ms var(--ease) both; }
+  @keyframes page-vt-out { to { opacity: 0; transform: scale(1.006); } }
+  @keyframes page-vt-in { from { opacity: 0; transform: translateY(10px) scale(0.998); } }
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(page), ::view-transition-old(page), ::view-transition-new(page) { animation: none !important; }
+}
 
 /* content pages (everything except Discover's full-bleed canvas and Watch) */
 .outlet:not([data-feature="watch"]) > :not(.discover) {
-  padding: calc(var(--hdr-h) + 18px) var(--gutter) 72px;
+  padding: calc(var(--hdr-offset) + 18px) var(--gutter) 72px;
   max-width: var(--content-max); margin: 0 auto; width: 100%;
 }
 /* Discover slides its own full-bleed canvas under the fixed header */
@@ -23,14 +38,16 @@
   pointer-events: none; /* let the inner bar re-enable */
 }
 .hdr-in, .hdr-chips { pointer-events: auto; }
+/* Solid instead of a live backdrop blur: the header is always on screen, and a
+   full-width blur forces the compositor to re-sample every frame while scrolling. */
 .hdr.is-solid {
-  background: rgb(20 20 22 / 0.92);
-  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  background: rgb(20 20 22 / 0.96);
   box-shadow: 0 1px 0 var(--line);
 }
 .hdr-in {
   display: flex; align-items: center; justify-content: space-between; gap: 14px;
-  height: var(--hdr-h); padding-inline: var(--gutter);
+  height: calc(var(--hdr-h) + env(safe-area-inset-top, 0px));
+  padding: env(safe-area-inset-top, 0px) calc(var(--gutter) + env(safe-area-inset-right, 0px)) 0 calc(var(--gutter) + env(safe-area-inset-left, 0px));
 }
 .hdr-left { display: flex; align-items: center; gap: 18px; min-width: 0; }
 
@@ -38,16 +55,17 @@
 .brand { display: inline-flex; align-items: baseline; flex: none; line-height: 1; transform: translateY(1px); }
 .brand-word {
   font-family: var(--display); font-weight: 400; font-size: 30px; letter-spacing: 0.02em;
-  color: var(--accent); text-shadow: 0 2px 18px rgb(229 9 20 / 0.45);
+  color: var(--accent);
 }
 .brand-word-rest { color: var(--fg); margin-left: 1px; text-shadow: 0 2px 14px rgb(0 0 0 / 0.6); }
-.hdr:hover .brand-word { text-shadow: 0 2px 26px rgb(229 9 20 / 0.7); }
+
 
 /* desktop nav: text links + sliding frosted pill */
 .hdr-nav { position: relative; display: flex; align-items: center; gap: 2px; min-width: 0; }
 .hdr-pill {
   position: absolute; top: 0; bottom: 0; margin: auto 0; height: 36px; width: 0; border-radius: var(--r-pill);
-  background: rgb(255 255 255 / 0.14); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  background: rgb(255 255 255 / 0.14);
+  transition: background var(--dur) var(--ease-soft);
   opacity: 0; pointer-events: none;
   transition: left var(--dur-nav) var(--ease), width var(--dur-nav) var(--ease), opacity var(--dur) var(--ease-soft);
 }
@@ -61,9 +79,9 @@
 .hdr-link.is-active { color: var(--fg); font-weight: 600; }
 @media (min-width: 1280px) { .hdr-link { padding: 0 17px; font-size: 14.5px; } }
 
-/* back arrow (feature detail pages) */
-.hdr-back { display: none; color: var(--fg); }
-.hdr.has-back .hdr-back { display: inline-flex; }
+/* back arrow (feature detail pages) — hidden unless the shell adds .has-back */
+.hdr-icon.hdr-back { display: none; width: 34px; height: 34px; margin-inline-start: -6px; color: var(--fg); }
+.hdr.has-back .hdr-icon.hdr-back { display: inline-flex; }
 
 /* right cluster */
 .hdr-actions { display: flex; align-items: center; gap: 6px; min-width: 0; }
@@ -74,6 +92,7 @@
   transition: background var(--dur) var(--ease-soft), color var(--dur) var(--ease-soft), transform var(--dur) var(--ease);
 }
 .hdr-icon:hover { background: rgb(255 255 255 / 0.12); }
+.hdr-icon.is-active { background: rgb(255 255 255 / 0.12); }
 .hdr-icon:active { transform: scale(0.9); }
 
 /* data source chip */
@@ -118,15 +137,19 @@
 .hdr-chips {
   display: none; align-items: center; gap: 8px;
   padding: 0 var(--gutter) 10px; overflow-x: auto; scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
+  -webkit-overflow-scrolling: touch; scroll-padding-inline: var(--gutter);
+  scroll-snap-type: x proximity;
 }
 .hdr-chips::-webkit-scrollbar { display: none; }
-.hdr-chips { -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 18px), transparent 100%); mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 18px), transparent 100%); }
+.hdr-chips { -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 18px, #000 calc(100% - 22px), transparent 100%); mask-image: linear-gradient(90deg, transparent 0, #000 18px, #000 calc(100% - 22px), transparent 100%); }
+/* a clipped first/last pill reads as a bug; the fade says "scrolls" instead */
+@media (max-width: 1023px) {
+  .hdr-chips { scroll-padding-inline: 18px 22px; }
+}
 .chipnav-link {
   flex: none; display: inline-flex; align-items: center; height: 32px; padding: 0 15px;
   border-radius: var(--r-pill); font-size: 13px; font-weight: 500; color: var(--fg);
-  background: rgb(255 255 255 / 0.10); border: 1px solid rgb(255 255 255 / 0.22);
-  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  background: rgb(46 46 50 / 0.92); border: 1px solid rgb(255 255 255 / 0.18);
   transition: background var(--dur) var(--ease-soft), border-color var(--dur) var(--ease-soft);
   white-space: nowrap;
 }
@@ -135,11 +158,11 @@
 
 @media (max-width: 1023px) {
   .hdr-nav { display: none; }
-  .hdr-chips { display: flex; margin-top: 2px; padding: 0 var(--gutter) 10px; }
-  .chipnav-link { height: 30px; padding: 0 13px; font-size: 12.5px; }
+  .hdr-chips { display: flex; margin-top: 0; padding: 0 var(--gutter) 10px; }
+  .chipnav-link { height: 40px; padding: 0 16px; font-size: 12.5px; scroll-snap-align: center; }
   .src-chip { display: none; }
-  .hdr-in { height: 56px; }
-  :root { --hdr-h: 56px; }
+  .hdr-in { height: calc(56px + env(safe-area-inset-top, 0px)); }
+  :root { --hdr-h: 56px; --hdr-offset: 106px; }
 }
 @media (max-width: 640px) {
   .hdr-icon { width: 34px; height: 34px; }
@@ -149,7 +172,7 @@
 /* immersive (Watch): no chrome at all */
 .app-immersive .hdr { display: none; }
 .app-immersive .outlet { overflow: hidden; }
-.outlet:not([data-feature="watch"]) > :not(.discover) { padding-top: calc(var(--hdr-h) + 18px); }
+.outlet:not([data-feature="watch"]) > :not(.discover) { padding-top: calc(var(--hdr-offset) + 18px); }
 
 /* --------------------------------------------------------------- lock gate -- */
 .lock-gate { position: fixed; inset: 0; z-index: var(--z-lock); background: var(--void); display: grid; place-items: center; padding: 20px; transition: opacity 240ms var(--ease); }
@@ -206,3 +229,13 @@
 .splash-error .splash-bar { display: none; }
 [data-motion="reduce"] .splash-word { animation: none; }
 [data-motion="reduce"] .splash.out .splash-stage { animation: none; }
+
+
+/* ------------------------------------------------------------ a11y chrome -- */
+.skip-link {
+  position: fixed; top: 10px; left: 10px; z-index: var(--z-splash);
+  padding: 10px 16px; border-radius: var(--r-sm);
+  background: var(--fg); color: var(--void); font-weight: 600; font-size: 13px;
+  transform: translateY(-160%); transition: transform var(--dur) var(--ease);
+}
+.skip-link:focus-visible { transform: none; outline-offset: 3px; }

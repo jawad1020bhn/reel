@@ -24,7 +24,19 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 16px 0; }
 [hidden] { display: none !important; }
 :focus { outline: none; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--r-xs); }
-::selection { background: rgb(229 9 20 / 0.35); }
+/* The focus ring must survive on crimson: flip it to ink there. */
+.btn-primary:focus-visible, .chip.active:focus-visible, .seg.active:focus-visible,
+.pin-ok:focus-visible, .tile.is-selected:focus-visible, .nav-link.is-active:focus-visible {
+  outline-color: var(--fg); outline-offset: 3px;
+}
+::selection { background: rgb(229 9 20 / 0.38); color: #fff; }
+::target-text { background: var(--accent); color: #fff; }
+input, textarea, select { caret-color: var(--accent); }
+input::selection, textarea::selection { background: rgb(229 9 20 / 0.45); }
+/* Native search fields ship an ugly pill in some engines; we draw our own. */
+input[type="search"] { -webkit-appearance: none; appearance: none; }
+input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; }
+:where(a, button, [role="button"], input, select, textarea, summary):focus-visible { scroll-margin-block: calc(var(--hdr-offset) + 12px); }
 
 /* scrollbars: thin, near-invisible, never on shelves */
 * { scrollbar-width: thin; scrollbar-color: var(--bg-4) transparent; }
@@ -69,11 +81,11 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 16px 0; }
 /* privacy blur: stills blurred until hover / focus / tap */
 [data-blur="on"] .tile .tile-img, [data-blur="on"] .coll-cover img, [data-blur="on"] .creator-thumbs img,
 [data-blur="on"] .billboard-art, [data-blur="on"] .billboard-video, [data-blur="on"] .top-item img,
-[data-blur="on"] .import-sample img, [data-blur="on"] .viewer-thumb img, [data-blur="on"] .preview-art {
+[data-blur="on"] .import-sample img, [data-blur="on"] .viewer-thumb img {
   filter: blur(18px) saturate(0.7); transform: scale(1.08); transition: filter var(--dur-slow) var(--ease);
 }
 [data-blur="on"] .tile:hover .tile-img, [data-blur="on"] .tile:focus-visible .tile-img,
-[data-blur="on"] .tile.unblur .tile-img, [data-blur="on"] .preview-card:hover .preview-art { filter: none; transform: none; }
+[data-blur="on"] .tile.unblur .tile-img { filter: none; transform: none; }
 
 /* drag-and-drop hint */
 .is-dragging body::after {

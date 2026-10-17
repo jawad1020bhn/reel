@@ -1,7 +1,11 @@
 /* XReels sample library — neutral demo data so the app can be tried without a real export.
-   Media: Google's open sample videos + picsum.photos placeholders (needs internet).
-   Load it from Settings → Data → “Load the sample library”, or copy it over data/posts.js. */
-window.XREELS_DATA = {
+   Media: local cinematic stills in data/sample-media (works offline) with Google's open
+   sample videos for the playable clips (these stream when you are online).
+   Load it from Settings → Data → “Load the sample library”, or copy it over data/posts.js.
+   The stills are the app's own demo assets (data/sample-media); the eight `gen-*` frames are
+   original cinematic plates used for the video posters so the demo never looks repeated. */
+window.XREELS_DATA =
+{
  "export_version": 1,
  "exported_at": "2025-10-01T12:00:00Z",
  "source": "xreels sample library (public demo media)",
@@ -10,7 +14,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000000043445",
    "author_username": "openmovies",
    "author_name": "Open Movies",
-   "author_avatar": "https://i.pravatar.cc/96?img=12",
+   "author_avatar": "data/sample-media/neon-city-01.jpg",
    "text": "Big Buck Bunny — the classic open movie, remastered for the demo #film",
    "tweet_created_at": "2024-08-21T16:00:00Z",
    "captured_at": "2025-09-30T10:00:00Z",
@@ -22,8 +26,8 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "video",
-     "url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/BigBuckBunny.jpg",
-     "poster": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/BigBuckBunny.jpg",
+     "url": "data/sample-media/gen-01.jpg",
+     "poster": "data/sample-media/gen-01.jpg",
      "mp4": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
      "mp4_variants": [
       {
@@ -35,7 +39,8 @@ window.XREELS_DATA = {
      "height": 720,
      "aspect": 1.7778,
      "duration": 596000,
-     "position": 0
+     "position": 0,
+     "title": "gen-01.jpg"
     }
    ]
   },
@@ -43,7 +48,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000000120832",
    "author_username": "studiolight",
    "author_name": "Studio Light",
-   "author_avatar": "https://i.pravatar.cc/96?img=32",
+   "author_avatar": "data/sample-media/portrait-01.jpg",
    "text": "Elephants Dream, the first open movie ever made #design",
    "tweet_created_at": "2024-04-29T06:00:00Z",
    "captured_at": "2025-09-30T10:00:00Z",
@@ -55,8 +60,8 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "video",
-     "url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/ElephantsDream.jpg",
-     "poster": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/ElephantsDream.jpg",
+     "url": "data/sample-media/gen-02.jpg",
+     "poster": "data/sample-media/gen-02.jpg",
      "mp4": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
      "mp4_variants": [
       {
@@ -68,7 +73,8 @@ window.XREELS_DATA = {
      "height": 720,
      "aspect": 1.7778,
      "duration": 653000,
-     "position": 0
+     "position": 0,
+     "title": "gen-02.jpg"
     }
    ]
   },
@@ -76,7 +82,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000000153376",
    "author_username": "roadnotes",
    "author_name": "Road Notes",
-   "author_avatar": "https://i.pravatar.cc/96?img=5",
+   "author_avatar": "data/sample-media/portrait-03.jpg",
    "text": "For bigger blazes 🔥 a 15-second short #travel",
    "tweet_created_at": "2024-03-14T23:00:00Z",
    "captured_at": "2025-09-29T18:00:00Z",
@@ -88,8 +94,8 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "video",
-     "url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/ForBiggerBlazes.jpg",
-     "poster": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/ForBiggerBlazes.jpg",
+     "url": "data/sample-media/gen-03.jpg",
+     "poster": "data/sample-media/gen-03.jpg",
      "mp4": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
      "mp4_variants": [
       {
@@ -101,7 +107,8 @@ window.XREELS_DATA = {
      "height": 720,
      "aspect": 1.7778,
      "duration": 15000,
-     "position": 0
+     "position": 0,
+     "title": "gen-03.jpg"
     }
    ]
   },
@@ -109,7 +116,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000000236614",
    "author_username": "pixelgarden",
    "author_name": "Pixel Garden",
-   "author_avatar": "https://i.pravatar.cc/96?img=47",
+   "author_avatar": "data/sample-media/portrait-04.jpg",
    "text": "For bigger escapes — short clip #design",
    "tweet_created_at": "2024-02-17T18:00:00Z",
    "captured_at": "2025-09-19T11:00:00Z",
@@ -121,8 +128,8 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "video",
-     "url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/ForBiggerEscapes.jpg",
-     "poster": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/ForBiggerEscapes.jpg",
+     "url": "data/sample-media/gen-04.jpg",
+     "poster": "data/sample-media/gen-04.jpg",
      "mp4": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
      "mp4_variants": [
       {
@@ -134,7 +141,8 @@ window.XREELS_DATA = {
      "height": 720,
      "aspect": 1.7778,
      "duration": 15000,
-     "position": 0
+     "position": 0,
+     "title": "gen-04.jpg"
     }
    ]
   },
@@ -142,7 +150,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000000255069",
    "author_username": "quietframes",
    "author_name": "Quiet Frames",
-   "author_avatar": "https://i.pravatar.cc/96?img=58",
+   "author_avatar": "data/sample-media/portrait-02.jpg",
    "text": "For bigger fun. One minute. #nature",
    "tweet_created_at": "2024-07-28T08:00:00Z",
    "captured_at": "2025-09-14T09:00:00Z",
@@ -154,8 +162,8 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "video",
-     "url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/ForBiggerFun.jpg",
-     "poster": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/ForBiggerFun.jpg",
+     "url": "data/sample-media/gen-05.jpg",
+     "poster": "data/sample-media/gen-05.jpg",
      "mp4": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4",
      "mp4_variants": [
       {
@@ -167,7 +175,8 @@ window.XREELS_DATA = {
      "height": 720,
      "aspect": 1.7778,
      "duration": 60000,
-     "position": 0
+     "position": 0,
+     "title": "gen-05.jpg"
     }
    ]
   },
@@ -175,7 +184,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000000345460",
    "author_username": "thirtysecs",
    "author_name": "Thirty Seconds",
-   "author_avatar": "https://i.pravatar.cc/96?img=20",
+   "author_avatar": "data/sample-media/neon-city-02.jpg",
    "text": "Joyrides, 15s #film",
    "tweet_created_at": "2025-06-16T18:00:00Z",
    "captured_at": "2025-09-12T16:00:00Z",
@@ -187,8 +196,8 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "video",
-     "url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/ForBiggerJoyrides.jpg",
-     "poster": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/ForBiggerJoyrides.jpg",
+     "url": "data/sample-media/gen-06.jpg",
+     "poster": "data/sample-media/gen-06.jpg",
      "mp4": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
      "mp4_variants": [
       {
@@ -200,7 +209,8 @@ window.XREELS_DATA = {
      "height": 720,
      "aspect": 1.7778,
      "duration": 15000,
-     "position": 0
+     "position": 0,
+     "title": "gen-06.jpg"
     }
    ]
   },
@@ -208,7 +218,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000000418253",
    "author_username": "openmovies",
    "author_name": "Open Movies",
-   "author_avatar": "https://i.pravatar.cc/96?img=12",
+   "author_avatar": "data/sample-media/neon-city-01.jpg",
    "text": "Meltdowns compilation #short #travel",
    "tweet_created_at": "2024-03-02T11:00:00Z",
    "captured_at": "2025-09-12T06:00:00Z",
@@ -220,8 +230,8 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "video",
-     "url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/ForBiggerMeltdowns.jpg",
-     "poster": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/ForBiggerMeltdowns.jpg",
+     "url": "data/sample-media/gen-07.jpg",
+     "poster": "data/sample-media/gen-07.jpg",
      "mp4": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4",
      "mp4_variants": [
       {
@@ -233,7 +243,8 @@ window.XREELS_DATA = {
      "height": 720,
      "aspect": 1.7778,
      "duration": 15000,
-     "position": 0
+     "position": 0,
+     "title": "gen-07.jpg"
     }
    ]
   },
@@ -241,7 +252,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000000475298",
    "author_username": "studiolight",
    "author_name": "Studio Light",
-   "author_avatar": "https://i.pravatar.cc/96?img=32",
+   "author_avatar": "data/sample-media/portrait-01.jpg",
    "text": "Sintel — open movie, full length #architecture",
    "tweet_created_at": "2024-06-10T18:00:00Z",
    "captured_at": "2025-09-01T22:00:00Z",
@@ -253,8 +264,8 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "video",
-     "url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/Sintel.jpg",
-     "poster": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/Sintel.jpg",
+     "url": "data/sample-media/gen-08.jpg",
+     "poster": "data/sample-media/gen-08.jpg",
      "mp4": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4",
      "mp4_variants": [
       {
@@ -266,7 +277,8 @@ window.XREELS_DATA = {
      "height": 720,
      "aspect": 1.7778,
      "duration": 888000,
-     "position": 0
+     "position": 0,
+     "title": "gen-08.jpg"
     }
    ]
   },
@@ -274,7 +286,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000000499860",
    "author_username": "roadnotes",
    "author_name": "Road Notes",
-   "author_avatar": "https://i.pravatar.cc/96?img=5",
+   "author_avatar": "data/sample-media/portrait-03.jpg",
    "text": "Street and dirt. Long drive #cars #photography",
    "tweet_created_at": "2025-07-08T18:00:00Z",
    "captured_at": "2025-09-21T20:00:00Z",
@@ -286,8 +298,8 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "video",
-     "url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/SubaruOutbackOnStreetAndDirt.jpg",
-     "poster": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/SubaruOutbackOnStreetAndDirt.jpg",
+     "url": "data/sample-media/gen-01.jpg",
+     "poster": "data/sample-media/gen-01.jpg",
      "mp4": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4",
      "mp4_variants": [
       {
@@ -299,7 +311,8 @@ window.XREELS_DATA = {
      "height": 720,
      "aspect": 1.7778,
      "duration": 594000,
-     "position": 0
+     "position": 0,
+     "title": "gen-01.jpg"
     }
    ]
   },
@@ -307,7 +320,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000000559689",
    "author_username": "pixelgarden",
    "author_name": "Pixel Garden",
-   "author_avatar": "https://i.pravatar.cc/96?img=47",
+   "author_avatar": "data/sample-media/portrait-04.jpg",
    "text": "Tears of Steel — sci-fi open movie #scifi #nature",
    "tweet_created_at": "2024-01-16T10:00:00Z",
    "captured_at": "2025-09-27T20:00:00Z",
@@ -319,8 +332,8 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "video",
-     "url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/TearsOfSteel.jpg",
-     "poster": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/TearsOfSteel.jpg",
+     "url": "data/sample-media/gen-02.jpg",
+     "poster": "data/sample-media/gen-02.jpg",
      "mp4": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4",
      "mp4_variants": [
       {
@@ -332,7 +345,8 @@ window.XREELS_DATA = {
      "height": 720,
      "aspect": 1.7778,
      "duration": 734000,
-     "position": 0
+     "position": 0,
+     "title": "gen-02.jpg"
     }
    ]
   },
@@ -340,7 +354,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000000605522",
    "author_username": "quietframes",
    "author_name": "Quiet Frames",
-   "author_avatar": "https://i.pravatar.cc/96?img=58",
+   "author_avatar": "data/sample-media/portrait-02.jpg",
    "text": "GTI review in three minutes #cars #film",
    "tweet_created_at": "2024-05-17T23:00:00Z",
    "captured_at": "2025-09-30T10:00:00Z",
@@ -352,8 +366,8 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "video",
-     "url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/VolkswagenGTIReview.jpg",
-     "poster": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/VolkswagenGTIReview.jpg",
+     "url": "data/sample-media/gen-03.jpg",
+     "poster": "data/sample-media/gen-03.jpg",
      "mp4": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/VolkswagenGTIReview.mp4",
      "mp4_variants": [
       {
@@ -365,7 +379,8 @@ window.XREELS_DATA = {
      "height": 720,
      "aspect": 1.7778,
      "duration": 180000,
-     "position": 0
+     "position": 0,
+     "title": "gen-03.jpg"
     }
    ]
   },
@@ -373,7 +388,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000000647645",
    "author_username": "thirtysecs",
    "author_name": "Thirty Seconds",
-   "author_avatar": "https://i.pravatar.cc/96?img=20",
+   "author_avatar": "data/sample-media/neon-city-02.jpg",
    "text": "We are going on Bullrun #cars #roadtrip #architecture",
    "tweet_created_at": "2024-10-06T17:00:00Z",
    "captured_at": "2025-09-15T18:00:00Z",
@@ -385,8 +400,8 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "video",
-     "url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/WeAreGoingOnBullrun.jpg",
-     "poster": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/WeAreGoingOnBullrun.jpg",
+     "url": "data/sample-media/gen-04.jpg",
+     "poster": "data/sample-media/gen-04.jpg",
      "mp4": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WeAreGoingOnBullrun.mp4",
      "mp4_variants": [
       {
@@ -398,7 +413,8 @@ window.XREELS_DATA = {
      "height": 720,
      "aspect": 1.7778,
      "duration": 47000,
-     "position": 0
+     "position": 0,
+     "title": "gen-04.jpg"
     }
    ]
   },
@@ -406,7 +422,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000000660912",
    "author_username": "openmovies",
    "author_name": "Open Movies",
-   "author_avatar": "https://i.pravatar.cc/96?img=12",
+   "author_avatar": "data/sample-media/neon-city-01.jpg",
    "text": "What car can you get for a grand? #cars #nature",
    "tweet_created_at": "2024-06-02T10:00:00Z",
    "captured_at": "2025-09-30T03:00:00Z",
@@ -418,8 +434,8 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "video",
-     "url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/WhatCarCanYouGetForAGrand.jpg",
-     "poster": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/WhatCarCanYouGetForAGrand.jpg",
+     "url": "data/sample-media/gen-05.jpg",
+     "poster": "data/sample-media/gen-05.jpg",
      "mp4": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WhatCarCanYouGetForAGrand.mp4",
      "mp4_variants": [
       {
@@ -431,7 +447,8 @@ window.XREELS_DATA = {
      "height": 720,
      "aspect": 1.7778,
      "duration": 567000,
-     "position": 0
+     "position": 0,
+     "title": "gen-05.jpg"
     }
    ]
   },
@@ -439,7 +456,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000000699214",
    "author_username": "pixelgarden",
    "author_name": "Pixel Garden",
-   "author_avatar": "https://i.pravatar.cc/96?img=47",
+   "author_avatar": "data/sample-media/portrait-04.jpg",
    "text": "Shot on a phone, edited in bed #architecture #design",
    "tweet_created_at": "2024-06-15T01:00:00Z",
    "captured_at": "2025-09-20T17:00:00Z",
@@ -451,39 +468,47 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels00/900/1200",
-     "width": 900,
-     "height": 1200,
-     "aspect": 0.75,
+     "url": "data/sample-media/aerial-03.jpg",
+     "width": 500,
+     "height": 667,
+     "aspect": 0.7496,
      "position": 0,
-     "alt": "Sample photo"
+     "alt": "Aerial view of mountain ridges in low fog (sample 14)",
+     "poster": "data/sample-media/aerial-03.jpg",
+     "title": "aerial-03.jpg"
     },
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels01/1200/800",
-     "width": 1200,
-     "height": 800,
-     "aspect": 1.5,
+     "url": "data/sample-media/architecture-03.webp",
+     "width": 832,
+     "height": 1248,
+     "aspect": 0.6667,
      "position": 1,
-     "alt": "Sample photo"
+     "alt": "Warm-lit interior in concrete and timber (sample 15)",
+     "poster": "data/sample-media/architecture-03.webp",
+     "title": "architecture-03.webp"
     },
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels02/900/1200",
-     "width": 900,
-     "height": 1200,
-     "aspect": 0.75,
+     "url": "data/sample-media/desert-02.jpg",
+     "width": 1024,
+     "height": 1024,
+     "aspect": 1,
      "position": 2,
-     "alt": "Sample photo"
+     "alt": "Desert dunes under a wide sky (sample 16)",
+     "poster": "data/sample-media/desert-02.jpg",
+     "title": "desert-02.jpg"
     },
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels03/1200/800",
-     "width": 1200,
-     "height": 800,
-     "aspect": 1.5,
+     "url": "data/sample-media/desert-04.jpg",
+     "width": 500,
+     "height": 889,
+     "aspect": 0.5624,
      "position": 3,
-     "alt": "Sample photo"
+     "alt": "Desert dunes under a wide sky (sample 17)",
+     "poster": "data/sample-media/desert-04.jpg",
+     "title": "desert-04.jpg"
     }
    ]
   },
@@ -491,7 +516,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000000737888",
    "author_username": "studiolight",
    "author_name": "Studio Light",
-   "author_avatar": "https://i.pravatar.cc/96?img=32",
+   "author_avatar": "data/sample-media/portrait-01.jpg",
    "text": "Palette study — warm neutrals #photography #minimal",
    "tweet_created_at": "2024-08-25T21:00:00Z",
    "captured_at": "2025-09-26T07:00:00Z",
@@ -503,12 +528,14 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels10/1200/800",
-     "width": 1200,
-     "height": 800,
-     "aspect": 1.5,
+     "url": "data/sample-media/desert-03.webp",
+     "width": 1024,
+     "height": 1024,
+     "aspect": 1,
      "position": 0,
-     "alt": "Sample photo"
+     "alt": "Desert dunes under a wide sky (sample 18)",
+     "poster": "data/sample-media/desert-03.webp",
+     "title": "desert-03.webp"
     }
    ]
   },
@@ -516,7 +543,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000000756835",
    "author_username": "roadnotes",
    "author_name": "Road Notes",
-   "author_avatar": "https://i.pravatar.cc/96?img=5",
+   "author_avatar": "data/sample-media/portrait-03.jpg",
    "text": "Shot on a phone, edited in bed #color #nature",
    "tweet_created_at": "2023-10-07T23:00:00Z",
    "captured_at": "2025-09-09T00:00:00Z",
@@ -528,12 +555,14 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels20/900/1200",
-     "width": 900,
-     "height": 1200,
-     "aspect": 0.75,
+     "url": "data/sample-media/dancer-01.jpg",
+     "width": 360,
+     "height": 640,
+     "aspect": 0.5625,
      "position": 0,
-     "alt": "Sample photo"
+     "alt": "Dancer in motion under a stage light (sample 19)",
+     "poster": "data/sample-media/dancer-01.jpg",
+     "title": "dancer-01.jpg"
     }
    ]
   },
@@ -541,7 +570,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000000777665",
    "author_username": "studiolight",
    "author_name": "Studio Light",
-   "author_avatar": "https://i.pravatar.cc/96?img=32",
+   "author_avatar": "data/sample-media/portrait-01.jpg",
    "text": "Weekend walk, no plan #design #street",
    "tweet_created_at": "2023-06-01T18:00:00Z",
    "captured_at": "2025-09-20T04:00:00Z",
@@ -553,21 +582,25 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels30/1200/800",
-     "width": 1200,
+     "url": "data/sample-media/neon-city-01.jpg",
+     "width": 800,
      "height": 800,
-     "aspect": 1.5,
+     "aspect": 1,
      "position": 0,
-     "alt": "Sample photo"
+     "alt": "Neon-lit city street at night (sample 20)",
+     "poster": "data/sample-media/neon-city-01.jpg",
+     "title": "neon-city-01.jpg"
     },
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels31/900/1200",
-     "width": 900,
-     "height": 1200,
-     "aspect": 0.75,
+     "url": "data/sample-media/neon-city-02.jpg",
+     "width": 800,
+     "height": 800,
+     "aspect": 1,
      "position": 1,
-     "alt": "Sample photo"
+     "alt": "Neon-lit city street at night (sample 21)",
+     "poster": "data/sample-media/neon-city-02.jpg",
+     "title": "neon-city-02.jpg"
     }
    ]
   },
@@ -575,7 +608,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000000848734",
    "author_username": "pixelgarden",
    "author_name": "Pixel Garden",
-   "author_avatar": "https://i.pravatar.cc/96?img=47",
+   "author_avatar": "data/sample-media/portrait-04.jpg",
    "text": "Two colours, one frame #architecture #film",
    "tweet_created_at": "2023-10-23T20:00:00Z",
    "captured_at": "2025-08-01T17:00:00Z",
@@ -587,12 +620,14 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels40/900/1200",
-     "width": 900,
-     "height": 1200,
-     "aspect": 0.75,
+     "url": "data/sample-media/neon-city-03.jpg",
+     "width": 800,
+     "height": 800,
+     "aspect": 1,
      "position": 0,
-     "alt": "Sample photo"
+     "alt": "Neon-lit city street at night (sample 22)",
+     "poster": "data/sample-media/neon-city-03.jpg",
+     "title": "neon-city-03.jpg"
     }
    ]
   },
@@ -600,7 +635,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000000923038",
    "author_username": "thirtysecs",
    "author_name": "Thirty Seconds",
-   "author_avatar": "https://i.pravatar.cc/96?img=20",
+   "author_avatar": "data/sample-media/neon-city-02.jpg",
    "text": "Shot on a phone, edited in bed #minimal #color",
    "tweet_created_at": "2024-08-23T09:00:00Z",
    "captured_at": "2025-08-31T16:00:00Z",
@@ -612,12 +647,14 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels50/1200/800",
-     "width": 1200,
+     "url": "data/sample-media/neon-city-05.jpg",
+     "width": 800,
      "height": 800,
-     "aspect": 1.5,
+     "aspect": 1,
      "position": 0,
-     "alt": "Sample photo"
+     "alt": "Neon-lit city street at night (sample 23)",
+     "poster": "data/sample-media/neon-city-05.jpg",
+     "title": "neon-city-05.jpg"
     }
    ]
   },
@@ -625,7 +662,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000000951401",
    "author_username": "openmovies",
    "author_name": "Open Movies",
-   "author_avatar": "https://i.pravatar.cc/96?img=12",
+   "author_avatar": "data/sample-media/neon-city-01.jpg",
    "text": "Palette study — warm neutrals #travel #architecture",
    "tweet_created_at": "2024-01-24T11:00:00Z",
    "captured_at": "2025-09-25T12:00:00Z",
@@ -637,30 +674,36 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels60/900/1200",
-     "width": 900,
-     "height": 1200,
-     "aspect": 0.75,
-     "position": 0,
-     "alt": "Sample photo"
-    },
-    {
-     "type": "photo",
-     "url": "https://picsum.photos/seed/xreels61/1200/800",
+     "url": "data/sample-media/portrait-01.jpg",
      "width": 1200,
-     "height": 800,
-     "aspect": 1.5,
-     "position": 1,
-     "alt": "Sample photo"
+     "height": 1200,
+     "aspect": 1,
+     "position": 0,
+     "alt": "Low-key studio portrait (sample 24)",
+     "poster": "data/sample-media/portrait-01.jpg",
+     "title": "portrait-01.jpg"
     },
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels62/900/1200",
-     "width": 900,
+     "url": "data/sample-media/dancer-02.jpg",
+     "width": 360,
+     "height": 640,
+     "aspect": 0.5625,
+     "position": 1,
+     "alt": "Dancer in motion under a stage light (sample 25)",
+     "poster": "data/sample-media/dancer-02.jpg",
+     "title": "dancer-02.jpg"
+    },
+    {
+     "type": "photo",
+     "url": "data/sample-media/portrait-02.jpg",
+     "width": 1200,
      "height": 1200,
-     "aspect": 0.75,
+     "aspect": 1,
      "position": 2,
-     "alt": "Sample photo"
+     "alt": "Low-key studio portrait (sample 26)",
+     "poster": "data/sample-media/portrait-02.jpg",
+     "title": "portrait-02.jpg"
     }
    ]
   },
@@ -668,7 +711,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000001000060",
    "author_username": "openmovies",
    "author_name": "Open Movies",
-   "author_avatar": "https://i.pravatar.cc/96?img=12",
+   "author_avatar": "data/sample-media/neon-city-01.jpg",
    "text": "Morning light over the harbour #travel #photography",
    "tweet_created_at": "2024-01-11T00:00:00Z",
    "captured_at": "2025-09-21T16:00:00Z",
@@ -680,12 +723,14 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels70/1200/800",
-     "width": 1200,
-     "height": 800,
-     "aspect": 1.5,
+     "url": "data/sample-media/desert-05.jpg",
+     "width": 1000,
+     "height": 1500,
+     "aspect": 0.6667,
      "position": 0,
-     "alt": "Sample photo"
+     "alt": "Desert dunes under a wide sky (sample 27)",
+     "poster": "data/sample-media/desert-05.jpg",
+     "title": "desert-05.jpg"
     }
    ]
   },
@@ -693,7 +738,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000001063207",
    "author_username": "roadnotes",
    "author_name": "Road Notes",
-   "author_avatar": "https://i.pravatar.cc/96?img=5",
+   "author_avatar": "data/sample-media/portrait-03.jpg",
    "text": "Concrete, glass and one lonely tree #travel #street",
    "tweet_created_at": "2024-06-09T21:00:00Z",
    "captured_at": "2025-09-01T03:00:00Z",
@@ -705,12 +750,14 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels80/900/1200",
-     "width": 900,
-     "height": 1200,
-     "aspect": 0.75,
+     "url": "data/sample-media/dancer-03.jpg",
+     "width": 360,
+     "height": 640,
+     "aspect": 0.5625,
      "position": 0,
-     "alt": "Sample photo"
+     "alt": "Dancer in motion under a stage light (sample 28)",
+     "poster": "data/sample-media/dancer-03.jpg",
+     "title": "dancer-03.jpg"
     }
    ]
   },
@@ -718,7 +765,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000001109116",
    "author_username": "thirtysecs",
    "author_name": "Thirty Seconds",
-   "author_avatar": "https://i.pravatar.cc/96?img=20",
+   "author_avatar": "data/sample-media/neon-city-02.jpg",
    "text": "Textures from the old town #street #film",
    "tweet_created_at": "2024-04-20T12:00:00Z",
    "captured_at": "2025-09-17T20:00:00Z",
@@ -730,39 +777,47 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels90/1200/800",
-     "width": 1200,
-     "height": 800,
-     "aspect": 1.5,
+     "url": "data/sample-media/dancer-05.jpg",
+     "width": 360,
+     "height": 640,
+     "aspect": 0.5625,
      "position": 0,
-     "alt": "Sample photo"
+     "alt": "Dancer in motion under a stage light (sample 29)",
+     "poster": "data/sample-media/dancer-05.jpg",
+     "title": "dancer-05.jpg"
     },
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels91/900/1200",
-     "width": 900,
-     "height": 1200,
-     "aspect": 0.75,
-     "position": 1,
-     "alt": "Sample photo"
-    },
-    {
-     "type": "photo",
-     "url": "https://picsum.photos/seed/xreels92/1200/800",
+     "url": "data/sample-media/portrait-03.jpg",
      "width": 1200,
-     "height": 800,
-     "aspect": 1.5,
-     "position": 2,
-     "alt": "Sample photo"
+     "height": 1200,
+     "aspect": 1,
+     "position": 1,
+     "alt": "Low-key studio portrait (sample 30)",
+     "poster": "data/sample-media/portrait-03.jpg",
+     "title": "portrait-03.jpg"
     },
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels93/900/1200",
-     "width": 900,
+     "url": "data/sample-media/portrait-04.jpg",
+     "width": 1200,
      "height": 1200,
-     "aspect": 0.75,
+     "aspect": 1,
+     "position": 2,
+     "alt": "Low-key studio portrait (sample 31)",
+     "poster": "data/sample-media/portrait-04.jpg",
+     "title": "portrait-04.jpg"
+    },
+    {
+     "type": "photo",
+     "url": "data/sample-media/aerial-05.jpg",
+     "width": 612,
+     "height": 469,
+     "aspect": 1.3049,
      "position": 3,
-     "alt": "Sample photo"
+     "alt": "Aerial view of mountain ridges in low fog (sample 32)",
+     "poster": "data/sample-media/aerial-05.jpg",
+     "title": "aerial-05.jpg"
     }
    ]
   },
@@ -770,7 +825,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000001113660",
    "author_username": "quietframes",
    "author_name": "Quiet Frames",
-   "author_avatar": "https://i.pravatar.cc/96?img=58",
+   "author_avatar": "data/sample-media/portrait-02.jpg",
    "text": "Textures from the old town #travel #nature",
    "tweet_created_at": "2024-04-18T01:00:00Z",
    "captured_at": "2025-08-04T07:00:00Z",
@@ -782,12 +837,14 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels100/900/1200",
-     "width": 900,
-     "height": 1200,
-     "aspect": 0.75,
+     "url": "data/sample-media/architecture-04.jpg",
+     "width": 1344,
+     "height": 768,
+     "aspect": 1.75,
      "position": 0,
-     "alt": "Sample photo"
+     "alt": "Warm-lit interior in concrete and timber (sample 33)",
+     "poster": "data/sample-media/architecture-04.jpg",
+     "title": "architecture-04.jpg"
     }
    ]
   },
@@ -795,7 +852,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000001185644",
    "author_username": "quietframes",
    "author_name": "Quiet Frames",
-   "author_avatar": "https://i.pravatar.cc/96?img=58",
+   "author_avatar": "data/sample-media/portrait-02.jpg",
    "text": "Two colours, one frame #photography #color",
    "tweet_created_at": "2023-06-28T05:00:00Z",
    "captured_at": "2025-08-10T00:00:00Z",
@@ -807,12 +864,14 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels110/1200/800",
-     "width": 1200,
-     "height": 800,
-     "aspect": 1.5,
+     "url": "data/sample-media/architecture-02.jpg",
+     "width": 1024,
+     "height": 768,
+     "aspect": 1.3333,
      "position": 0,
-     "alt": "Sample photo"
+     "alt": "Warm-lit interior in concrete and timber (sample 34)",
+     "poster": "data/sample-media/architecture-02.jpg",
+     "title": "architecture-02.jpg"
     }
    ]
   },
@@ -820,7 +879,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000001233248",
    "author_username": "pixelgarden",
    "author_name": "Pixel Garden",
-   "author_avatar": "https://i.pravatar.cc/96?img=47",
+   "author_avatar": "data/sample-media/portrait-04.jpg",
    "text": "Morning light over the harbour #design #nature",
    "tweet_created_at": "2024-06-04T04:00:00Z",
    "captured_at": "2025-09-18T17:00:00Z",
@@ -832,39 +891,47 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels120/900/1200",
-     "width": 900,
-     "height": 1200,
-     "aspect": 0.75,
+     "url": "data/sample-media/aerial-02.jpg",
+     "width": 612,
+     "height": 408,
+     "aspect": 1.5,
      "position": 0,
-     "alt": "Sample photo"
+     "alt": "Aerial view of mountain ridges in low fog (sample 35)",
+     "poster": "data/sample-media/aerial-02.jpg",
+     "title": "aerial-02.jpg"
     },
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels121/1200/800",
-     "width": 1200,
-     "height": 800,
-     "aspect": 1.5,
+     "url": "data/sample-media/aerial-04.jpg",
+     "width": 1280,
+     "height": 720,
+     "aspect": 1.7778,
      "position": 1,
-     "alt": "Sample photo"
+     "alt": "Aerial view of mountain ridges in low fog (sample 36)",
+     "poster": "data/sample-media/aerial-04.jpg",
+     "title": "aerial-04.jpg"
     },
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels122/900/1200",
-     "width": 900,
-     "height": 1200,
-     "aspect": 0.75,
+     "url": "data/sample-media/dancer-04.jpg",
+     "width": 1920,
+     "height": 1080,
+     "aspect": 1.7778,
      "position": 2,
-     "alt": "Sample photo"
+     "alt": "Dancer in motion under a stage light (sample 37)",
+     "poster": "data/sample-media/dancer-04.jpg",
+     "title": "dancer-04.jpg"
     },
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels123/1200/800",
-     "width": 1200,
-     "height": 800,
-     "aspect": 1.5,
+     "url": "data/sample-media/architecture-05.jpg",
+     "width": 1456,
+     "height": 816,
+     "aspect": 1.7843,
      "position": 3,
-     "alt": "Sample photo"
+     "alt": "Warm-lit interior in concrete and timber (sample 38)",
+     "poster": "data/sample-media/architecture-05.jpg",
+     "title": "architecture-05.jpg"
     }
    ]
   },
@@ -872,7 +939,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000001280060",
    "author_username": "thirtysecs",
    "author_name": "Thirty Seconds",
-   "author_avatar": "https://i.pravatar.cc/96?img=20",
+   "author_avatar": "data/sample-media/neon-city-02.jpg",
    "text": "Two colours, one frame #travel #photography",
    "tweet_created_at": "2025-06-18T05:00:00Z",
    "captured_at": "2025-09-01T06:00:00Z",
@@ -884,12 +951,14 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels130/1200/800",
-     "width": 1200,
-     "height": 800,
-     "aspect": 1.5,
+     "url": "data/sample-media/neon-city-04.webp",
+     "width": 400,
+     "height": 225,
+     "aspect": 1.7778,
      "position": 0,
-     "alt": "Sample photo"
+     "alt": "Neon-lit city street at night (sample 39)",
+     "poster": "data/sample-media/neon-city-04.webp",
+     "title": "neon-city-04.webp"
     }
    ]
   },
@@ -897,7 +966,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000001361048",
    "author_username": "quietframes",
    "author_name": "Quiet Frames",
-   "author_avatar": "https://i.pravatar.cc/96?img=58",
+   "author_avatar": "data/sample-media/portrait-02.jpg",
    "text": "Morning light over the harbour #street #architecture",
    "tweet_created_at": "2023-07-04T16:00:00Z",
    "captured_at": "2025-09-26T09:00:00Z",
@@ -909,12 +978,14 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels140/900/1200",
-     "width": 900,
-     "height": 1200,
-     "aspect": 0.75,
+     "url": "data/sample-media/desert-01.jpg",
+     "width": 740,
+     "height": 415,
+     "aspect": 1.7831,
      "position": 0,
-     "alt": "Sample photo"
+     "alt": "Desert dunes under a wide sky (sample 40)",
+     "poster": "data/sample-media/desert-01.jpg",
+     "title": "desert-01.jpg"
     }
    ]
   },
@@ -922,7 +993,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000001424704",
    "author_username": "studiolight",
    "author_name": "Studio Light",
-   "author_avatar": "https://i.pravatar.cc/96?img=32",
+   "author_avatar": "data/sample-media/portrait-01.jpg",
    "text": "Shot on a phone, edited in bed #architecture #travel",
    "tweet_created_at": "2023-07-03T00:00:00Z",
    "captured_at": "2025-09-02T00:00:00Z",
@@ -934,21 +1005,25 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels150/1200/800",
+     "url": "data/sample-media/architecture-01.webp",
      "width": 1200,
-     "height": 800,
-     "aspect": 1.5,
+     "height": 600,
+     "aspect": 2,
      "position": 0,
-     "alt": "Sample photo"
+     "alt": "Warm-lit interior in concrete and timber (sample 41)",
+     "poster": "data/sample-media/architecture-01.webp",
+     "title": "architecture-01.webp"
     },
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels151/900/1200",
-     "width": 900,
-     "height": 1200,
-     "aspect": 0.75,
+     "url": "data/sample-media/aerial-01.jpg",
+     "width": 612,
+     "height": 224,
+     "aspect": 2.7321,
      "position": 1,
-     "alt": "Sample photo"
+     "alt": "Aerial view of mountain ridges in low fog (sample 42)",
+     "poster": "data/sample-media/aerial-01.jpg",
+     "title": "aerial-01.jpg"
     }
    ]
   },
@@ -956,7 +1031,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000001442355",
    "author_username": "studiolight",
    "author_name": "Studio Light",
-   "author_avatar": "https://i.pravatar.cc/96?img=32",
+   "author_avatar": "data/sample-media/portrait-01.jpg",
    "text": "Morning light over the harbour #film #street",
    "tweet_created_at": "2023-06-27T16:00:00Z",
    "captured_at": "2025-09-21T17:00:00Z",
@@ -968,12 +1043,14 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels160/900/1200",
-     "width": 900,
-     "height": 1200,
-     "aspect": 0.75,
+     "url": "data/sample-media/aerial-03.jpg",
+     "width": 500,
+     "height": 667,
+     "aspect": 0.7496,
      "position": 0,
-     "alt": "Sample photo"
+     "alt": "Aerial view of mountain ridges in low fog (sample 43)",
+     "poster": "data/sample-media/aerial-03.jpg",
+     "title": "aerial-03.jpg"
     }
    ]
   },
@@ -981,7 +1058,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000001463790",
    "author_username": "roadnotes",
    "author_name": "Road Notes",
-   "author_avatar": "https://i.pravatar.cc/96?img=5",
+   "author_avatar": "data/sample-media/portrait-03.jpg",
    "text": "Palette study — warm neutrals #design #color",
    "tweet_created_at": "2023-07-04T16:00:00Z",
    "captured_at": "2025-09-24T20:00:00Z",
@@ -993,12 +1070,14 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels170/1200/800",
-     "width": 1200,
-     "height": 800,
-     "aspect": 1.5,
+     "url": "data/sample-media/architecture-03.webp",
+     "width": 832,
+     "height": 1248,
+     "aspect": 0.6667,
      "position": 0,
-     "alt": "Sample photo"
+     "alt": "Warm-lit interior in concrete and timber (sample 44)",
+     "poster": "data/sample-media/architecture-03.webp",
+     "title": "architecture-03.webp"
     }
    ]
   },
@@ -1006,7 +1085,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000001492451",
    "author_username": "studiolight",
    "author_name": "Studio Light",
-   "author_avatar": "https://i.pravatar.cc/96?img=32",
+   "author_avatar": "data/sample-media/portrait-01.jpg",
    "text": "Textures from the old town #photography #nature",
    "tweet_created_at": "2024-05-05T05:00:00Z",
    "captured_at": "2025-08-13T18:00:00Z",
@@ -1018,21 +1097,25 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels180/900/1200",
-     "width": 900,
-     "height": 1200,
-     "aspect": 0.75,
+     "url": "data/sample-media/desert-02.jpg",
+     "width": 1024,
+     "height": 1024,
+     "aspect": 1,
      "position": 0,
-     "alt": "Sample photo"
+     "alt": "Desert dunes under a wide sky (sample 45)",
+     "poster": "data/sample-media/desert-02.jpg",
+     "title": "desert-02.jpg"
     },
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels181/1200/800",
-     "width": 1200,
-     "height": 800,
-     "aspect": 1.5,
+     "url": "data/sample-media/dancer-01.jpg",
+     "width": 360,
+     "height": 640,
+     "aspect": 0.5625,
      "position": 1,
-     "alt": "Sample photo"
+     "alt": "Dancer in motion under a stage light (sample 46)",
+     "poster": "data/sample-media/dancer-01.jpg",
+     "title": "dancer-01.jpg"
     }
    ]
   },
@@ -1040,7 +1123,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000001510631",
    "author_username": "pixelgarden",
    "author_name": "Pixel Garden",
-   "author_avatar": "https://i.pravatar.cc/96?img=47",
+   "author_avatar": "data/sample-media/portrait-04.jpg",
    "text": "Morning light over the harbour #architecture #street",
    "tweet_created_at": "2023-11-21T18:00:00Z",
    "captured_at": "2025-08-09T20:00:00Z",
@@ -1052,12 +1135,14 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels190/1200/800",
-     "width": 1200,
-     "height": 800,
-     "aspect": 1.5,
+     "url": "data/sample-media/desert-03.webp",
+     "width": 1024,
+     "height": 1024,
+     "aspect": 1,
      "position": 0,
-     "alt": "Sample photo"
+     "alt": "Desert dunes under a wide sky (sample 47)",
+     "poster": "data/sample-media/desert-03.webp",
+     "title": "desert-03.webp"
     }
    ]
   },
@@ -1065,7 +1150,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000001528770",
    "author_username": "quietframes",
    "author_name": "Quiet Frames",
-   "author_avatar": "https://i.pravatar.cc/96?img=58",
+   "author_avatar": "data/sample-media/portrait-02.jpg",
    "text": "Palette study — warm neutrals #color #design",
    "tweet_created_at": "2023-04-20T22:00:00Z",
    "captured_at": "2025-08-13T07:00:00Z",
@@ -1077,12 +1162,14 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels200/900/1200",
-     "width": 900,
-     "height": 1200,
-     "aspect": 0.75,
+     "url": "data/sample-media/dancer-02.jpg",
+     "width": 360,
+     "height": 640,
+     "aspect": 0.5625,
      "position": 0,
-     "alt": "Sample photo"
+     "alt": "Dancer in motion under a stage light (sample 48)",
+     "poster": "data/sample-media/dancer-02.jpg",
+     "title": "dancer-02.jpg"
     }
    ]
   },
@@ -1090,7 +1177,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000001552359",
    "author_username": "studiolight",
    "author_name": "Studio Light",
-   "author_avatar": "https://i.pravatar.cc/96?img=32",
+   "author_avatar": "data/sample-media/portrait-01.jpg",
    "text": "Field notes, volume 22 #travel #design",
    "tweet_created_at": "2024-10-31T20:00:00Z",
    "captured_at": "2025-08-28T19:00:00Z",
@@ -1102,21 +1189,25 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels210/1200/800",
-     "width": 1200,
-     "height": 800,
-     "aspect": 1.5,
+     "url": "data/sample-media/architecture-04.jpg",
+     "width": 1344,
+     "height": 768,
+     "aspect": 1.75,
      "position": 0,
-     "alt": "Sample photo"
+     "alt": "Warm-lit interior in concrete and timber (sample 49)",
+     "poster": "data/sample-media/architecture-04.jpg",
+     "title": "architecture-04.jpg"
     },
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels211/900/1200",
-     "width": 900,
-     "height": 1200,
-     "aspect": 0.75,
+     "url": "data/sample-media/neon-city-01.jpg",
+     "width": 800,
+     "height": 800,
+     "aspect": 1,
      "position": 1,
-     "alt": "Sample photo"
+     "alt": "Neon-lit city street at night (sample 50)",
+     "poster": "data/sample-media/neon-city-01.jpg",
+     "title": "neon-city-01.jpg"
     }
    ]
   },
@@ -1124,7 +1215,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000001626798",
    "author_username": "openmovies",
    "author_name": "Open Movies",
-   "author_avatar": "https://i.pravatar.cc/96?img=12",
+   "author_avatar": "data/sample-media/neon-city-01.jpg",
    "text": "Morning light over the harbour #photography #color",
    "tweet_created_at": "2024-12-21T11:00:00Z",
    "captured_at": "2025-08-13T09:00:00Z",
@@ -1136,12 +1227,14 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels220/900/1200",
-     "width": 900,
-     "height": 1200,
-     "aspect": 0.75,
+     "url": "data/sample-media/neon-city-02.jpg",
+     "width": 800,
+     "height": 800,
+     "aspect": 1,
      "position": 0,
-     "alt": "Sample photo"
+     "alt": "Neon-lit city street at night (sample 51)",
+     "poster": "data/sample-media/neon-city-02.jpg",
+     "title": "neon-city-02.jpg"
     }
    ]
   },
@@ -1149,7 +1242,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000001636103",
    "author_username": "openmovies",
    "author_name": "Open Movies",
-   "author_avatar": "https://i.pravatar.cc/96?img=12",
+   "author_avatar": "data/sample-media/neon-city-01.jpg",
    "text": "Field notes, volume 24 #architecture #photography",
    "tweet_created_at": "2023-10-22T04:00:00Z",
    "captured_at": "2025-09-02T20:00:00Z",
@@ -1161,12 +1254,14 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels230/1200/800",
-     "width": 1200,
-     "height": 800,
-     "aspect": 1.5,
+     "url": "data/sample-media/architecture-05.jpg",
+     "width": 1456,
+     "height": 816,
+     "aspect": 1.7843,
      "position": 0,
-     "alt": "Sample photo"
+     "alt": "Warm-lit interior in concrete and timber (sample 52)",
+     "poster": "data/sample-media/architecture-05.jpg",
+     "title": "architecture-05.jpg"
     }
    ]
   },
@@ -1174,7 +1269,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000001669563",
    "author_username": "quietframes",
    "author_name": "Quiet Frames",
-   "author_avatar": "https://i.pravatar.cc/96?img=58",
+   "author_avatar": "data/sample-media/portrait-02.jpg",
    "text": "Textures from the old town #color #photography",
    "tweet_created_at": "2023-05-23T22:00:00Z",
    "captured_at": "2025-09-22T23:00:00Z",
@@ -1186,39 +1281,47 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels240/900/1200",
-     "width": 900,
-     "height": 1200,
-     "aspect": 0.75,
+     "url": "data/sample-media/desert-05.jpg",
+     "width": 1000,
+     "height": 1500,
+     "aspect": 0.6667,
      "position": 0,
-     "alt": "Sample photo"
+     "alt": "Desert dunes under a wide sky (sample 53)",
+     "poster": "data/sample-media/desert-05.jpg",
+     "title": "desert-05.jpg"
     },
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels241/1200/800",
-     "width": 1200,
-     "height": 800,
-     "aspect": 1.5,
+     "url": "data/sample-media/dancer-03.jpg",
+     "width": 360,
+     "height": 640,
+     "aspect": 0.5625,
      "position": 1,
-     "alt": "Sample photo"
+     "alt": "Dancer in motion under a stage light (sample 54)",
+     "poster": "data/sample-media/dancer-03.jpg",
+     "title": "dancer-03.jpg"
     },
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels242/900/1200",
-     "width": 900,
-     "height": 1200,
-     "aspect": 0.75,
+     "url": "data/sample-media/aerial-04.jpg",
+     "width": 1280,
+     "height": 720,
+     "aspect": 1.7778,
      "position": 2,
-     "alt": "Sample photo"
+     "alt": "Aerial view of mountain ridges in low fog (sample 55)",
+     "poster": "data/sample-media/aerial-04.jpg",
+     "title": "aerial-04.jpg"
     },
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels243/1200/800",
+     "url": "data/sample-media/architecture-01.webp",
      "width": 1200,
-     "height": 800,
-     "aspect": 1.5,
+     "height": 600,
+     "aspect": 2,
      "position": 3,
-     "alt": "Sample photo"
+     "alt": "Warm-lit interior in concrete and timber (sample 56)",
+     "poster": "data/sample-media/architecture-01.webp",
+     "title": "architecture-01.webp"
     }
    ]
   },
@@ -1226,7 +1329,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000001680071",
    "author_username": "roadnotes",
    "author_name": "Road Notes",
-   "author_avatar": "https://i.pravatar.cc/96?img=5",
+   "author_avatar": "data/sample-media/portrait-03.jpg",
    "text": "Weekend walk, no plan #minimal #travel",
    "tweet_created_at": "2025-02-25T03:00:00Z",
    "captured_at": "2025-08-12T09:00:00Z",
@@ -1238,12 +1341,14 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels250/1200/800",
-     "width": 1200,
-     "height": 800,
-     "aspect": 1.5,
+     "url": "data/sample-media/dancer-04.jpg",
+     "width": 1920,
+     "height": 1080,
+     "aspect": 1.7778,
      "position": 0,
-     "alt": "Sample photo"
+     "alt": "Dancer in motion under a stage light (sample 57)",
+     "poster": "data/sample-media/dancer-04.jpg",
+     "title": "dancer-04.jpg"
     }
    ]
   },
@@ -1251,7 +1356,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000001729067",
    "author_username": "thirtysecs",
    "author_name": "Thirty Seconds",
-   "author_avatar": "https://i.pravatar.cc/96?img=20",
+   "author_avatar": "data/sample-media/neon-city-02.jpg",
    "text": "Palette study — warm neutrals #nature #film",
    "tweet_created_at": "2024-06-09T05:00:00Z",
    "captured_at": "2025-08-15T09:00:00Z",
@@ -1263,12 +1368,14 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "photo",
-     "url": "https://picsum.photos/seed/xreels260/900/1200",
-     "width": 900,
-     "height": 1200,
-     "aspect": 0.75,
+     "url": "data/sample-media/neon-city-04.webp",
+     "width": 400,
+     "height": 225,
+     "aspect": 1.7778,
      "position": 0,
-     "alt": "Sample photo"
+     "alt": "Neon-lit city street at night (sample 58)",
+     "poster": "data/sample-media/neon-city-04.webp",
+     "title": "neon-city-04.webp"
     }
    ]
   },
@@ -1276,7 +1383,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000001733309",
    "author_username": "thirtysecs",
    "author_name": "Thirty Seconds",
-   "author_avatar": "https://i.pravatar.cc/96?img=20",
+   "author_avatar": "data/sample-media/neon-city-02.jpg",
    "text": "Looping clip test #minimal",
    "tweet_created_at": "2025-09-19T05:00:00Z",
    "captured_at": "2025-09-29T07:00:00Z",
@@ -1288,14 +1395,15 @@ window.XREELS_DATA = {
    "media_items": [
     {
      "type": "animated_gif",
-     "url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/ForBiggerJoyrides.jpg",
-     "poster": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/ForBiggerJoyrides.jpg",
+     "url": "data/sample-media/gen-06.jpg",
+     "poster": "data/sample-media/gen-06.jpg",
      "mp4": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
      "width": 1280,
      "height": 720,
      "aspect": 1.7778,
      "duration": 15000,
-     "position": 0
+     "position": 0,
+     "title": "gen-06.jpg"
     }
    ]
   },
@@ -1303,7 +1411,7 @@ window.XREELS_DATA = {
    "tweet_id": "1700000000001733408",
    "author_username": "quietframes",
    "author_name": "Quiet Frames",
-   "author_avatar": "https://i.pravatar.cc/96?img=58",
+   "author_avatar": "data/sample-media/portrait-02.jpg",
    "text": "A text-only bookmark. Hidden unless “Keep text-only posts” is on.",
    "tweet_created_at": "2025-09-27T23:00:00Z",
    "captured_at": "2025-09-29T20:00:00Z",

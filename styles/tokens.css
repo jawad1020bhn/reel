@@ -4,7 +4,11 @@
    CTAs, 10px-radius artwork cards, glass chrome (white/x + backdrop blur), Bebas Neue
    display type over Geist UI type, and fast expo-eased motion (cubic-bezier(.22,1,.36,1)).
    Dark-only by design: the artwork is authored for black. Light theme & accent picker
-   are intentionally gone. */
+   are intentionally gone.
+
+   Typeface note: Geist / Geist Mono are self-hosted brand assets (~/styles/fonts),
+   chosen for neutral UI legibility under the Bebas Neue display voice. The detector's
+   overused-font heuristic is waived in .impeccable/config.json with that reason. */
 
 @font-face {
   font-family: "Bebas Neue";
@@ -15,11 +19,13 @@
   font-family: "Geist";
   src: url("fonts/geist-latin.woff2") format("woff2");
   font-weight: 300 800; font-style: normal; font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 @font-face {
   font-family: "Geist Mono";
   src: url("fonts/geist-mono.woff2") format("woff2");
   font-weight: 400 600; font-style: normal; font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+2000-206F, U+20AC, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
 :root {
@@ -49,7 +55,7 @@
   --fg: #f8f8f8;
   --fg-1: rgb(255 255 255 / 0.85);
   --fg-2: #8f8f8f;                /* muted-foreground */
-  --fg-3: rgb(255 255 255 / 0.40);
+  --fg-3: rgb(255 255 255 / 0.56);
 
   --line: #222222;
   --line-strong: rgb(255 255 255 / 0.15);
@@ -90,7 +96,8 @@
   --r-pill: 999px;
 
   /* ---- layout ------------------------------------------------------------- */
-  --hdr-h: 64px;
+  --hdr-h: 64px;                   /* the bar itself (desktop) */
+  --hdr-offset: 64px;             /* full chrome height incl. the mobile chip rail (set by shell.layout) */
   --gutter: 16px;                 /* page gutter: 16 → 32 → 64 with width */
   --content-max: 1520px;
   --tile-gap: 8px;
@@ -115,7 +122,7 @@
   --z-splash: 110;
   --z-preview: 120;
 
-  --hero-h: clamp(460px, 76vh, 780px);
+  --hero-h: clamp(430px, 72vh, 740px);
 }
 
 @media (min-width: 768px)  { :root { --gutter: 32px; --hdr-h: 72px; } }
@@ -126,9 +133,16 @@
 [data-density="cozy"]        { --tile-gap: 8px;  --tile-min: 180px; }
 [data-density="comfortable"] { --tile-gap: 12px; --tile-min: 232px; }
 
-[data-motion="reduce"] *, [data-motion="reduce"] *::before, [data-motion="reduce"] *::after {
-  transition-duration: 0.01ms !important;
-  animation-duration: 0.01ms !important;
-  animation-iteration-count: 1 !important;
+/* Reduced motion keeps feedback legible: color/opacity still transition, movement stops. */
+[data-motion="reduce"] *:not(.spinner) {
+  transition-property: opacity, color, background-color, border-color, box-shadow, visibility !important;
+  transition-duration: 120ms !important;
   scroll-behavior: auto !important;
 }
+[data-motion="reduce"] *::before,
+[data-motion="reduce"] *::after {
+  animation: none !important;
+  transition-duration: 0.01ms !important;
+}
+[data-motion="reduce"] *:not(.spinner) { animation-duration: 0.001ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; }
+[data-motion="reduce"] .spinner { animation-duration: 1.4s !important; }
