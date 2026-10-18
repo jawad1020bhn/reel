@@ -45,7 +45,7 @@ XR.define("shell.layout", ["ui.dom", "ui.icons", "ui.widgets", "app.features", "
         h("button.hdr-search-close", { type: "button", "aria-label": "Close search", onclick: () => closeSearch() }, icons.icon("x", 15)));
       const btn = h("button.hdr-icon.hdr-search-btn", { title: "Search ( / )", "aria-label": "Open search", "aria-expanded": "false", "aria-controls": "hdr-search-form", onclick: () => (form.classList.contains("open") ? closeSearch() : openSearch()) }, icons.icon("search", 21));
       function openSearch() { form.classList.add("open"); btn.setAttribute("aria-expanded", "true"); setTimeout(() => input.focus(), 180); }
-      function closeSearch() { form.classList.remove("open"); btn.setAttribute("aria-expanded", "false"); input.value = ""; input.blur(); els?.searchBtn.focus({ preventScroll: true }); }
+      function closeSearch() { form.classList.remove("open"); btn.setAttribute("aria-expanded", "false"); input.value = ""; input.blur(); }
       return { form, btn, input, openSearch, closeSearch };
     }
 
@@ -74,7 +74,7 @@ XR.define("shell.layout", ["ui.dom", "ui.icons", "ui.widgets", "app.features", "
       const actions = h("div.hdr-actions",
         source,
         h("span.hdr-spacer"),
-        search.form, search.btn,
+        search.form,   /* the expanding field stays for the "/" shortcut and the palette; no icon in the header */
         muteBtn,
         W.iconBtn("command", "Command palette (⌘K)", () => events.bus.emit(EV.PALETTE_OPEN, {}), { cls: "hdr-icon" }),
         secondary.filter((m) => m.id !== "import").map((m) => {
