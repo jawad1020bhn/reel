@@ -12,7 +12,7 @@ XR.define("shell.outlet", ["ui.dom", "ui.widgets", "ui.imageload", "app.features
     let wanted = null; /* the most recent route the shell was asked to show */
     const scrollMemo = new Map();
     const mq = typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)") : null;
-    let vtRunning = null, vtSeq = 0;
+    let vtRunning = null, vtSeq = 0, loadingTimer = null;
 
     const keyOf = (route) => route.name + JSON.stringify(route.params);
     const reduced = () => (mq && mq.matches) || document.documentElement.dataset.motion === "reduce";
@@ -38,13 +38,18 @@ XR.define("shell.outlet", ["ui.dom", "ui.widgets", "ui.imageload", "app.features
       dom.clear(host);
       host.dataset.feature = feature.id;
       host.setAttribute("aria-busy", "true");
-      host.appendChild(dom.h("div.feature-loading", { role: "status" }, W.spinner("Loading page…")));
+      host.appendChild(dom.h("div.feature-loading", { role: "status", "aria-label": "Loading page…" },
+        dom.h("span.sr-only", "Loading page…"),
+        dom.h("div.feature-loading-heading.sk", { "aria-hidden": "true" }),
+        dom.h("div.feature-loading-grid", { "aria-hidden": "true" },
+          ...Array.from({ length: 8 }, () => dom.h("div.feature-loading-card.sk")))));
       host.scrollTop = 0;
       theme.setTitle(XR.resolve("core.i18n").t(feature.title));
     }
 
     function showLazyError(route, feature, seq, initial, error) {
       if (seq !== routeLoadSeq || route !== wanted) return;
+      showLazyLoading(feature);
       host.removeAttribute("aria-busy");
       dom.replace(host, W.empty({
         icon: "alert", title: `Couldn't load ${feature.title}`,
@@ -92,7 +97,7 @@ XR.define("shell.outlet", ["ui.dom", "ui.widgets", "ui.imageload", "app.features
         host.scrollTop = y;
         /* a second pass once the browser has laid the page out; skipped while a
            View Transition is mid-flight to keep the snapshot stable */
-        requestAnimationFrame(() => { if (!vtRunning && Math.abs(host.scrollTop - y) > 2) host.scrollTop = y; });
+        requestAnimationFrame(() => { if (route === wanted && !vtRunning && Math.abs(host.scrollTop - y) > 2) host.scrollTop = y; });
       }
       imageload.sweep(host);
     }
@@ -102,6 +107,7 @@ XR.define("shell.outlet", ["ui.dom", "ui.widgets", "ui.imageload", "app.features
     function catchUp() {
       if (!wanted) return;
       const f = features.get(wanted.name);
+      if (f?.lazy) return;
       if (current && f && current.id === f.id && keyOf(wanted) === currentKey) return;
       apply(wanted);
     }
@@ -144,15 +150,34 @@ XR.define("shell.outlet", ["ui.dom", "ui.widgets", "ui.imageload", "app.features
 
     function mount(route, initial = false) {
       wanted = route;
+      clearTimeout(loadingTimer);
+      loadingTimer = null;
+      /* Cancel snapshots even when the destination is still loading or only updates
+         filters. Late callbacks must never remount an obsolete route. */
+      if (vtRunning) {
+        const previous = vtRunning;
+        vtRunning = null;
+        ++vtSeq;
+        try { previous.skipTransition(); } catch { /* already finished */ }
+      }
       const seq = ++routeLoadSeq;
       const f = features.get(route.name);
       if (f?.lazy) {
-        showLazyLoading(f);
+        playback.pauseAll();
+        // Keep the current content for fast cached loads; no minimum loading time.
+        loadingTimer = setTimeout(() => {
+          if (seq === routeLoadSeq && route === wanted) showLazyLoading(f);
+        }, current ? 150 : 0);
         features.load(route.name).then(() => {
           if (seq !== routeLoadSeq || route !== wanted) return;
+          clearTimeout(loadingTimer);
           if (initial || !canTransition()) apply(route);
           else transitionTo(route);
-        }).catch((err) => showLazyError(route, f, seq, initial, err));
+        }).catch((err) => {
+          if (seq !== routeLoadSeq || route !== wanted) return;
+          clearTimeout(loadingTimer);
+          showLazyError(route, f, seq, initial, err);
+        });
         return;
       }
       const key = keyOf(route);

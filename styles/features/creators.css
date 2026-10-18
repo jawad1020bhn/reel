@@ -16,7 +16,7 @@
 }
 .creator-thumbs img { width: 100%; height: 100%; object-fit: cover; transition: transform 600ms var(--ease-soft), filter var(--dur) var(--ease); filter: saturate(1.02); }
 .creator-thumbs img.is-loaded { animation: media-in 260ms var(--ease-soft) both; }
-.creator-thumbs:has(img:not(.is-loaded)) {
+.creator-thumbs:has(img:not(.is-loaded):not(.is-broken)) {
   background: linear-gradient(100deg, var(--bg-1) 40%, #1d1d21 50%, var(--bg-1) 60%) 0 0 / 240% 100%;
   animation: media-sheen 1.4s linear infinite;
 }

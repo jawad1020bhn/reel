@@ -81,6 +81,7 @@ XR.define("ui.rail", ["ui.dom", "ui.icons", "core.i18n"], function (dom, icons, 
       }
       track.replaceChildren(frag);
       el.classList.add("is-loading");
+      el.setAttribute("aria-busy", "true");
     }
 
     const api = {
@@ -119,8 +120,12 @@ XR.define("ui.rail", ["ui.dom", "ui.icons", "core.i18n"], function (dom, icons, 
             a.el.setAttribute("role", "listitem");
             apis.push(a); frag.appendChild(a.el);
           }
-          const ghost = track.querySelector(".rail-skel");
-          if (ghost) track.insertBefore(frag, ghost); else track.appendChild(frag);
+          // Consume placeholders as cards arrive, rather than extending the shelf
+          // by a full ghost row until the last idle slice finishes.
+          const ghosts = [...track.querySelectorAll(".rail-skel")];
+          const count = frag.childElementCount;
+          if (ghosts[0]) track.insertBefore(frag, ghosts[0]); else track.appendChild(frag);
+          ghosts.slice(0, count).forEach((ghost) => ghost.remove());
           requestAnimationFrame(onScroll);
           if (i < items.length) { idle(build); return; }
           for (const g of track.querySelectorAll(".rail-skel")) g.remove();

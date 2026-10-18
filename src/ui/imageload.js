@@ -14,7 +14,10 @@ XR.define("ui.imageload", [], function () {
 
   function mark(img) {
     if (img.tagName !== "IMG" || img.classList.contains(MARK)) return;
-    if (img.complete && img.naturalWidth > 0) img.classList.add(MARK);
+    if (img.complete && img.naturalWidth > 0) {
+      img.classList.remove("is-broken");
+      img.classList.add(MARK);
+    }
   }
   function sweep(root) {
     if (!root) return;
@@ -26,10 +29,13 @@ XR.define("ui.imageload", [], function () {
     if (installed || typeof document === "undefined") return;
     installed = true;
     document.addEventListener("load", (e) => {
-      if (e.target && e.target.tagName === "IMG" && !e.target.classList.contains("avatar")) e.target.classList.add(MARK);
+      if (e.target && e.target.tagName === "IMG" && !e.target.classList.contains("avatar")) {
+        e.target.classList.remove("is-broken");
+        e.target.classList.add(MARK);
+      }
     }, true);
     /* a dead URL gets its own flag: consumers can fall back to a poster; the
-       shimmer keeps running until they settle the slot */
+       loading animation stops while the slot retains its reserved dimensions */
     document.addEventListener("error", (e) => {
       if (e.target && e.target.tagName === "IMG") e.target.classList.add("is-broken");
     }, true);

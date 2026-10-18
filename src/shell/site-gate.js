@@ -1,58 +1,129 @@
-/* shell.siteGate — the full-screen password prompt of a deployed build.
-
-   Shown before anything else boots: while it is up, the app has not started,
-   no dataset was fetched and no library was built. It appears only when
-   site.config.js carries a site password (see app.site) and this browser has
-   not been let in yet. */
+/* shell.siteGate — shown before the app or library data loads.
+   The deployment passcode is numeric; keep it a string so leading zeros survive. */
 XR.define("shell.siteGate", ["ui.dom", "ui.icons", "app.site"], function (dom, icons, site) {
   "use strict";
   const h = dom.h;
-  let el = null, card = null, input = null, msg = null, submitBtn = null, rememberBox = null;
+  let el = null, card = null, input = null, msg = null, submitBtn = null, rememberBox = null, revealBtn = null;
   let release = null, busy = false;
 
   function fail(text) {
     if (!msg) return;
     msg.textContent = text;
-    if (card) { card.classList.remove("shake"); void card.offsetWidth; card.classList.add("shake"); setTimeout(() => card.classList.remove("shake"), 450); }
+    input.setAttribute("aria-invalid", "true");
+    if (card) {
+      const target = card;
+      target.classList.remove("shake"); void target.offsetWidth;
+      target.classList.add("shake");
+      setTimeout(() => target.classList.remove("shake"), 450);
+    }
+  }
+
+  function setBusy(value) {
+    busy = value;
+    input.readOnly = value;
+    submitBtn.disabled = value;
+    revealBtn.disabled = value;
+    rememberBox.disabled = value;
+    card.setAttribute("aria-busy", String(value));
+    submitBtn.textContent = value ? "Opening library…" : "Enter library";
   }
 
   async function submit() {
     if (busy || !input) return;
     const value = input.value;
-    if (!value) return fail("Enter the password");
-    busy = true;
-    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Checking…"; }
-    let ok = false;
-    try { ok = await site.verify(value); } catch { ok = false; }
-    busy = false;
-    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "Unlock"; }
-    if (!ok) { fail("Wrong password — try again"); try { input.select(); } catch { /* ignore */ } input.focus(); return; }
-    if (rememberBox?.checked) await site.remember();
+    if (!/^[0-9]+$/.test(value)) {
+      fail(value ? "Use numbers only (0–9)." : "Enter your passcode to continue.");
+      input.focus();
+      return;
+    }
+    const activeGate = el;
+    setBusy(true);
+    msg.textContent = "Checking passcode…";
+    let ok;
+    try { ok = await site.verify(value); }
+    catch {
+      if (el !== activeGate) return;
+      setBusy(false);
+      fail("Couldn't check your passcode. Please try again.");
+      input.focus();
+      return;
+    }
+    if (el !== activeGate) return;
+    if (!ok) {
+      setBusy(false);
+      fail("That passcode isn't right. Try again.");
+      input.focus(); input.select();
+      return;
+    }
+    // Storage can be unavailable in private browsing; a valid code still opens.
+    if (rememberBox.checked) { try { await site.remember(); } catch { /* session only */ } }
+    if (el !== activeGate) return;
+    input.value = "";
+    const done = release; release = null;
     hide();
-    release?.(true);
+    done?.(true);
   }
 
   function show() {
     if (el) return;
-    input = h("input.input.site-input", { type: "password", placeholder: "Password", autocomplete: "current-password", spellcheck: "false", "aria-label": "Site password" });
-    msg = h("p.site-msg", site.hint() ? `Hint: ${site.hint()}` : "This deployment is protected.");
+    busy = false;
+    input = h("input.site-input#site-passcode", {
+      type: "password", name: "password", inputmode: "numeric", pattern: "[0-9]+",
+      autocomplete: "current-password", autocapitalize: "off", spellcheck: "false",
+      placeholder: "Enter passcode", "aria-describedby": "site-code-help site-message",
+      oninput: () => {
+        input.removeAttribute("aria-invalid");
+        msg.textContent = "";
+      },
+    });
+    revealBtn = h("button.site-reveal", {
+      type: "button", "aria-label": "Show passcode", "aria-pressed": "false",
+      onclick: () => {
+        const visible = input.type === "password";
+        input.type = visible ? "text" : "password";
+        revealBtn.setAttribute("aria-label", visible ? "Hide passcode" : "Show passcode");
+        revealBtn.setAttribute("aria-pressed", String(visible));
+        revealBtn.replaceChildren(icons.icon(visible ? "eyeOff" : "eye", 20));
+      },
+    }, icons.icon("eye", 20));
+    msg = h("p.site-msg#site-message", { "aria-live": "polite", "aria-atomic": "true" });
     rememberBox = h("input", { type: "checkbox", checked: true });
-    submitBtn = h("button.btn.btn-primary.site-submit", { type: "submit" }, "Unlock");
-    const form = h("form.site-form", { onsubmit: (e) => { e.preventDefault(); submit(); } },
-      h("div.site-field", input),
-      h("label.check.site-remember", rememberBox, h("span", "Remember this browser")),
-      submitBtn);
-    card = h("div.site-card",
-      h("div.site-logo", icons.icon("lock", 28)),
-      h("h1.site-title", site.title()),
-      h("p.site-sub", "Enter the site password to open this library."),
-      msg,
-      form);
-    el = h("div.site-gate", { role: "dialog", "aria-modal": "true", "aria-label": "Site password" }, card);
+    submitBtn = h("button.site-submit", { type: "submit" }, "Enter library");
+    const form = h("form.site-form", { noValidate: true, onsubmit: (e) => { e.preventDefault(); submit(); } },
+      h("label.site-label", { htmlFor: "site-passcode" }, "Passcode"),
+      h("div.site-field", input, revealBtn),
+      h("p.site-help#site-code-help", site.hint() ? `Numbers only · Hint: ${site.hint()}` : "Numbers only. Your passcode stays hidden."),
+      h("label.site-remember", rememberBox,
+        h("span", h("span.site-remember-title", "Remember this browser"), h("span.site-remember-note", "Use only on a device you trust."))),
+      submitBtn, msg);
+    card = h("section.site-card", { "aria-labelledby": "site-heading" },
+      h("div.site-lock", { "aria-hidden": "true" }, icons.icon("lock", 22)),
+      h("h1.site-title#site-heading", "Welcome back."),
+      h("p.site-sub", "Your library is one passcode away."), form);
+    const brand = h("div.site-brand",
+      h("span.site-wordmark", site.title()), h("span.site-edition", "PRIVATE CINEMA"));
+    const intro = h("div.site-intro", { "aria-hidden": "true" },
+      h("p.site-eyebrow", "SAVED BY YOU. JUST FOR YOU."),
+      h("p.site-statement", "Good finds.", h("br"), "Great rewatches."),
+      h("p.site-intro-note", "Your collection, ready when you are."));
+    el = h("div.site-gate", { role: "dialog", "aria-modal": "true", "aria-labelledby": "site-heading" },
+      h("header.site-header", brand, h("span.site-header-note", icons.icon("lock", 13), "Passcode required")),
+      h("main.site-entry", intro, card),
+      h("footer.site-footer", h("span", "YOUR COLLECTION. YOUR SPACE."), h("span", "XREELS")));
+    // The app has not booted, but keep keyboard focus inside the gate as a guard.
+    el.addEventListener("keydown", (e) => {
+      if (e.key !== "Tab") return;
+      const controls = [...el.querySelectorAll("input:not(:disabled), button:not(:disabled)")];
+      const first = controls[0], last = controls[controls.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
+    });
     document.body.appendChild(el);
     document.documentElement.classList.add("is-site-gated");
     el.tabIndex = -1;
-    try { input.focus(); } catch { /* ignore */ }
+    // Do not summon the mobile keyboard until the user taps the field.
+    if (typeof matchMedia === "function" && matchMedia("(pointer: fine)").matches) input.focus();
+    else el.focus({ preventScroll: true });
   }
 
   function hide() {
@@ -63,14 +134,10 @@ XR.define("shell.siteGate", ["ui.dom", "ui.icons", "app.site"], function (dom, i
     setTimeout(() => node.remove(), 260);
   }
 
-  /**
-   * Resolves true when the deployment may open. Blocks (without booting the
-   * app) while the visitor has to type the password.
-   */
   async function ensure() {
     if (!site.applies()) return true;
     let unlocked = false;
-    try { unlocked = await site.isUnlocked(); } catch { unlocked = false; }
+    try { unlocked = await site.isUnlocked(); } catch { /* prompt instead */ }
     if (unlocked) return true;
     show();
     return new Promise((resolve) => { release = resolve; });

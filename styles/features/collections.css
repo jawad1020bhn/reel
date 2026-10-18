@@ -17,7 +17,7 @@
 /* fades over the sheen when it lands; if loading never reports, the image is still visible */
 .coll-cover img.is-loaded { animation: media-in 260ms var(--ease-soft) both; }
 /* four posters decode in parallel; the mosaic stays a sheen until the first arrives */
-.coll-cover:has(img:not(.is-loaded)) {
+.coll-cover:has(img:not(.is-loaded):not(.is-broken)) {
   background: linear-gradient(100deg, var(--bg-1) 40%, #1d1d21 50%, var(--bg-1) 60%) 0 0 / 240% 100%;
   animation: media-sheen 1.4s linear infinite;
 }
