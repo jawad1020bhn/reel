@@ -116,7 +116,7 @@
   position: absolute; right: 3.2%; top: 4.2%; z-index: 6;
   width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: #fff;
   background: rgb(42 42 42 / 0.5); border: 2px solid rgb(255 255 255 / 0.55);
- 
+
   transition: background var(--dur) var(--ease-soft), border-color var(--dur) var(--ease-soft);
 }
 .billboard-mute:hover { background: rgb(42 42 42 / 0.82); border-color: #fff; }

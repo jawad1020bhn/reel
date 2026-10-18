@@ -26,7 +26,7 @@ XR.define("features.creators", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry"
       const list = q ? all.filter((c) => c.username.toLowerCase().includes(q) || c.name.toLowerCase().includes(q)) : all;
       const search = h("input.input.creator-search", { type: "search", placeholder: "Filter creators…", value: S.filter, "aria-label": "Filter creators", oninput: () => { S.filter = search.value; renderCards(); } });
       const page = h("div.creators",
-        W.pageHead("Creators", `${all.length} accounts in your library`, search,
+        W.pageBar("Creators", `${all.length} accounts in your library`, search,
           W.segmented([{ value: "count", label: "Most saved" }, { value: "recent", label: "Recent" }, { value: "name", label: "A–Z" }], S.sort, (v) => { S.sort = v; renderList(); })),
         h("div.creator-cards"));
       S.host.appendChild(page);

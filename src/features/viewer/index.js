@@ -48,7 +48,7 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.postMenu",
             h("button.viewer-close.btn.btn-icon", { title: "Close (Esc)", onclick: () => close() }, icons.icon("x", 22)),
             h("span.viewer-pos.badge.badge-dark"))),
 
-        /* Vertical feed arrows (desktop only — touch feeds use swipes) */
+        /* Vertical feed arrows (desktop ≥900px only — mobile/touch feeds use swipes, see viewer.css) */
         h("div.viewer-vnav",
           h("button.viewer-vnav-btn.viewer-vnav-up.btn.btn-icon", { title: "Previous post (↑)", onclick: () => step(-1) }, icons.icon("chevronUp", 24)),
           h("button.viewer-vnav-btn.viewer-vnav-down.btn.btn-icon", { title: "Next post (↓)", onclick: () => step(1) }, icons.icon("chevronDown", 24))),
@@ -330,8 +330,6 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.postMenu",
         stripBox.style.display = "none";
       }
 
-      /* On-media footer: who made it and what it says. Info keeps the full text. */
-      renderFoot(post);
 
       /* Info Popover Card (details on demand) */
       renderInfoCard(infoCard, post, m);
@@ -535,33 +533,6 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.postMenu",
         starBtn.appendChild(icons.icon("star", 24, { filled: on }));
         starBtn.appendChild(h("span.viewer-rail-label", "Star"));
       }
-    }
-
-    /* Bottom-left identity + clamped caption, the way a cinema programme note reads.
-       Tapping the text opens the info card for the full caption and facts. */
-    function renderFoot(post) {
-      const overlay = S.el.querySelector(".viewer-overlay");
-      if (!overlay) return;
-      overlay.querySelector(".viewer-foot")?.remove();
-      const text = (post.text || "").trim();
-      const tags = (post.hashtags || []).slice(0, 3);
-      const who = h("button.viewer-foot-who", {
-        title: "Open @" + post.author.username,
-        onclick: (e) => { e.stopPropagation(); close(); actions.goCreator(post.author.username); },
-      },
-        W.avatar(media.avatar(post, 64), post.author.name, 30),
-        h("span.viewer-foot-id", h("b", post.author.name), h("span", "@" + post.author.username)));
-      const textEl = text
-        ? h("p.viewer-foot-text",
-            h("span.viewer-foot-clamp", text),
-            text.length > 110 || post.quoted ? h("button.viewer-foot-more", {
-              onclick: (e) => { e.stopPropagation(); S.showInfo = true; renderInfoCard(S.el.querySelector(".viewer-info-card"), post, post.media[S.mediaIndex] || post.media[0]); },
-            }, "More") : null)
-        : null;
-      const tagRow = tags.length ? h("div.viewer-foot-tags", tags.map((tg) => h("button.viewer-foot-tag", {
-        onclick: (e) => { e.stopPropagation(); close(); actions.goTag(tg); },
-      }, "#" + tg))) : null;
-      overlay.appendChild(h("div.viewer-foot", who, textEl, tagRow));
     }
 
     /* Info Popover Card — caption + details, displayed only on demand */

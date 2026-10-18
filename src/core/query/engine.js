@@ -7,7 +7,8 @@
      creator    username
      collection collection id
      month      YYYY-MM (post date)   savedMonth YYYY-MM (capture date)
-     sort       saved | newest | oldest | likes | views | longest | shortest | random | creator
+     sort       saved | newest | oldest | likes | views | longest | shortest | random | smart | creator
+                ("smart" = weighted, creator-spread shuffle — see smartShuffle)
      seed       number used by random sort
      limit      max results
 
@@ -18,7 +19,7 @@ XR.define("core.query.engine", ["core.query.search", "core.util"], function (sea
 
   const KINDS = ["all", "video", "short", "long", "photo", "carousel", "gif", "text"];
   const STATES = ["all", "unseen", "seen", "starred", "hidden", "progress"];
-  const SORTS = ["saved", "newest", "oldest", "likes", "views", "longest", "shortest", "random", "creator"];
+  const SORTS = ["saved", "newest", "oldest", "likes", "views", "longest", "shortest", "random", "smart", "creator"];
 
   const DEFAULT = Object.freeze({ q: "", kind: "all", state: "all", creator: "", collection: "", month: "", savedMonth: "", sort: "saved", seed: 0, limit: 0 });
 
@@ -72,6 +73,48 @@ XR.define("core.query.engine", ["core.query.search", "core.util"], function (sea
   }
 
   /**
+   * Smart shuffle — a deterministic (per seed) order that feels curated rather than random:
+   *   1. weight each post: unseen ×3, in progress ×2, starred ×1.5, fresh saves up to ×1.8
+   *      (decaying over 60 days), a mild popularity lift (log10 likes), unavailable ×0.05;
+   *   2. Efraimidis–Spirakis sampling: key = rnd^(1/w), sort by key — heavier posts float up
+   *      but nothing is ever pinned, so every refresh is a genuinely new deck;
+   *   3. spread pass: no creator repeats within SPREAD slots and no more than RUN posts of
+   *      the same media kind in a row (looks ahead up to 12 slots; falls back when it can't).
+   */
+  function smartShuffle(items, seed, ctx) {
+    const SPREAD = 4, RUN = 3, LOOK = 12, now = Date.now();
+    const rnd = util.seededRandom(seed || 1);
+    const weight = (p) => {
+      let w = 1;
+      if (ctx.isUnavailable?.(p.id)) w *= 0.05;
+      if (!ctx.isSeen(p.id)) w *= 3;
+      const pr = ctx.progressOf(p); if (pr > 0.03 && pr < 0.97) w *= 2;
+      if (ctx.isStarred(p.id)) w *= 1.5;
+      const ageDays = Math.max(0, (now - (p.savedAt || 0)) / 864e5);
+      w *= 1 + 0.8 * Math.max(0, 1 - ageDays / 60);
+      w *= 1 + 0.15 * Math.log10(1 + (p.metrics.likes || 0));
+      return w;
+    };
+    const keyed = items.map((p) => ({ p, k: Math.pow(rnd(), 1 / weight(p)) })).sort((a, b) => b.k - a.k).map((x) => x.p);
+    const kindOf = (p) => (p.media[0]?.kind === "photo" ? "photo" : "video");
+    const out = [], rest = keyed;
+    while (rest.length) {
+      let pick = -1;
+      for (let i = 0; i < Math.min(LOOK, rest.length); i++) {
+        const c = rest[i];
+        const recent = out.slice(-SPREAD);
+        if (recent.some((o) => o.author.username === c.author.username)) continue;
+        const tail = out.slice(-RUN);
+        if (tail.length === RUN && tail.every((o) => kindOf(o) === kindOf(c))) continue;
+        pick = i; break;
+      }
+      if (pick < 0) { pick = 0; for (let i = 0; i < Math.min(LOOK, rest.length); i++) if (!out.slice(-1).some((o) => o.author.username === rest[i].author.username)) { pick = i; break; } }
+      out.push(rest.splice(pick, 1)[0]);
+    }
+    return out;
+  }
+
+  /**
    * @param {Post[]} posts
    * @param {object} rawSpec
    * @param {object} ctx
@@ -96,6 +139,7 @@ XR.define("core.query.engine", ["core.query.search", "core.util"], function (sea
     let items = posts.filter((p) => tests.every((t) => t(p, ctx)));
     const sort = compiled.hints.sort && SORTS.includes(compiled.hints.sort) ? compiled.hints.sort : spec.sort;
     if (sort === "random") items = util.shuffle(items, spec.seed || 1);
+    else if (sort === "smart") items = smartShuffle(items, spec.seed, ctx);
     else items.sort(comparator(sort, spec.seed, ctx));
     const total = items.length;
     if (spec.limit > 0) items = items.slice(0, spec.limit);
@@ -142,10 +186,10 @@ XR.define("core.query.engine", ["core.query.search", "core.util"], function (sea
     if (s.creator) parts.push("@" + s.creator);
     if (s.month) parts.push(s.month);
     if (s.q) parts.push(`“${s.q}”`);
-    const sortLabel = { newest: "newest", oldest: "oldest", likes: "most liked", views: "most viewed", longest: "longest", shortest: "shortest", random: "shuffled", creator: "by creator" }[s.sort];
+    const sortLabel = { newest: "newest", oldest: "oldest", likes: "most liked", views: "most viewed", longest: "longest", shortest: "shortest", random: "shuffled", smart: "smart shuffle", creator: "by creator" }[s.sort];
     const head = parts.length ? parts.join(" · ") : "Everything";
     return sortLabel ? `${head} · ${sortLabel}` : head;
   }
 
-  return { run, facets, normalizeSpec, toParams, fromParams, describe, KINDS, STATES, SORTS, DEFAULT };
+  return { run, facets, normalizeSpec, toParams, fromParams, describe, smartShuffle, KINDS, STATES, SORTS, DEFAULT };
 });

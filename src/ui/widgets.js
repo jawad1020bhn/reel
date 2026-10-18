@@ -39,6 +39,11 @@ XR.define("ui.widgets", ["ui.dom", "ui.icons", "core.i18n"], function (dom, icon
   const spinner = (label = "") => h("div.spinner-wrap", h("span.spinner"), label ? h("span.muted", label) : null);
   const stat = (value, label, icon) => h("div.stat", icon ? icons.icon(icon, 18) : null, h("div.stat-value", value), h("div.stat-label", t(label)));
   const kbd = (keys) => h("span.kbds", String(keys).split(" ").map((k) => h("kbd", k)));
+  /** Top-level pages: no display title (the nav already names the page) — a quiet mono
+      info line on the left, the page's controls on the right. The h1 stays for assistive tech. */
+  const pageBar = (title, subtitle, ...right) => h("header.page-head.page-bar",
+    h("div.page-bar-text", h("h1.page-title.sr-only", t(title)), subtitle ? h("p.page-sub", t(subtitle)) : null),
+    right.length ? h("div.page-actions", ...right) : null);
   const pageHead = (title, subtitle, ...right) => h("header.page-head", h("div", h("h1.page-title", t(title)), subtitle ? h("p.page-sub", t(subtitle)) : null), right.length ? h("div.page-actions", ...right) : null);
   const btn = (label, { icon, kind = "", size = "", onClick, title, cls = "", disabled = false } = {}) => h("button.btn", { class: `${kind ? "btn-" + kind : ""} ${size ? "btn-" + size : ""} ${cls}`, onclick: onClick, title: t(title) || (label ? undefined : ""), disabled, "aria-label": t(label || title) }, icon ? icons.icon(icon, size === "sm" ? 15 : 18) : null, label ? h("span", t(label)) : null);
   const iconBtn = (icon, title, onClick, { cls = "", size = 20 } = {}) => h("button.btn.btn-icon", { class: cls, title: t(title), "aria-label": t(title), onclick: onClick }, icons.icon(icon, size));
@@ -50,5 +55,5 @@ XR.define("ui.widgets", ["ui.dom", "ui.icons", "core.i18n"], function (dom, icon
       ? h("span.avatar.avatar-fallback.avatar-mark", { style: { width: px + "px", height: px + "px" }, "aria-hidden": "true" }, h("span.avatar-mark-x", "X"))
       : h("span.avatar.avatar-fallback", { style: { width: px + "px", height: px + "px", fontSize: Math.round(px / 2.4) + "px" } }, (name || "?")[0].toUpperCase());
 
-  return { chip, segmented, toggle, select, numberInput, row, section, empty, spinner, stat, kbd, pageHead, btn, iconBtn, avatar };
+  return { chip, segmented, toggle, select, numberInput, row, section, empty, spinner, stat, kbd, pageHead, pageBar, btn, iconBtn, avatar };
 });

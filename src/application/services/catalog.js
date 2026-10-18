@@ -33,6 +33,13 @@ XR.define("app.catalog", ["core.domain.model", "core.query.engine", "core.rankin
       progressOf: (p) => activity.progressOf(p),
       progressAt: (p) => activity.progressAt(p),
       creatorAffinity: () => activity.creatorAffinity(),
+      /* editorial signals for the Discover rail builder */
+      collections: () => activity.collections(),
+      hashtags: (n) => topHashtags(n),
+      months: () => state.months,
+      savedMonths: () => state.savedMonths,
+      recentlyOpened: (n = 12) => activity.recentOpens(n).map((id) => state.byId.get(id)).filter(Boolean),
+      related: (id, n) => related(id, n),
     };
 
     /* ----------------------------------------------------------- index -- */
@@ -102,7 +109,7 @@ XR.define("app.catalog", ["core.domain.model", "core.query.engine", "core.rankin
     }
     const topHashtags = (n = 30) => [...state.hashtags.entries()].sort((a, b) => b[1] - a[1]).slice(0, n);
     const buildRails = (opts) => rails.build(state.posts, ctx, opts);
-    const spotlight = () => rails.spotlight(state.posts, ctx);
+    const spotlight = (opts) => rails.spotlight(state.posts, ctx, opts);
 
     /** Headline numbers for Discover footer and Insights. */
     function stats() {

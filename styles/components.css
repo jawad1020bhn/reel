@@ -301,7 +301,7 @@ kbd { display: inline-flex; align-items: center; justify-content: center; min-wi
 .rail-titles { display: flex; align-items: baseline; gap: 14px; min-width: 0; flex-wrap: wrap; }
 .rail-title { display: flex; align-items: center; gap: 8px; font-size: 19px; font-weight: 700; letter-spacing: -0.015em; }
 .rail-title-text { display: inline-flex; align-items: center; }
-.rail-hint { color: var(--fg-2); font-size: 12.5px; margin-top: 2px; }
+.rail-hint { color: var(--fg-2); font-size: 12.5px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: min(100%, 520px); }
 .rail-actions { margin-left: auto; display: inline-flex; gap: 4px; align-items: center; flex: none; opacity: 0; transform: translateX(-6px); transition: opacity var(--dur) var(--ease-soft), transform var(--dur) var(--ease-soft); }
 .rail:hover .rail-actions, .rail:focus-within .rail-actions { opacity: 1; transform: none; }
 [data-touch="on"] .rail-actions { opacity: 1; transform: none; }

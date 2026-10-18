@@ -5,7 +5,7 @@
    createTile(post, ctx, opts) → { el, post, update(), destroy() }
 
    ctx  : { thumb(media,width), avatar(post,px), isSeen(id), isStarred(id), progressOf(post), kindOf(post), sources(media) }
-    opts : { width, shape: natural|portrait|poster|square, info: hover|always|never, blur, seenDim, hoverPreview,
+    opts : { width, shape: natural|portrait|poster|square, info: hover|always|never, blur, seenDim, hoverPreview, priority, vibrate(ms),
              tag, onOpen(post, e), onMenu(post, e), onStar(post), onHide(post), onCreator(username), index,
              selectActive(): bool, onToggleSelect(post, e), isSelected(post): bool } */
 XR.define("ui.tile", ["ui.dom", "ui.icons", "ui.preview"], function (dom, icons, preview) {
@@ -28,7 +28,8 @@ XR.define("ui.tile", ["ui.dom", "ui.icons", "ui.preview"], function (dom, icons,
     const width = opts.width || 240;
     const aspect = aspectFor(post, opts.shape || "natural");
 
-    const img = h("img.tile-img", { alt: media?.alt || "", loading: "lazy", decoding: "async", draggable: false });
+    /* priority tiles (first row of the first shelves) skip lazy loading and fetch at high priority */
+    const img = h("img.tile-img", { alt: media?.alt || "", loading: opts.priority ? "eager" : "lazy", decoding: "async", draggable: false, fetchpriority: opts.priority ? "high" : undefined });
     const reveal = () => img.classList.add("is-loaded");
     img.addEventListener("load", reveal, { once: true });
     if (media) {
@@ -74,6 +75,21 @@ XR.define("ui.tile", ["ui.dom", "ui.icons", "ui.preview"], function (dom, icons,
     el.addEventListener("click", open);
     el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(e); } else if (e.key === "s" && opts.onStar) { opts.onStar(post); } });
     el.addEventListener("contextmenu", (e) => { if (opts.onMenu) { e.preventDefault(); opts.onMenu(post, e); } });
+
+    /* touch long-press → the post sheet (iOS Safari does not fire contextmenu for touch);
+       cancelled by any scroll/drag, and the click that follows the release is swallowed */
+    let pressTimer = 0, pressed = false, px = 0, py = 0;
+    const cancelPress = () => { clearTimeout(pressTimer); pressTimer = 0; };
+    el.addEventListener("pointerdown", (e) => {
+      if (e.pointerType !== "touch" || !opts.onMenu || opts.selectActive?.()) return;
+      px = e.clientX; py = e.clientY; pressed = false;
+      cancelPress();
+      pressTimer = setTimeout(() => { pressTimer = 0; pressed = true; opts.vibrate?.(12); opts.onMenu(post, e); }, 450);
+    }, { passive: true });
+    el.addEventListener("pointermove", (e) => { if (pressTimer && (Math.abs(e.clientX - px) > 10 || Math.abs(e.clientY - py) > 10)) cancelPress(); }, { passive: true });
+    el.addEventListener("pointerup", cancelPress, { passive: true });
+    el.addEventListener("pointercancel", cancelPress, { passive: true });
+    el.addEventListener("click", (e) => { if (pressed) { pressed = false; e.stopImmediatePropagation(); e.preventDefault(); } }, true);
     if (opts.blur) el.classList.add("tile-blur");
 
     /* hover-intent → the floating preview card zooms out of this tile (desktop) */

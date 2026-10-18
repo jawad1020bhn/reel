@@ -26,14 +26,8 @@
 .cell-unplayable-actions { display: flex; gap: 8px; margin-top: 6px; }
 
 /* overlay meta (bottom-left) */
-.cell-meta { position: absolute; left: 16px; right: 86px; bottom: 22px; display: flex; flex-direction: column; gap: 8px; z-index: 3; max-width: 560px; text-shadow: 0 1px 2px rgb(0 0 0 / 0.6); }
-.cell-creator { display: flex; align-items: center; gap: 10px; width: fit-content; color: #fff; }
-.cell-creator .avatar { width: 40px; height: 40px; border: 2px solid rgb(255 255 255 / 0.8); }
-.cell-creator-text { display: flex; flex-direction: column; line-height: 1.2; text-align: left; }
-.cell-creator-text b { font-size: 15px; }
-.cell-creator-text span { font-size: 13px; opacity: 0.8; }
-.chrome-hidden .cell-meta, .chrome-hidden .watch-side, .chrome-hidden .watch-top, .chrome-hidden .cell-bar, .chrome-hidden .watch-arrows { opacity: 0; pointer-events: none; }
-.cell-meta, .watch-side, .watch-top, .cell-bar, .watch-arrows { transition: opacity 250ms var(--ease); }
+.chrome-hidden .watch-side, .chrome-hidden .watch-top, .chrome-hidden .cell-bar, .chrome-hidden .watch-arrows { opacity: 0; pointer-events: none; }
+.watch-side, .watch-top, .cell-bar, .watch-arrows { transition: opacity 250ms var(--ease); }
 
 /* progress bar */
 .cell-bar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; padding: 10px 16px 6px; display: flex; align-items: center; gap: 10px; }
@@ -76,12 +70,17 @@
 .side-btn .icon { width: 48px; height: 48px; padding: 11px; border-radius: 50%; background: rgb(10 10 13 / 0.62); }
 .side-btn.on .icon { color: var(--accent); background: rgb(255 255 255 / 0.16); }
 .side-label { font-size: 11px; font-weight: 600; opacity: 0.9; }
+/* creator at the top of the rail: round avatar instead of an icon, handle underneath */
+.side-creator .side-avatar { display: block; width: 48px; height: 48px; border-radius: 50%; overflow: hidden; border: 2px solid rgb(255 255 255 / 0.85); background: #111; box-shadow: 0 2px 10px rgb(0 0 0 / 0.5); }
+.side-creator .side-avatar .avatar { width: 100%; height: 100%; }
+.side-creator-name { max-width: 72px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.side-creator.hidden { display: none; }
 
 /* arrows (desktop) */
 .watch-arrows { position: absolute; right: 18px; top: 50%; transform: translateY(-50%); z-index: 5; display: flex; flex-direction: column; gap: 10px; }
 .watch-arrow { width: 44px; height: 44px; border-radius: 50%; color: #fff; background: rgb(10 10 13 / 0.62); }
 .watch-arrow:hover { background: rgb(255 255 255 / 0.18); }
-[data-touch="on"] .watch-arrows { display: none; }
+[data-touch="on"] .watch-arrows { display: none; }   /* touch devices of any size */
 
 /* HUD + heart */
 .watch-hud { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.9); z-index: 6; padding: 10px 18px; border-radius: var(--r-pill); background: rgb(10 10 13 / 0.7); font-weight: 800; font-size: 20px; font-variant-numeric: tabular-nums; opacity: 0; pointer-events: none; transition: opacity 120ms var(--ease), transform 120ms var(--ease); }
@@ -89,7 +88,6 @@
 .watch-heart { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0); z-index: 6; color: var(--accent); pointer-events: none; opacity: 0; filter: drop-shadow(0 6px 20px rgb(0 0 0 / 0.5)); }
 .watch-heart.pop { animation: heart-pop 800ms var(--ease); }
 @keyframes heart-pop { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.3); } 20% { opacity: 1; transform: translate(-50%, -50%) scale(1.15) rotate(-8deg); } 45% { transform: translate(-50%, -50%) scale(1) rotate(4deg); } 100% { opacity: 0; transform: translate(-50%, -80%) scale(1.1); } }
-.is-holding .cell-meta { opacity: 0.2; }
 
 /* up-next chip: a quiet glass pill above the caption (desktop + touch) */
 .watch-upnext {
@@ -151,21 +149,20 @@
 
 /* desktop: keep the stage column centred, meta under it on wide screens */
 @media (min-width: 900px) {
-  .cell-meta { left: 28px; bottom: 34px; right: 110px; }
   .cell-bar { padding: 10px 28px 10px; }
   .watch-side { right: 24px; bottom: 110px; }
   .watch-arrows { right: 30px; top: auto; bottom: 34px; transform: none; flex-direction: row; }
   .carousel-next { right: 100px; }
 }
 @media (max-width: 899px) {
-  /* the recovery card owns the stage: park the side arrows behind it */
-  .watch:has(.cell.is-active.is-unplayable) .watch-arrows { opacity: 0; pointer-events: none; }
-  .cell-meta { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); right: 74px; }
+  /* mobile: no up/down arrows — the feed is swiped (keyboard ↑/↓ still work) */
+  .watch-arrows { display: none; }
   .cell-bar { bottom: 0; padding: 8px 12px calc(4px + env(safe-area-inset-bottom, 0px)); }
   .watch-side { bottom: calc(58px + env(safe-area-inset-bottom, 0px)); gap: 10px; }
   .watch-top { padding: calc(10px + env(safe-area-inset-top, 0px)) 10px 10px; gap: 8px; }
   .watch-label { font-size: 13px; }
-  .side-btn .icon { width: 44px; height: 44px; padding: 10px; }
+  .side-btn .icon, .side-creator .side-avatar { width: 44px; height: 44px; }
+  .side-btn .icon { padding: 10px; }
   .side-label { font-size: 10px; }
   .cell-time { display: none; }
   .watch-fit, .watch-pip { display: none; }   /* still on x / p; the phone bar needs the room */
@@ -180,7 +177,6 @@
 }
 /* fullscreen */
 .watch:fullscreen { background: #000; }
-.watch:fullscreen .cell-meta { bottom: 34px; }
 .watch:fullscreen .cell-bar { bottom: 0; }
 
 /* caption & details card (rail "Info") */
@@ -247,8 +243,8 @@
 
 /* auto-hiding chrome while a video plays untouched */
 .watch.is-idle { cursor: none; }
-.is-idle .cell-meta, .is-idle .watch-side, .is-idle .watch-top, .is-idle .cell-bar, .is-idle .watch-arrows, .is-idle .watch-upnext, .is-idle .watch-nextup, .is-idle .watch-info-card { opacity: 0; pointer-events: none; }
-.is-idle .cell-meta, .is-idle .watch-side, .is-idle .watch-top, .is-idle .cell-bar, .is-idle .watch-arrows { transition: opacity 250ms var(--ease); }
+.is-idle .watch-side, .is-idle .watch-top, .is-idle .cell-bar, .is-idle .watch-arrows, .is-idle .watch-upnext, .is-idle .watch-nextup, .is-idle .watch-info-card { opacity: 0; pointer-events: none; }
+.is-idle .watch-side, .is-idle .watch-top, .is-idle .cell-bar, .is-idle .watch-arrows { transition: opacity 250ms var(--ease); }
 
 /* small screens */
 @media (max-width: 899px) {
