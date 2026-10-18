@@ -50,6 +50,22 @@ XR.define("infra.platform", [], function () {
   const prefersDark = () => typeof matchMedia === "function" && matchMedia("(prefers-color-scheme: dark)").matches;
   const dpr = () => (typeof devicePixelRatio === "number" ? devicePixelRatio : 1);
   const vibrate = (ms = 10) => { try { navigator.vibrate && navigator.vibrate(ms); } catch { /* ignore */ } };
+  /** Connection hints (Network Information API, Chromium) — all fields optional/zero elsewhere.
+      saveData: the user asked for less data · effectiveType: slow-2g|2g|3g|4g · downlink: Mbps estimate (capped at 10). */
+  function network() {
+    const c = typeof navigator !== "undefined" ? navigator.connection || navigator.mozConnection || navigator.webkitConnection : null;
+    const reducedData = typeof matchMedia === "function" && matchMedia("(prefers-reduced-data: reduce)").matches;
+    return { saveData: !!(c && c.saveData) || reducedData, effectiveType: (c && c.effectiveType) || "", downlink: (c && c.downlink) || 0 };
+  }
+  /** Warm a connection to a media origin (DNS + TLS) before the first request needs it. */
+  const warmed = new Set();
+  function preconnect(origin) {
+    if (typeof document === "undefined" || !/^https:\/\/[\w.-]+$/.test(origin) || warmed.has(origin)) return;
+    warmed.add(origin);
+    const link = document.createElement("link");
+    link.rel = "preconnect"; link.href = origin;
+    document.head.appendChild(link);
+  }
 
   /* ---- hashing: WebCrypto when available (secure contexts incl. file:// in Chromium), else a JS SHA-256 */
   async function sha256(text) {
@@ -89,5 +105,5 @@ XR.define("infra.platform", [], function () {
     return [...H].map((x) => (x >>> 0).toString(16).padStart(8, "0")).join("");
   }
 
-  return { copy, share, download, openExternal, fullscreen, exitFullscreen, isFullscreen, isTouch, reducedMotion, prefersDark, dpr, vibrate, sha256, randomId, isFile };
+  return { copy, share, download, openExternal, fullscreen, exitFullscreen, isFullscreen, isTouch, reducedMotion, prefersDark, dpr, vibrate, network, preconnect, sha256, randomId, isFile };
 });

@@ -149,6 +149,33 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.postMenu",
       S.tiles = [];
     }
 
+    /* Stills are sized for the largest frame the stage draws (min(88vw,1280) × min(86vh,850)
+       on desktop, the screen on phones). One box for every item keeps the neighbour
+       prefetch and the eventual render on the very same URL. */
+    const frameBox = () => ({ w: Math.min(innerWidth, 1280), h: Math.min(innerHeight, 850) });
+    function stillFor(m) {
+      const { w, h: hh } = frameBox();
+      return m.kind === "photo" ? media.full(m, w, hh) : media.poster(m, w, hh, "contain", 1200);
+    }
+    /** Paint the pixels already in memory (the tile's still) and swap in the full image once
+        it is decoded, instead of holding an empty frame while it downloads. */
+    function progressive(img, full, cheap) {
+      const hi = new Image();
+      hi.decoding = "async";
+      hi.src = full;
+      if ((hi.complete && hi.naturalWidth > 0) || !cheap || cheap === full) { img.src = full; return; }
+      img.src = cheap;
+      const swap = () => { if (img.getAttribute("src") === cheap) img.src = full; };
+      (hi.decode ? hi.decode() : new Promise((r, j) => { hi.onload = r; hi.onerror = j; })).then(swap, swap);
+    }
+    /** Warm the next and previous posts' stills while this one is on screen. */
+    function prefetchNeighbours() {
+      const ids = [S.ids[S.index + 1], S.ids[S.index - 1]];
+      const urls = ids.map((id) => catalog.post(id)?.media?.[0]).filter(Boolean).map(stillFor);
+      const run = () => media.prefetch(urls);
+      if (typeof requestIdleCallback === "function") requestIdleCallback(run, { timeout: 1200 }); else setTimeout(run, 300);
+    }
+
     function render() {
       const post = current();
       if (!post) return close();
@@ -200,14 +227,17 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.postMenu",
       frame.style.setProperty("--ar", aspect.toFixed(4));
 
       /* Letterbox areas get a scaled, dimmed copy of the same frame so the
-         stage never reads as a black hole around contain-fitted media. */
+         stage never reads as a black hole around contain-fitted media. Both washes
+         are dimmed, so they share the small still the tile already loaded (one cached
+         URL) instead of downloading two more sizes of the same frame. */
+      const cheap = m ? media.placeholder(m) : "";
       let fill = frame.querySelector(".viewer-fill");
       if (!fill) { fill = h("div.viewer-fill", { "aria-hidden": "true" }); frame.insertBefore(fill, frame.firstChild); }
-      fill.style.backgroundImage = m ? `url("${media.poster(m, 600)}")` : "none";
+      fill.style.backgroundImage = m ? `url("${cheap}")` : "none";
 
       /* Subtle ambient glow behind the player (not in foreground) */
       if (m) {
-        ambient.style.backgroundImage = `url("${media.poster(m, 300)}")`;
+        ambient.style.backgroundImage = `url("${cheap}")`;
         ambient.style.display = "block";
       } else {
         ambient.style.display = "none";
@@ -217,11 +247,12 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.postMenu",
       if (m) {
         if (m.kind === "photo") {
           const img = h("img.viewer-img", {
-            src: media.full(m),
             alt: m.alt || "",
             draggable: false,
+            decoding: "async",
             onclick: () => toggleFit(),
           });
+          progressive(img, stillFor(m), cheap);
           img.addEventListener("error", () => {
             if (!img.dataset.fb) {
               img.dataset.fb = "1";
@@ -231,10 +262,11 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.postMenu",
           mediaBox.appendChild(img);
         } else {
           /* Video / GIF */
+          /* no poster attribute here: wire() sets the one sized for the frame (a second
+             assignment would download a second poster) */
           const video = h("video.viewer-video", {
             playsInline: true,
             preload: "auto",
-            poster: media.poster(m, 1200),
           });
           video.setAttribute("playsinline", "");
 
@@ -260,6 +292,7 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.postMenu",
           S.handle = playback.wire(video, m, {
             post,
             preload: "auto",
+            poster: stillFor(m),
             loop: m.kind === "gif" || (prefs.get("loopShorts") && m.duration > 0 && m.duration <= 60),
             onEnded: () => {
               if (prefs.get("autoAdvance") && S.index < S.ids.length - 1 && post.media.length === 1) {
@@ -338,6 +371,7 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.postMenu",
       renderRail(rail, post, m);
 
       activity.noteOpen(post);
+      prefetchNeighbours();
     }
 
     function renderControls(host, video, m) {

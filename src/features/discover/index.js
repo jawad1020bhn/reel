@@ -1,12 +1,13 @@
 /* features.discover — the home screen: a cinematic billboard (spotlight post as a
    full-bleed hero with double vignette, Bebas title treatment, pill CTAs), editorial
    rails (incl. the ranked Top-10 row with giant gradient numerals) and a quiet footer. */
-XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "ui.tiles", "ui.postMenu", "ui.keys", "app.ports.platform", "app.catalog", "app.activity", "app.actions", "app.prefs", "app.media", "app.nav", "core.query.engine", "core.events", "core.domain.events", "core.util", "core.i18n"],
-  function (dom, icons, W, railUI, tiles, postMenu, keys, platform, catalog, activity, actions, prefs, media, nav, engine, events, EV, util, i18n) {
+XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "ui.tiles", "ui.postMenu", "ui.keys", "app.ports.platform", "app.catalog", "app.activity", "app.actions", "app.prefs", "app.media", "app.playback", "app.nav", "core.query.engine", "core.events", "core.domain.events", "core.util", "core.i18n"],
+  function (dom, icons, W, railUI, tiles, postMenu, keys, platform, catalog, activity, actions, prefs, media, playback, nav, engine, events, EV, util, i18n) {
     "use strict";
     const t = i18n.t;
     const h = dom.h;
     let host = null, rails = [], offs = [], refreshTimer = 0;
+    let stopTrailer = () => {};   // tears the billboard trailer down (aborts its download)
 
     /* The page mix is seeded once per page load: a refresh deals a new mix (new
        shelves, new spotlight, new line-ups inside the shelves that stay), while
@@ -29,6 +30,7 @@ XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "
 
     function render() {
       if (!host) return;
+      stopTrailer(); stopTrailer = () => {};
       for (const r of rails) r.destroy(); rails = [];
       dom.clear(host);
       if (!catalog.size) { host.appendChild(W.empty({ icon: catalog.source.error ? "alert" : "inbox", title: catalog.source.error ? "Couldn't read data/posts.js" : "Your library is empty", text: catalog.source.error ? catalog.source.error : "Import your X bookmarks export to get started.", action: { label: "Import posts", icon: "upload", run: () => nav.go("import") } })); return; }
@@ -59,7 +61,12 @@ XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "
       const m = post.media[0];
       const kind = catalog.ctx.kindOf(post);
       const hasVideo = m && m.kind !== "photo" && m.sources?.length;
-      const bg = m ? media.poster(m, 1200) : "";
+      /* only one of the two heroes is visible (frame ≥ 768px, portrait card below): size the
+         art for that one; both <img>s share the URL, so it downloads once */
+      const desktop = typeof matchMedia !== "function" || matchMedia("(min-width: 768px)").matches;
+      const heroW = desktop ? innerWidth - 2 * (innerWidth >= 1024 ? 64 : 32) : innerWidth - 28;
+      const heroH = desktop ? Math.min(740, Math.max(430, innerHeight * 0.72)) : heroW * 4 / 3;
+      const bg = m ? media.poster(m, heroW, heroH) : "";
 
       /* title treatment: a short headline (first sentence, hashtags stripped) in Bebas */
       const headline = headlineOf(post) || KIND_LABEL[kind] || "Spotlight";
@@ -107,26 +114,32 @@ XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "
       const callout = h("div.billboard-callout", icons.icon("bookmark", 14),
         h("span", post.savedAt ? `${t("Saved")} ${dom.relative(post.savedAt)}` : t("In your library")));
 
-      /* mute control for the trailer (desktop) */
-      let video = null, muteBtn = null;
-      if (hasVideo) {
-        video = h("video.billboard-video", { muted: true, loop: true, playsInline: true, preload: "metadata", poster: bg || undefined, "aria-hidden": "true" });
-        const best = [...(catalog.ctx.sources ? catalog.ctx.sources(m) : m.sources)].filter((s) => /^https?:/.test(s.url)).sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0];
-        if (best) video.src = best.url;
-        video.play().catch(() => { video = null; });
-        muteBtn = h("button.billboard-mute", { title: "Unmute trailer", "aria-label": "Unmute trailer", onclick: () => {
-          if (!video) return;
-          video.muted = !video.muted;
-          dom.replace(muteBtn, icons.icon(video.muted ? "mute" : "volume", 18));
-          muteBtn.title = video.muted ? "Unmute trailer" : "Mute trailer";
+      /* mute control for the trailer (desktop) — shown once the trailer actually plays */
+      let muteBtn = null, liveVideo = null;
+      const wantsTrailer = hasVideo && desktop && prefs.get("autoplay") !== false && media.budget().trailer
+        && document.documentElement.dataset.motion !== "reduce";
+      if (wantsTrailer) {
+        muteBtn = h("button.billboard-mute", { hidden: true, title: "Unmute trailer", "aria-label": "Unmute trailer", onclick: () => {
+          if (!liveVideo) return;
+          liveVideo.muted = !liveVideo.muted;
+          dom.replace(muteBtn, icons.icon(liveVideo.muted ? "mute" : "volume", 18));
+          muteBtn.title = liveVideo.muted ? "Unmute trailer" : "Mute trailer";
         } }, icons.icon("mute", 18));
       }
 
+      /* the poster is always the first paint; the trailer (if any) fades in over it later */
+      const art = bg ? artReveal(h("img.billboard-art", { src: bg, alt: m?.alt || "", draggable: false, fetchpriority: "high", decoding: "async" })) : h("div.billboard-art");
       const frame = h("div.billboard-frame",
-        video || (bg ? artReveal(h("img.billboard-art", { src: bg, alt: m?.alt || "", draggable: false, fetchpriority: "high", decoding: "async" })) : h("div.billboard-art")),
+        art,
         h("div.billboard-scrim-x"),
         h("div.billboard-vignette"),
         slate, content, callout, muteBtn);
+      if (wantsTrailer) {
+        stopTrailer = trailer(frame, art, m, {
+          onPlaying: (v) => { liveVideo = v; if (muteBtn) muteBtn.hidden = false; },
+          onStop: () => { liveVideo = null; if (muteBtn) muteBtn.hidden = true; },
+        });
+      }
 
       /* mobile: portrait poster card with stacked pills */
       const mobile = h("div.bb-mobile",
@@ -143,8 +156,65 @@ XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "
               W.btn("More info", { icon: "info", kind: "glass", onClick: () => actions.view([post.id], 0, { label: "Spotlight" }) })))));
 
       const section = h("section.billboard", frame, mobile);
-      if (bg) dominantColor(bg).then((rgb) => { if (rgb) section.style.setProperty("--dom", rgb); });
+      /* the hero tint only needs an average colour: read it from a tiny still, not the hero */
+      if (m) dominantColor(media.thumb(m, 64)).then((rgb) => { if (rgb) section.style.setProperty("--dom", rgb); });
       return section;
+    }
+
+    /* The trailer is a background flourish, so it must never cost the page anything:
+       it starts only after the poster has painted and the shelves' first thumbnails had
+       the network to themselves (~1.5 s + an idle slice), streams the rung sized for the
+       frame (not the 1080p master), pauses while off-screen or in a hidden tab, and is torn
+       down — download aborted — when Discover re-renders or unmounts. */
+    const TRAILER_DELAY = 1500;
+    function trailer(frame, art, m, { onPlaying, onStop }) {
+      let video = null, io = null, timer = 0, idleId = 0, dead = false, inView = true, offPlayback = null;
+      /* another player owns the screen (the Viewer overlays Discover): stand still, and
+         leave it the bandwidth */
+      const othersPlaying = () => !!playback.active;
+      const sync = () => { if (!video) return; if (document.hidden || !inView || othersPlaying()) video.pause(); else video.play().catch(() => {}); };
+      function start() {
+        if (dead || video || !frame.isConnected || document.hidden || othersPlaying()) { if (!dead && !video) kick(); return; }
+        const box = frame.getBoundingClientRect();
+        /* the frame crops (object-fit: cover) under two scrims: ≤ 720p-class bitrate is plenty */
+        const url = media.videoFor(m, box.width || innerWidth, box.height || 600, { fit: "cover", maxBitrate: 2_500_000 });
+        if (!url) return;
+        video = h("video.billboard-video", { muted: true, loop: true, playsInline: true, preload: "auto", "aria-hidden": "true" });
+        video.muted = true;
+        video.setAttribute("playsinline", "");
+        video.addEventListener("playing", () => { if (!dead) { video.classList.add("is-playing"); onPlaying(video); } }, { once: true });
+        video.addEventListener("error", stop, { once: true });   // a dead trailer simply leaves the art
+        video.src = url;
+        /* join the poster's slow drift where it is now, so the crossfade does not jump */
+        const drift = art.getAnimations ? art.getAnimations()[0] : null;
+        if (drift && drift.currentTime != null) video.style.animationDelay = `${-drift.currentTime / 1000}s`;
+        art.after(video);
+        io = new IntersectionObserver(([e]) => { inView = e.isIntersecting; sync(); }, { root: frame.closest("[data-scroll-root]"), threshold: 0.25 });
+        io.observe(frame);
+        document.addEventListener("visibilitychange", sync);
+        offPlayback = events.bus.on(EV.PLAYBACK_CHANGED, sync);
+        sync();
+      }
+      function stop() {
+        if (dead) return;
+        dead = true;
+        clearTimeout(timer);
+        if (idleId && typeof cancelIdleCallback === "function") cancelIdleCallback(idleId);
+        if (io) io.disconnect();
+        if (offPlayback) offPlayback();
+        document.removeEventListener("visibilitychange", sync);
+        if (video) { try { video.pause(); video.removeAttribute("src"); video.load(); } catch { /* ignore */ } video.remove(); video = null; }
+        onStop();
+      }
+      const kick = () => {
+        if (dead) return;
+        timer = setTimeout(() => {
+          if (typeof requestIdleCallback === "function") idleId = requestIdleCallback(start, { timeout: 2000 }); else start();
+        }, TRAILER_DELAY);
+      };
+      if (art.tagName !== "IMG" || (art.complete && art.naturalWidth > 0)) kick();
+      else { art.addEventListener("load", kick, { once: true }); art.addEventListener("error", kick, { once: true }); }
+      return stop;
     }
 
     /** The part of the caption the headline did not already say; a bare tag is not a caption. */
@@ -299,7 +369,7 @@ XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "
           events.bus.on(EV.PREFS_CHANGED, ({ patch }) => { if (["tileShape", "tileInfo", "blur", "seenDim", "shortMaxSeconds", "hideSensitive"].some((k) => k in patch)) render(); }),
         ];
       },
-      unmount() { for (const off of offs) off(); offs = []; keys.pop("discover"); keys.unbindScope("discover"); for (const r of rails) r.destroy(); rails = []; host = null; },
+      unmount() { stopTrailer(); stopTrailer = () => {}; for (const off of offs) off(); offs = []; keys.pop("discover"); keys.unbindScope("discover"); for (const r of rails) r.destroy(); rails = []; host = null; },
       commands: () => [
         { id: "discover.shuffle", title: "Shuffle play", hint: "Random posts in Watch", icon: "shuffle", run: () => actions.shufflePlay() },
         { id: "discover.refresh", title: "Reshuffle Discover", hint: "New shelves and a new spotlight", icon: "shuffle", run: shuffle },

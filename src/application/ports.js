@@ -15,12 +15,15 @@
    StoragePort       { kind, get(key)→Promise<any>, set(key,val)→Promise, remove(key)→Promise,
                        keys()→Promise<string[]>, clear()→Promise, estimate()→Promise<{used,quota}|null> }
    RouterPort        { current()→string ("/path?query"), navigate(path,{replace?}), back(), onChange(fn)→unsubscribe, href(path)→string }
-   MediaResolverPort { thumb(media,size,opts)→url, poster(media,size,opts)→url, full(media,opts)→url,
+   MediaResolverPort { thumb(media,size,opts)→url, poster(media,size,opts)→url, full(media,opts,size?)→url,
                        avatar(url,px)→url, sources(media,opts)→[{url,type,bitrate}], download(media)→url, canHls()→bool }
-   PlayerEnginePort  { attach(videoEl, media, opts), detach(videoEl), canHls()→bool }
+                       size = a rendition name ("small"|"medium"|"large"|"orig") or the device px the longest side needs;
+                       sources opts { localDir, box:{width,height}, fit:"contain"|"cover", dpr, maxBitrate } → try-order sized for that box
+   PlayerEnginePort  { attach(videoEl, media, opts:{localDir, box?, fit?, dpr?, maxBitrate?}), detach(videoEl), canHls()→bool }
    PlatformPort      { copy(text)→Promise<bool>, share(data)→Promise<bool>, download(url,name)→Promise<bool>,
                        fullscreen(el)→Promise, exitFullscreen(), isFullscreen()→bool, isTouch()→bool, reducedMotion()→bool,
-                       openExternal(url), sha256(text)→Promise<hex>, randomId(bytes)→hex, dpr()→number, isFile()→bool, vibrate(ms) }
+                       openExternal(url), sha256(text)→Promise<hex>, randomId(bytes)→hex, dpr()→number, isFile()→bool, vibrate(ms),
+                       network()→{saveData,effectiveType,downlink}, preconnect(origin) }
    DataSourcesPort   { get(kind)→DataSource|null, all()→DataSource[] }
    DataSource        { id, label, kind:'auto'|'file'|'text'|'url', available()→bool, load(arg?)→Promise<{json?, text?, label}|null> }
 */

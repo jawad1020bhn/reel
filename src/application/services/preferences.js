@@ -23,6 +23,7 @@ XR.define("app.prefs", ["app.ports.storage", "core.events", "core.domain.events"
     fit: "auto",              // auto | contain | cover
     rememberProgress: true,
     preload: true,            // warm the next/previous cells
+    dataSaver: false,         // lower video rungs, no background trailer, no speculative preloads
     speed: 1,
     shortMaxSeconds: model.SHORT_MAX_SECONDS,
     tileOpens: "auto",        // auto: videos → Watch, photos/albums → Viewer

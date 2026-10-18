@@ -31,7 +31,8 @@ XR.define("app.diagnostics", ["core.events", "app.ports.storage", "app.ports.pla
       viewport: typeof innerWidth !== "undefined" ? `${innerWidth}×${innerHeight}` : "?",
       ua: ua.slice(0, 160),
       memory: (typeof performance !== "undefined" && performance.memory) ? Math.round(performance.memory.usedJSHeapSize / 1048576) + " MB heap" : "n/a",
-      hls: typeof window !== "undefined" && !!window.Hls,
+      hls: typeof window !== "undefined" && window.Hls ? "loaded" : "on demand",
+      network: (() => { const n = platform.network ? platform.network() : null; return n ? `${n.effectiveType || "?"}${n.downlink ? " " + n.downlink + "Mbps" : ""}${n.saveData ? " save-data" : ""}` : "n/a"; })(),
       h264: (() => { try { return document.createElement("video").canPlayType('video/mp4; codecs="avc1.42E01E"') || "no"; } catch { return "?"; } })(),
     };
   }

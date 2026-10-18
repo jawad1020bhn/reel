@@ -80,9 +80,10 @@ XR.define("features.settings", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog",
         W.row("Fit", "Auto = fill the screen for vertical clips on phones, letterbox elsewhere", W.segmented([{ value: "auto", label: "Auto" }, { value: "contain", label: "Fit" }, { value: "cover", label: "Fill" }], P("fit"), set("fit"))),
         W.row("Remember position", "Resume long videos where you left them", W.toggle(P("rememberProgress"), set("rememberProgress"))),
         W.row("Preload neighbours", "Warm up the next clip while you watch", W.toggle(P("preload"), set("preload"))),
+        W.row("Data saver", "Lighter video, no Discover trailer, no preloading — for slow or metered connections", W.toggle(P("dataSaver"), set("dataSaver"))),
         W.row("One post per wheel notch", "Off = free scrolling with a mouse wheel", W.toggle(P("wheelStep"), set("wheelStep"))),
         W.row("“Short” means up to", "Threshold between Shorts and Long videos", W.numberInput(P("shortMaxSeconds"), (v) => prefs.set({ shortMaxSeconds: Math.max(10, v || model.SHORT_MAX_SECONDS) }), { min: 10, max: 3600, suffix: "s" })),
-        W.row("HLS engine", player.canHls() ? "hls.js loaded — streams fall back to HLS when MP4 fails" : "hls.js not loaded (vendor/hls.min.js missing) — MP4 only", null));
+        W.row("HLS engine", player.canHls() ? "Streams fall back to HLS when an MP4 fails (hls.js loads only then)" : "MP4 only", null));
     }
     function privacy() {
       const pinRow = W.row("PIN lock", lock.isEnabled() ? "A PIN is required when the app opens" : "Ask for a PIN when the app opens", h("div.row-btns",

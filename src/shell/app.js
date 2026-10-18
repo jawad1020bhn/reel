@@ -1,8 +1,8 @@
 /* shell.app — boot sequence and global wiring.
    Order matters: storage → prefs → theme → activity → lock → catalog data →
    features → layout → router → outlet. Each step reports to the splash. */
-XR.define("shell.app", ["ui.dom", "ui.keys", "ui.toast", "ui.dialog", "ui.menu", "app.ports.storage", "app.ports.platform", "app.migrations", "app.diagnostics", "app.prefs", "app.activity", "app.lock", "app.importer", "app.catalog", "app.features", "app.nav", "app.playback", "shell.theme", "shell.layout", "shell.outlet", "shell.lockGate", "shell.splash", "core.events", "core.domain.events"],
-  function (dom, keys, toast, dialog, menu, storage, platform, migrations, diag, prefs, activity, lock, importer, catalog, features, nav, playback, theme, layout, outlet, lockGate, splash, events, EV) {
+XR.define("shell.app", ["ui.dom", "ui.keys", "ui.toast", "ui.dialog", "ui.menu", "app.ports.storage", "app.ports.platform", "app.migrations", "app.diagnostics", "app.prefs", "app.activity", "app.lock", "app.importer", "app.catalog", "app.features", "app.nav", "app.playback", "app.media", "shell.theme", "shell.layout", "shell.outlet", "shell.lockGate", "shell.splash", "core.events", "core.domain.events"],
+  function (dom, keys, toast, dialog, menu, storage, platform, migrations, diag, prefs, activity, lock, importer, catalog, features, nav, playback, media, theme, layout, outlet, lockGate, splash, events, EV) {
     "use strict";
 
     async function start() {
@@ -12,6 +12,7 @@ XR.define("shell.app", ["ui.dom", "ui.keys", "ui.toast", "ui.dialog", "ui.menu",
         splash.set("Opening local storage…");
         await storage.ready?.catch?.(() => {});
         diag.mark("storage:ready");
+        media.warmUp();   // preconnect to last session's media CDNs while the library loads
         await migrations.run();
         diag.mark("migrations:done");
         await prefs.load();
@@ -23,6 +24,7 @@ XR.define("shell.app", ["ui.dom", "ui.keys", "ui.toast", "ui.dialog", "ui.menu",
         splash.set("Reading posts…");
         await importer.boot();
         diag.mark("catalog:ready");
+        media.learnOrigins(catalog.posts);
         splash.set("Building the interface…");
         features.registerAll();
         for (const f of features.all()) { try { f.init?.(); } catch (err) { console.error(`[app] init ${f.id} failed`, err); } }

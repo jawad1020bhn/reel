@@ -18,10 +18,16 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "core.util
     const timeLabel = h("span.cell-time", h("span.cell-time-cur", "00:00"), h("span.cell-time-sep", " — "), h("span.cell-time-dur", "00:00"));
 
     /* ------------------------------------------------------------- media -- */
-    function videoNode(m, { primary = true } = {}) {
+    /* Stills are sized for the stage (the screen, letterboxed). A video's poster is only
+       on screen until the first frame, so it is capped at the ≤ 720p rung it hands over to. */
+    const stageW = () => innerWidth, stageH = () => innerHeight;
+    const posterOf = (m) => media.poster(m, stageW(), stageH(), "contain", 1200);
+
+    function videoNode(m, { primary = true, deferPoster = false } = {}) {
       const video = h("video.cell-video", { preload: "none", disablePictureInPicture: false, controlsList: "nodownload" });
       const hd = playback.wire(video, m, {
         preload: "metadata",
+        poster: deferPoster ? false : posterOf(m),   // set here, once: no second poster download
         loop: prefs.get("loopShorts") && m.duration > 0 && m.duration <= 60 && !(isCarousel),
         onEnded: () => { if (!video.loop) env.onVideoEnded?.(); },
         onProgress: (t, d) => { updateProgress(t, d); env.onProgress?.(t, d); },
@@ -37,7 +43,7 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "core.util
         /* keep the frame's poster as a still so the stage reads as a lost clip,
            not a hole in the layout */
         if (!stage.querySelector(".cell-still")) {
-          const still = media.poster(m, 1400);
+          const still = posterOf(m);   // same URL as the poster: already in cache
           if (still) stage.appendChild(h("img.cell-still", { src: still, alt: m.alt || "", "aria-hidden": "true", draggable: false }));
         }
         env.onUnplayable?.(post, m);
@@ -46,11 +52,20 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "core.util
       return { video, hd };
     }
     function imageNode(m) {
-      const img = h("img.cell-img", { src: media.full(m), alt: m.alt || "", draggable: false, decoding: "async" });
+      const img = h("img.cell-img", { alt: m.alt || "", draggable: false, decoding: "async" });
+      img.dataset.src = media.full(m, stageW(), stageH());
       img.addEventListener("error", () => { if (!img.dataset.fb) { img.dataset.fb = "1"; img.src = media.poster(m, 1200); } });
       return img;
     }
-    function backdrop(m) { const src = media.poster(m, 300); return h("div.cell-bg", { style: { backgroundImage: `url("${src}")` } }); }
+    /* the backdrop is blurred by 40px: the small still the tile already loaded is plenty */
+    function backdrop(m, { defer = false } = {}) {
+      const bg = h("div.cell-bg");
+      bg.dataset.bg = media.placeholder(m);
+      if (!defer) showBackdrop(bg);
+      return bg;
+    }
+    function showBackdrop(bg) { if (bg && bg.dataset.bg) { bg.style.backgroundImage = `url("${bg.dataset.bg}")`; delete bg.dataset.bg; } }
+    function showImage(img) { if (img && img.dataset.src) { img.src = img.dataset.src; delete img.dataset.src; } }
 
     const fitBox = (m) => h("div.cell-fit", { style: { "--ar": (m.aspect || 1).toFixed(4) } });
     /* a 403/404 poster usually means the post is gone on X: show a visible placeholder instead of black */
@@ -58,10 +73,11 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "core.util
 
     if (!isCarousel) {
       const m = post.media[0];
-      stage.appendChild(backdrop(m));
+      const bg = backdrop(m);
+      stage.appendChild(bg);
       const box = fitBox(m);
-      if (m.kind === "photo") box.appendChild(imageNode(m));
-      else { const { video } = videoNode(m); video.poster = media.poster(m, 900); box.appendChild(video); probePoster(media.poster(m, 300)); }
+      if (m.kind === "photo") { const img = imageNode(m); showImage(img); box.appendChild(img); }
+      else { const { video } = videoNode(m); box.appendChild(video); probePoster(media.placeholder(m)); }
       stage.appendChild(box);
       if (m.kind !== "photo") { stage.appendChild(bufferEl); stage.appendChild(h("div.cell-pauseglyph", icons.icon("play", 44, { filled: true }))); }
     } else {
@@ -69,14 +85,16 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "core.util
       const scroller = h("div.carousel", { tabindex: "-1" });
       post.media.forEach((m, i) => {
         const slide = h("div.carousel-slide", { dataset: { index: i } });
-        slide.appendChild(backdrop(m));
+        const later = i > 0;   // slides past the first load once the album is on screen
+        const bg = backdrop(m, { defer: later });
+        slide.appendChild(bg);
         const box = fitBox(m);
-        let hd = null;
-        if (m.kind === "photo") box.appendChild(imageNode(m));
-        else { const v = videoNode(m, { primary: i === 0 }); v.video.poster = media.poster(m, 900); box.appendChild(v.video); hd = v.hd; }
+        let hd = null, img = null, video = null;
+        if (m.kind === "photo") { img = imageNode(m); if (!later) showImage(img); box.appendChild(img); }
+        else { const v = videoNode(m, { primary: i === 0, deferPoster: later }); box.appendChild(v.video); hd = v.hd; video = v.video; }
         slide.appendChild(box);
         scroller.appendChild(slide);
-        slides.push({ el: slide, media: m, hd });
+        slides.push({ el: slide, media: m, hd, bg, img, video, loaded: !later });
       });
       stage.appendChild(scroller);
       const dots = h("div.carousel-dots", post.media.map((_, i) => h("i", { class: i === 0 ? "on" : "" })));
@@ -89,6 +107,7 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "core.util
       scroller.addEventListener("scroll", () => { clearTimeout(scrollT); scrollT = setTimeout(() => setSlide(Math.round(scroller.scrollLeft / scroller.clientWidth), false), 80); }, { passive: true });
       function setSlide(i, scroll = true) {
         i = util.clamp(i, 0, slides.length - 1);
+        loadSlides(i);
         if (scroll) scroller.scrollTo({ left: i * scroller.clientWidth, behavior: "smooth" });
         if (i === slideIndex && handle === (slides[i].hd || null)) return;
         const prev = slides[slideIndex];
@@ -125,14 +144,15 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "core.util
     function updateProgress(t, d) { if (!d) return; progress.lastChild.style.width = (t / d * 100).toFixed(2) + "%"; timeLabel.firstChild.textContent = dom.duration(t); timeLabel.lastChild.textContent = dom.duration(d); }
 
     /* -------------------------------------------------------------- fit -- */
-    function fit(mode) {
+    function fitFor(mode) {
       const m = isCarousel ? slides[slideIndex].media : m0;
       /* auto collapses to contain: never crop by default; cover is opt-in via fit toggle (x) */
       /* aspect < 0.95 = reels-format portrait: never zoomed, by design */
       const ratio = m ? (m.width && m.height ? m.width / m.height : (m.aspect || 1)) : 1;
       const portrait = ratio > 0 && ratio < 0.95;
-      el.dataset.fit = mode === "cover" && !portrait ? "cover" : "contain";
+      return mode === "cover" && !portrait ? "cover" : "contain";
     }
+    function fit(mode) { el.dataset.fit = fitFor(mode); }
 
     /* ---------------------------------------------------------- lifecycle -- */
     function activate() {
@@ -140,6 +160,7 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "core.util
       active = true;
       el.classList.add("is-active");
       fit(env.fitMode());
+      if (isCarousel) loadSlides(slideIndex);
       if (handle) handle.activate();
       else if (m0?.kind === "photo" || (isCarousel && !slides[slideIndex].hd)) {
         env.markSeen?.(post);
@@ -154,8 +175,18 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "core.util
       if (handle) handle.deactivate();
       for (const s of slides) s.hd?.deactivate();
     }
-    function prepare() { // preload neighbour
-      if (!prefs.get("preload")) return;
+    /** Album slides i and i+1 get their pixels (the rest wait until swiped near). */
+    function loadSlides(i) {
+      for (const s of slides.slice(i, i + 2)) {
+        if (s.loaded) continue;
+        s.loaded = true;
+        showBackdrop(s.bg);
+        showImage(s.img);
+        if (s.video && !s.video.poster) s.video.poster = posterOf(s.media);
+      }
+    }
+    function prepare() { // preload neighbour — not on slow or metered connections
+      if (!prefs.get("preload") || !media.budget().speculative) return;
       if (handle) handle.attach();
     }
     function destroy() {
@@ -175,6 +206,10 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "core.util
       seekBy(s) { handle?.seekBy(s); },
       setRate(r) { if (handle) handle.video.playbackRate = r; },
     };
+    /* A neighbour is preloaded before it is shown: in Fill (object-fit: cover) mark it now
+       so the player sizes the rung for the cropped, larger picture. Contain is left to
+       activate(), so off-screen cells do not light up their blurred backdrop early. */
+    if (fitFor(env.fitMode()) === "cover") el.dataset.fit = "cover";
     return api;
   }
   return { createCell };
