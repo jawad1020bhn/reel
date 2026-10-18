@@ -38,7 +38,7 @@ XR.define("shell.theme", ["app.prefs", "app.ports.platform", "core.i18n"], funct
   const ICON_NEUTRAL = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#e5e7eb"/><path d="M18 22h28M18 32h28M18 42h18" stroke="#6b7280" stroke-width="5" stroke-linecap="round"/></svg>');
 
   function start() {
-    XR.resolveAll("core.i18n.");   // instantiate every registered dictionary (core.i18n.ar, …)
+    XR.resolveAll("core.i18n.");   // instantiate every registered dictionary (core.i18n.*)
     apply();
     prefs.onChange(({ patch }) => { if (["density", "reduceMotion", "blur", "discreet", "language"].some((k) => k in patch)) apply(); });
     if (typeof matchMedia === "function" && platform.prefersDark) {

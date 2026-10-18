@@ -1,11 +1,15 @@
 /* shell.app — boot sequence and global wiring.
    Order matters: storage → prefs → theme → activity → lock → catalog data →
    features → layout → router → outlet. Each step reports to the splash. */
-XR.define("shell.app", ["ui.dom", "ui.keys", "ui.toast", "ui.dialog", "ui.menu", "app.ports.storage", "app.ports.platform", "app.migrations", "app.diagnostics", "app.prefs", "app.activity", "app.lock", "app.importer", "app.catalog", "app.features", "app.nav", "app.playback", "shell.theme", "shell.layout", "shell.outlet", "shell.lockGate", "shell.splash", "core.events", "core.domain.events"],
-  function (dom, keys, toast, dialog, menu, storage, platform, migrations, diag, prefs, activity, lock, importer, catalog, features, nav, playback, theme, layout, outlet, lockGate, splash, events, EV) {
+XR.define("shell.app", ["ui.dom", "ui.keys", "ui.toast", "ui.dialog", "ui.menu", "app.ports.storage", "app.ports.platform", "app.migrations", "app.diagnostics", "app.prefs", "app.activity", "app.lock", "app.importer", "app.catalog", "app.features", "app.nav", "app.playback", "shell.theme", "shell.layout", "shell.outlet", "shell.lockGate", "shell.siteGate", "shell.splash", "core.events", "core.domain.events"],
+  function (dom, keys, toast, dialog, menu, storage, platform, migrations, diag, prefs, activity, lock, importer, catalog, features, nav, playback, theme, layout, outlet, lockGate, siteGate, splash, events, EV) {
     "use strict";
 
     async function start() {
+      /* The site password comes first: a deployed build must not boot (or fetch
+         the dataset) before the visitor is let in. No password configured → the
+         promise resolves immediately and nothing changes for a local copy. */
+      try { await siteGate.ensure(); } catch (err) { console.error("[app] site gate failed", err); }
       splash.show();
       try {
         diag.mark("boot:start");

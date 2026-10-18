@@ -60,18 +60,6 @@ XR.define("infra.datasources", [], function () {
     },
   };
 
-  const sample = {
-    id: "sample", kind: "sample", label: "data/posts.sample.js",
-    available: () => typeof document !== "undefined",
-    async load() {
-      for (const g of GLOBALS) delete window[g];
-      const r = await injectScript("data/posts.sample.js?v=" + Date.now());
-      if (!r.ok) throw new Error("data/posts.sample.js is missing" + (r.error ? ": " + r.error : ""));
-      const found = findGlobal();
-      return found ? { json: found.value, label: "Sample library" } : null;
-    },
-  };
-
   const file = {
     id: "file", kind: "file", label: "Upload",
     available: () => typeof FileReader !== "undefined",
@@ -100,6 +88,6 @@ XR.define("infra.datasources", [], function () {
     },
   };
 
-  const list = [auto, sample, file, text, url];
+  const list = [auto, file, text, url];
   return { get: (kind) => list.find((s) => s.kind === kind || s.id === kind) || null, all: () => list.slice(), GLOBALS, clearGlobals: () => { for (const g of GLOBALS) try { delete window[g]; } catch { /* non-configurable */ } } };
 });

@@ -6,6 +6,7 @@
   "license": "MIT",
   "scripts": {
     "lint": "node tools/lint-deps.mjs",
-    "check": "node tools/lint-deps.mjs"
+    "check": "node tools/lint-deps.mjs",
+    "site:password": "node tools/set-site-password.mjs"
   }
 }
