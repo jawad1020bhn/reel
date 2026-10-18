@@ -20,7 +20,7 @@ XR.define("features.collections", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialo
       const colls = activity.collections();
       const starred = catalog.query({ state: "starred", sort: "saved" }).items;
       const progress = catalog.query({ state: "progress" }).items;
-      const page = h("div.collections", W.pageHead("Collections", "Starred, in progress, and your own lists", W.btn("New collection", { icon: "plus", kind: "primary", onClick: create })));
+      const page = h("div.collections", W.pageBar("Collections", "Starred, in progress, and your own lists", W.btn("New collection", { icon: "plus", kind: "primary", onClick: create })));
       const cards = h("div.coll-cards",
         smartCard("Starred", starred, "star", "Everything you starred, newest first", () => actions.goLibrary({ state: "starred" })),
         smartCard("Continue watching", progress, "clock", "Pick up the clips you left unfinished", () => actions.goLibrary({ state: "progress" })),

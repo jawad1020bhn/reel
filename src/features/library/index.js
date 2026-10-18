@@ -25,7 +25,7 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
       const chips = h("div.lib-chips");
       const gridHost = h("div.lib-grid");
       const bulkBar = buildBulkBar();
-      const head = h("header.page-head", h("div", h("h1.page-title", "Library"),
+      const head = h("header.page-head.page-bar", h("div.page-bar-text", h("h1.page-title.sr-only", "Library"),
         h("p.page-sub.lib-count", h("span.lib-count-n"), h("span.lib-sort-note"))));
       page.append(head, toolbar, chips, gridHost);
       outlet.appendChild(page);

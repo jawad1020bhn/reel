@@ -10,7 +10,7 @@ XR.define("features.insights", ["ui.dom", "ui.icons", "ui.widgets", "ui.charts",
       if (!catalog.size) { host.appendChild(W.empty({ icon: "chart", title: "No data yet", action: { label: "Import", run: () => nav.go("import") } })); return; }
       const st = catalog.stats();
       const posts = catalog.posts.filter((p) => p.media.length);
-      const page = h("div.insights", W.pageHead("Insights", `${dom.compact(st.withMedia)} media posts · ${dom.hours(st.seconds)} of video`));
+      const page = h("div.insights", W.pageBar("Insights", `${dom.compact(st.withMedia)} media posts · ${dom.hours(st.seconds)} of video`));
 
       page.appendChild(recap(posts));
       page.appendChild(h("div.stat-grid",

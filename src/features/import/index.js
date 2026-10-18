@@ -11,7 +11,7 @@ XR.define("features.import", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog", "
       const src = catalog.source;
       const empty = !catalog.size;
       const page = h("div.import",
-        W.pageHead(catalog.size ? "Import posts" : "Welcome to XReels",
+        (catalog.size ? W.pageBar : W.pageHead)(catalog.size ? "Import posts" : "Welcome to XReels",
           catalog.size ? `Currently showing ${src.count} posts from ${src.label}` : "Your X bookmarks, as a private video & photo feed.",
           catalog.size ? W.btn("Manage libraries", { icon: "database", onClick: () => nav.go("settings") }) : null),
         empty ? demoBanner() : null,

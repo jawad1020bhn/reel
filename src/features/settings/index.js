@@ -17,7 +17,7 @@ XR.define("features.settings", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog",
 
     function render() {
       dom.clear(host);
-      const page = h("div.settings", W.pageHead("Settings", `Local-first · ${storage.kind} · ${catalog.size} posts in this browser`));
+      const page = h("div.settings", W.pageBar("Settings", `Local-first · ${storage.kind} · ${catalog.size} posts in this browser`));
       const nav = h("nav.settings-nav", { "aria-label": "Settings sections" },
         h("p.settings-nav-title", "On this page"),
         SECTIONS.map(([id, label, icon]) => h("a.settings-nav-link", { href: "#set-" + id, dataset: { section: id }, onclick: (e) => { e.preventDefault(); scrollToSection(id); } }, icons.icon(icon, 14), h("span", label))),
