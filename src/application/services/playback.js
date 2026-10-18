@@ -32,14 +32,15 @@ XR.define("app.playback", ["app.ports.playerEngine", "app.ports.mediaResolver", 
       video.loop = opts.loop ?? (prefs.get("loopShorts") && media.duration > 0 && media.duration <= 60);
       if (media.poster) video.poster = resolver.poster(media, opts.posterSize || "medium");
 
-      let attached = false, destroyed = false, lastSave = 0, seenTimer = 0, playPromise = null;
+      let attached = false, destroyed = false, lastSave = 0, seenTimer = 0, playPromise = null, engineAttachment = null;
       const h = {
         video, media, post: opts.post || null,
         get isActive() { return state.active === h; },
         attach() {
-          if (attached || destroyed) return;
+          if (destroyed) return null;
+          if (attached) return engineAttachment;
           attached = true;
-          engine.attach(video, media, { localDir: prefs.get("localMediaDir") });
+          engineAttachment = engine.attach(video, media, { localDir: prefs.get("localMediaDir") });
           if (opts.resume !== false && prefs.get("rememberProgress")) {
             const e = activity.progressEntry(media.id);
             if (e && e.t > 3) {
@@ -47,16 +48,24 @@ XR.define("app.playback", ["app.ports.playerEngine", "app.ports.mediaResolver", 
               if (video.readyState >= 1) apply(); else video.addEventListener("loadedmetadata", apply, { once: true });
             }
           }
+          return engineAttachment;
         },
         play() {
           if (destroyed) return Promise.resolve();
-          h.attach();
-          playPromise = video.play().catch((err) => {
-            if (err && err.name === "NotAllowedError" && !video.muted) { // autoplay with sound blocked → retry muted
-              state.muted = true; video.muted = true; emit();
-              return video.play().catch(() => {});
-            }
-          });
+          const attachment = h.attach();
+          const attemptPlay = () => {
+            if (destroyed) return Promise.resolve();
+            return video.play().catch((err) => {
+              if (err && err.name === "NotAllowedError" && !video.muted) { // autoplay with sound blocked → retry muted
+                state.muted = true; video.muted = true; emit();
+                return video.play().catch(() => {});
+              }
+            });
+          };
+          const ready = attachment && attachment.ready;
+          playPromise = ready && typeof ready.then === "function"
+            ? ready.then((canPlay) => canPlay === false ? undefined : attemptPlay())
+            : attemptPlay();
           return playPromise;
         },
         pause() { if (!destroyed) { const p = playPromise; if (p) p.then(() => video.pause(), () => {}); else video.pause(); } },

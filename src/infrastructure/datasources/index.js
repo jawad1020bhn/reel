@@ -51,7 +51,9 @@ XR.define("infra.datasources", [], function () {
       if (!isFile() && typeof fetch === "function") {
         try {
           const res = await fetch("data/posts.json", { cache: "no-store" });
-          if (res.ok) return { json: await res.json(), label: "data/posts.json" };
+          /* Keep the JSON as text until the importer checks its fingerprint. On a cache hit,
+             this avoids parsing the full export just to discover that normalized posts exist. */
+          if (res.ok) return { text: await res.text(), label: "data/posts.json" };
         } catch { /* absent */ }
       }
       return null;

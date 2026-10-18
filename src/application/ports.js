@@ -17,7 +17,7 @@
    RouterPort        { current()→string ("/path?query"), navigate(path,{replace?}), back(), onChange(fn)→unsubscribe, href(path)→string }
    MediaResolverPort { thumb(media,size,opts)→url, poster(media,size,opts)→url, full(media,opts)→url,
                        avatar(url,px)→url, sources(media,opts)→[{url,type,bitrate}], download(media)→url, canHls()→bool }
-   PlayerEnginePort  { attach(videoEl, media, opts), detach(videoEl), canHls()→bool }
+   PlayerEnginePort  { attach(videoEl, media, opts)→optional {ready?:Promise<boolean>}, detach(videoEl), canHls()→bool }
    PlatformPort      { copy(text)→Promise<bool>, share(data)→Promise<bool>, download(url,name)→Promise<bool>,
                        fullscreen(el)→Promise, exitFullscreen(), isFullscreen()→bool, isTouch()→bool, reducedMotion()→bool,
                        openExternal(url), sha256(text)→Promise<hex>, randomId(bytes)→hex, dpr()→number, isFile()→bool, vibrate(ms) }

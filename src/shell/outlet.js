@@ -8,7 +8,7 @@
 XR.define("shell.outlet", ["ui.dom", "ui.widgets", "ui.imageload", "app.features", "app.nav", "app.playback", "shell.theme", "core.events", "core.domain.events"],
   function (dom, W, imageload, features, nav, playback, theme, events, EV) {
     "use strict";
-    let host = null, current = null, currentKey = "", booted = false;
+    let host = null, current = null, currentKey = "", booted = false, routeLoadSeq = 0;
     let wanted = null; /* the most recent route the shell was asked to show */
     const scrollMemo = new Map();
     const mq = typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)") : null;
@@ -23,17 +23,42 @@ XR.define("shell.outlet", ["ui.dom", "ui.widgets", "ui.imageload", "app.features
       !reduced();
 
     function unmountCurrent() {
-      if (!current) return;
-      try { current.unmount?.(); } catch (err) { console.error(`[outlet] unmount ${current.id} failed`, err); }
-      current = null;
+      if (current) {
+        try { current.unmount?.(); } catch (err) { console.error(`[outlet] unmount ${current.id} failed`, err); }
+        current = null;
+      }
       dom.clear(host);
       host.scrollTop = 0;
+    }
+
+    function showLazyLoading(feature) {
+      if (current) scrollMemo.set(currentKey, host.scrollTop);
+      playback.pauseAll();
+      unmountCurrent();
+      dom.clear(host);
+      host.dataset.feature = feature.id;
+      host.setAttribute("aria-busy", "true");
+      host.appendChild(dom.h("div.feature-loading", { role: "status" }, W.spinner("Loading page…")));
+      host.scrollTop = 0;
+      theme.setTitle(XR.resolve("core.i18n").t(feature.title));
+    }
+
+    function showLazyError(route, feature, seq, initial, error) {
+      if (seq !== routeLoadSeq || route !== wanted) return;
+      host.removeAttribute("aria-busy");
+      dom.replace(host, W.empty({
+        icon: "alert", title: `Couldn't load ${feature.title}`,
+        text: String(error && error.message || error),
+        action: { label: "Retry", run: () => mount(route, initial) },
+      }));
+      theme.setTitle(XR.resolve("core.i18n").t(feature.title));
     }
 
     /** Mount a route. Everything here runs inside the transition callback, so it must
         stay synchronous: the new page has to exist before the snapshot is taken. */
     function apply(route) {
       wanted = route;
+      host.removeAttribute("aria-busy");
       const f = features.get(route.name);
       const key = keyOf(route);
       if (current) scrollMemo.set(currentKey, host.scrollTop);
@@ -117,9 +142,19 @@ XR.define("shell.outlet", ["ui.dom", "ui.widgets", "ui.imageload", "app.features
       t.updateCallbackDone.then(null, (err) => console.error("[outlet] transition update failed", err));
     }
 
-    function mount(route) {
+    function mount(route, initial = false) {
       wanted = route;
+      const seq = ++routeLoadSeq;
       const f = features.get(route.name);
+      if (f?.lazy) {
+        showLazyLoading(f);
+        features.load(route.name).then(() => {
+          if (seq !== routeLoadSeq || route !== wanted) return;
+          if (initial || !canTransition()) apply(route);
+          else transitionTo(route);
+        }).catch((err) => showLazyError(route, f, seq, initial, err));
+        return;
+      }
       const key = keyOf(route);
       /* query-only updates (filters, sort) re-render in place — never animate those,
          it would make every chip press feel like a page load */
@@ -136,7 +171,7 @@ XR.define("shell.outlet", ["ui.dom", "ui.widgets", "ui.imageload", "app.features
       imageload.install();
       events.bus.on(EV.ROUTE_CHANGED, ({ route }) => mount(route));
       if (nav.current) {
-        apply(nav.current);
+        mount(nav.current, true);
         booted = true;
         imageload.sweep(host);
       }

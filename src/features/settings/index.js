@@ -82,7 +82,7 @@ XR.define("features.settings", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog",
         W.row("Preload neighbours", "Warm up the next clip while you watch", W.toggle(P("preload"), set("preload"))),
         W.row("One post per wheel notch", "Off = free scrolling with a mouse wheel", W.toggle(P("wheelStep"), set("wheelStep"))),
         W.row("“Short” means up to", "Threshold between Shorts and Long videos", W.numberInput(P("shortMaxSeconds"), (v) => prefs.set({ shortMaxSeconds: Math.max(10, v || model.SHORT_MAX_SECONDS) }), { min: 10, max: 3600, suffix: "s" })),
-        W.row("HLS engine", player.canHls() ? "hls.js loaded — streams fall back to HLS when MP4 fails" : "hls.js not loaded (vendor/hls.min.js missing) — MP4 only", null));
+        W.row("HLS engine", player.canHls() ? "hls.js loaded — streams fall back to HLS when MP4 fails" : "hls.js loads on demand for HLS streams; MP4 plays without it", null));
     }
     function privacy() {
       const pinRow = W.row("PIN lock", lock.isEnabled() ? "A PIN is required when the app opens" : "Ask for a PIN when the app opens", h("div.row-btns",
@@ -164,9 +164,9 @@ XR.define("features.settings", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog",
         W.btn("Hide all unavailable", { size: "sm", onClick: async () => { const ids = activity.unavailableIds(); for (const id of ids) activity.toggleHidden(id, true); actions.toast(`${ids.length} posts hidden`, "success"); } }),
         W.btn("Clear marks", { size: "sm", onClick: () => { activity.clearUnavailable(); status.textContent = ""; } })), bar, status);
     }
-    function debugPanel() {
+    async function debugPanel() {
       const diag = XR.resolve("app.diagnostics");
-      const snap = diag.snapshot();
+      const snap = await diag.snapshot();
       const pre = h("pre.debug-pre", JSON.stringify(snap, null, 1));
       dialog.open({ title: "Debug panel", size: "lg", body: h("div.stack", h("p.muted.small", `${snap.env.version} · ${snap.env.protocol} · storage: ${snap.env.storage} · ${snap.env.viewport}`), pre),
         actions: [{ label: "Copy report", kind: "primary", close: false, run: () => { platform.copy(JSON.stringify(snap, null, 1)); actions.toast("Copied", "success"); } }, { label: "Done", kind: "ghost" }] });

@@ -13,17 +13,21 @@ window.XREELS_MANIFEST = {
     "styles/features/discover.css",
     "styles/features/library.css",
     "styles/features/watch.css",
-    "styles/features/viewer.css",
-    "styles/features/creators.css",
-    "styles/features/collections.css",
-    "styles/features/insights.css",
-    "styles/features/settings.css",
     "styles/features/import.css",
     "styles/features/palette.css",
     "styles/editorial.css"
   ],
   vendor: [
-    "vendor/hls.min.js"              // optional, loaded async; HLS fallback for videos
+    "vendor/hls.min.js"              // lazy-loaded only when HLS.js playback is needed
+  ],
+  /* Optional feature JS/CSS is loaded on first navigation (or palette use).
+     Keeping paths here preserves the single-manifest and file:// guarantees. */
+  lazyFeatures: [
+    { id: "creators", title: "Creators", icon: "users", route: "/creators/:user?", nav: true, order: 40, key: "c", back: true, scripts: ["src/features/creators/index.js"], styles: ["styles/features/creators.css"] },
+    { id: "collections", title: "Collections", icon: "folder", route: "/collections/:id?", nav: true, order: 50, key: "o", back: true, scripts: ["src/features/collections/index.js"], styles: ["styles/features/collections.css"] },
+    { id: "insights", title: "Insights", icon: "chart", route: "/insights", nav: true, order: 60, key: "i", scripts: ["src/features/insights/index.js"], styles: ["styles/features/insights.css"] },
+    { id: "settings", title: "Settings", icon: "settings", route: "/settings", nav: true, order: 110, key: "s", scripts: ["src/features/settings/index.js"], styles: ["styles/features/settings.css"] },
+    { id: "viewer", title: "Viewer", icon: "maximize", route: null, nav: false, order: 900, scripts: ["src/features/viewer/index.js"], styles: ["styles/features/viewer.css"] },
   ],
   scripts: [
     "src/kernel/kernel.js",
@@ -95,11 +99,6 @@ window.XREELS_MANIFEST = {
     "src/features/library/index.js",
     "src/features/watch/cell.js",
     "src/features/watch/index.js",
-    "src/features/viewer/index.js",
-    "src/features/creators/index.js",
-    "src/features/collections/index.js",
-    "src/features/insights/index.js",
-    "src/features/settings/index.js",
     "src/features/import/index.js",
     "src/features/palette/index.js",
     "src/boot.js"

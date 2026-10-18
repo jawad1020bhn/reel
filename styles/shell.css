@@ -4,7 +4,8 @@
 .app { height: 100dvh; width: 100%; overflow: hidden; background: var(--bg); }
 .main { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; position: relative; }
 .outlet { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; position: relative; }
-.outlet > * { animation: page-in 420ms var(--ease) both; }
+.outlet > * { animation: page-in 240ms var(--ease) both; }
+.feature-loading { min-height: 50vh; display: grid; place-items: center; }
 @keyframes page-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
 /* Route transitions: the outlet is its own snapshot, so the fixed header and the
