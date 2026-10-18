@@ -2,14 +2,16 @@
 .library { display: flex; flex-direction: column; gap: 14px; }
 
 /* One-line deck: search leads, then ordering, filters, and the grid actions.
-   It stays put while the grid scrolls. */
+   It sits above the grid and scrolls away with the page (not sticky). */
 .lib-toolbar {
-  position: sticky; top: var(--hdr-offset); z-index: 6;
+  position: static;
+  top: auto;
+  z-index: auto;
   display: flex; gap: 8px; align-items: center; flex-wrap: nowrap;
-  margin: -10px calc(-1 * var(--gutter)) 0; padding: 10px var(--gutter) 9px;
-  background: rgb(21 21 24 / 0.97);
-  border-bottom: 1px solid rgb(255 255 255 / 0.055);
-  box-shadow: 0 18px 26px -24px rgb(0 0 0 / 0.9);
+  margin: 0; padding: 0 0 2px;
+  background: transparent;
+  border-bottom: 0;
+  box-shadow: none;
 }
 .lib-search-wrap {
   flex: 1 1 auto; display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 6px 0 13px;
