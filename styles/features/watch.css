@@ -70,11 +70,6 @@
 .side-btn .icon { width: 48px; height: 48px; padding: 11px; border-radius: 50%; background: rgb(10 10 13 / 0.62); }
 .side-btn.on .icon { color: var(--accent); background: rgb(255 255 255 / 0.16); }
 .side-label { font-size: 11px; font-weight: 600; opacity: 0.9; }
-/* creator at the top of the rail: round avatar instead of an icon, handle underneath */
-.side-creator .side-avatar { display: block; width: 48px; height: 48px; border-radius: 50%; overflow: hidden; border: 2px solid rgb(255 255 255 / 0.85); background: #111; box-shadow: 0 2px 10px rgb(0 0 0 / 0.5); }
-.side-creator .side-avatar .avatar { width: 100%; height: 100%; }
-.side-creator-name { max-width: 72px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.side-creator.hidden { display: none; }
 
 /* arrows (desktop) */
 .watch-arrows { position: absolute; right: 18px; top: 50%; transform: translateY(-50%); z-index: 5; display: flex; flex-direction: column; gap: 10px; }
@@ -161,8 +156,7 @@
   .watch-side { bottom: calc(58px + env(safe-area-inset-bottom, 0px)); gap: 10px; }
   .watch-top { padding: calc(10px + env(safe-area-inset-top, 0px)) 10px 10px; gap: 8px; }
   .watch-label { font-size: 13px; }
-  .side-btn .icon, .side-creator .side-avatar { width: 44px; height: 44px; }
-  .side-btn .icon { padding: 10px; }
+  .side-btn .icon { width: 44px; height: 44px; padding: 10px; }
   .side-label { font-size: 10px; }
   .cell-time { display: none; }
   .watch-fit, .watch-pip { display: none; }   /* still on x / p; the phone bar needs the room */
@@ -201,6 +195,13 @@
 .wi-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; font-size: 12.5px; color: rgb(255 255 255 / 0.65); }
 .wi-head b { color: #fff; }
 .wi-close { color: #fff; }
+/* account circle moved here from the side rail: avatar + name/handle → profile */
+.wi-creator { display: flex; align-items: center; gap: 10px; width: 100%; margin: 0 0 12px; padding: 8px 10px; border: 1px solid rgb(255 255 255 / 0.1); border-radius: var(--r-lg, 12px); background: rgb(255 255 255 / 0.05); color: #fff; text-align: left; cursor: pointer; }
+.wi-creator:hover { background: rgb(255 255 255 / 0.1); }
+.wi-creator-avatar { display: block; flex: none; border-radius: 50%; overflow: hidden; }
+.wi-creator-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.wi-creator-text b { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wi-creator-handle { font-size: 12px; color: rgb(255 255 255 / 0.65); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wi-caption { font-size: 14.5px; line-height: 1.55; overflow-wrap: anywhere; }
 .wi-caption .link { color: #fff; font-weight: 600; }
 .wi-quote { border-left: 2px solid rgb(255 255 255 / 0.3); padding-left: 10px; margin: 10px 0 0; font-size: 13px; color: rgb(255 255 255 / 0.9); }

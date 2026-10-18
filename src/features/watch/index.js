@@ -41,12 +41,8 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
         h("div.watch-top-actions",
           W.iconBtn("fit", "Fit / fill (x)", () => cycleFit(), { cls: "watch-fit" }),
           W.iconBtn("pip", "Picture-in-picture (p)", () => togglePip(), { cls: "watch-pip" }),
-          h("button.btn.btn-icon.watch-speed.speed-chip", { title: "Speed", "aria-label": "Speed", onclick: (e) => speedMenu(e.currentTarget) }, h("span.speed-chip-text", fmtSpeed(playback.speed))),
-          W.iconBtn("list", "Up next (q)", (e) => queueSheet(e.currentTarget), { cls: "watch-queue" }),
           W.iconBtn("expand", "Fullscreen (f)", () => platform.fullscreen(S.root), { cls: "watch-fs" })));
       const side = h("div.watch-side",
-        h("button.side-btn.side-creator", { title: "View profile", onclick: (e) => { e.stopPropagation(); const p = current(); if (p) actions.goCreator(p.author.username); } },
-          h("span.side-avatar"), h("span.side-label.side-creator-name", "")),
         h("button.side-btn.side-mute", { title: "Mute (m)", onclick: () => playback.toggleMuted() }, icons.icon(playback.muted ? "mute" : "volume", 26), h("span.side-label", "Sound")),
         h("button.side-btn.side-info", { title: "Caption & details (i)", onclick: (e) => { e.stopPropagation(); toggleInfo(); } }, icons.icon("info", 26), h("span.side-label", "Info")),
         h("button.side-btn", { title: "More", onclick: (e) => { const p = current(); if (p) postMenu.open(p, e.currentTarget, { ids: S.ids, index: S.index, label: S.label, noWatch: true, noOpen: true }); } }, icons.icon("more", 26), h("span.side-label", "More")));
@@ -138,7 +134,6 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
         else { c.deactivate(); if (Math.abs(i - S.index) === 1) c.prepare(); }
       }
       S.els.counter.textContent = S.ids.length ? `${S.index + 1} / ${S.ids.length}` : "";
-      renderSideCreator();
       renderUpNext();
       S.els.arrows.querySelector(".watch-arrow-up").disabled = S.index <= 0;
       S.els.arrows.querySelector(".watch-arrow-down").disabled = S.index >= S.ids.length;
@@ -180,17 +175,6 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
       S.seenTimer = setTimeout(() => { if (current() === p) activity.noteOpen(p); }, 1500);
     }
     /* ----------------------------------------------------- info & rail -- */
-    /** Side rail creator button: avatar + @handle of the active post. */
-    function renderSideCreator() {
-      const btn = S.els.side?.querySelector(".side-creator"); if (!btn) return;
-      const p = current();
-      btn.classList.toggle("hidden", !p);
-      if (!p) return;
-      dom.replace(btn.querySelector(".side-avatar"), h("span.side-avatar", W.avatar(media.avatar(p, 64), p.author.name, 48)));
-      btn.querySelector(".side-creator-name").textContent = "@" + p.author.username;
-      btn.title = p.author.name + " · @" + p.author.username;
-    }
-
     function toggleInfo() { if (S.infoOpen) closeInfo(); else openInfo(); }
     function openInfo() {
       S.infoOpen = true;
@@ -210,6 +194,12 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
       const colls = activity.collectionsOf(p.id);
       card.appendChild(h("div.wi-head", h("b", "Caption & details"),
         h("button.btn.btn-icon.wi-close", { title: "Close", onclick: (e) => { e.stopPropagation(); closeInfo(); } }, icons.icon("x", 16))));
+      /* the account circle (was on the side rail): avatar + name/handle, tap for profile */
+      card.appendChild(h("button.wi-creator", { title: "View profile", onclick: (e) => { e.stopPropagation(); actions.goCreator(p.author.username); } },
+        h("span.wi-creator-avatar", W.avatar(media.avatar(p, 64), p.author.name, 40)),
+        h("span.wi-creator-text",
+          h("b", p.author.name || p.author.username),
+          h("span.wi-creator-handle", "@" + p.author.username))));
       if (p.text) {
         card.appendChild(h("div.wi-caption",
           dom.richText(p.rawText || p.text, { onTag: (t) => actions.goTag(t), onUser: (u) => actions.goCreator(u) })));
@@ -292,7 +282,6 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
     function toggleStar() { const p = current(); if (!p) return; const on = actions.star(p); if (on) heart(); }
     function heart() { const el = S.root.querySelector(".watch-heart"); el.classList.remove("pop"); void el.offsetWidth; el.classList.add("pop"); platform.vibrate(12); }
     function cycleFit() { const order = ["auto", "cover", "contain"]; const cur = fitMode(); S.fitOverride = order[(order.indexOf(cur) + 1) % order.length]; S.cells.forEach((c) => c.fit(S.fitOverride)); flash(S.fitOverride === "cover" ? "Fill" : S.fitOverride === "contain" ? "Fit" : "Auto"); }
-    const fmtSpeed = (r) => (Number(r) || 1) + "x";
     function renderUpNext() {
       const el = S.els?.upnext; if (!el) return;
       const next = catalog.post(S.ids[S.index + 1]);
@@ -300,9 +289,8 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
       const m = next.media[0];
       dom.replace(el, h("img", { src: media.thumb(m, 120), alt: "" }), h("span.upnext-text", h("i", XR.resolve("core.i18n").t("Up next")), h("b", "@" + next.author.username)));
       el.classList.add("on");
-      const speedEl = S.root.querySelector(".speed-chip-text"); if (speedEl) speedEl.textContent = fmtSpeed(playback.speed);
     }
-    function queueSheet(anchor) {
+    function queueSheet(anchor = null) {
       const t = XR.resolve("core.i18n").t;
       const items = [];
       for (let i = Math.max(0, S.index - 2); i < Math.min(S.ids.length, S.index + 12); i++) {
@@ -311,7 +299,6 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
       }
       menu.open(anchor, items, { title: t("Up next") + ` · ${S.index + 1}/${S.ids.length}` });
     }
-    function speedMenu(anchor) { menu.open(anchor, [0.5, 0.75, 1, 1.25, 1.5, 2].map((r) => ({ label: r + "×", checked: playback.speed === r, run: () => { playback.setSpeed(r); prefs.set({ speed: r }); flash(r + "×"); const el = S.root?.querySelector(".speed-chip-text"); if (el) el.textContent = fmtSpeed(r); } })), { title: "Speed", align: "end" }); }
     let flashTimer = 0;
     function flash(text, sticky = false) { const hud = S.els.hud; hud.textContent = text; hud.classList.add("on"); clearTimeout(flashTimer); if (!sticky) flashTimer = setTimeout(() => hud.classList.remove("on"), 700); }
     const hideFlash = () => { clearTimeout(flashTimer); S.els.hud.classList.remove("on"); };
@@ -397,7 +384,7 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
       b("arrowright", () => { const c = S.cells.get(S.index); if (!c) return; if (c.carousel) c.carousel.next(); else { c.seekBy(5); flash("+5s"); } }, "Next image / seek +5s");
       b("arrowleft", () => { const c = S.cells.get(S.index); if (!c) return; if (c.carousel) c.carousel.prev(); else { c.seekBy(-5); flash("−5s"); } }, "Previous image / seek −5s");
       b("l", () => { S.cells.get(S.index)?.seekBy(10); flash("+10s"); }, "Seek +10s");
-      b("q", () => queueSheet(S.root?.querySelector(".watch-queue")), "Up next list");
+      b("q", () => queueSheet(), "Up next list");
       b("h", () => { S.cells.get(S.index)?.seekBy(-10); flash("−10s"); }, "Seek −10s");
       b("s", () => toggleStar(), "Star");
       b("c", () => { const p = current(); if (p) actions.addToCollection(p.id); }, "Add to collection");
