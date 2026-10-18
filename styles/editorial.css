@@ -31,6 +31,11 @@
   animation: media-sheen 1.4s linear infinite;
 }
 @keyframes art-drift { from { transform: scale(1.04) translateX(0); } to { transform: scale(1.1) translateX(-1.6%); } }
+/* the trailer arrives late (features.discover → trailer) and dissolves over the poster
+   it was painted from; the mute pill only exists once something can be heard */
+.billboard-video { opacity: 0; transition: opacity 700ms var(--ease-soft); }
+.billboard-video.is-playing { opacity: 1; }
+.billboard-mute[hidden] { display: none; }
 [data-motion="reduce"] .billboard-art, [data-motion="reduce"] .billboard-video { animation: none; }
 
 /* the two scrims that make white text safe on any artwork */

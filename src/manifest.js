@@ -22,9 +22,12 @@ window.XREELS_MANIFEST = {
     "styles/features/palette.css",
     "styles/editorial.css"
   ],
-  vendor: [
-    "vendor/hls.min.js"              // optional, loaded async; HLS fallback for videos
-  ],
+  /* deferred scripts loaded with the page (none today) */
+  vendor: [],
+  /* optional libraries injected only when needed — never part of the boot */
+  onDemand: {
+    hls: "vendor/hls.min.js"         // HLS fallback for videos; infra.media.player loads it the first time an MP4 fails
+  },
   scripts: [
     "src/kernel/kernel.js",
     "src/core/events.js",

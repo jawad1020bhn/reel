@@ -2,8 +2,8 @@
    source attachment through the PlayerEngine port, global mute/speed,
    resume positions, progress persistence, "seen" bookkeeping, and the rule
    that only one video plays at a time. Features own the DOM; this owns the policy. */
-XR.define("app.playback", ["app.ports.playerEngine", "app.ports.mediaResolver", "app.activity", "app.prefs", "core.events", "core.domain.events", "core.util"],
-  function (engine, resolver, activity, prefs, events, EV, util) {
+XR.define("app.playback", ["app.ports.playerEngine", "app.ports.mediaResolver", "app.media", "app.activity", "app.prefs", "core.events", "core.domain.events", "core.util"],
+  function (engine, resolver, mediaPolicy, activity, prefs, events, EV, util) {
     "use strict";
     const state = { muted: prefs.get("startMuted"), speed: prefs.get("speed") || 1, active: null /* handle */, userUnmuted: false };
     const handles = new Set();
@@ -21,7 +21,9 @@ XR.define("app.playback", ["app.ports.playerEngine", "app.ports.mediaResolver", 
      *   { video, media, play(), pause(), toggle(), seek(sec), seekBy(sec), activate(), deactivate(), destroy(), get isActive() }
      * @param {HTMLVideoElement} video
      * @param {Media} media
-     * @param {{post?: Post, loop?: boolean, onEnded?: Function, onProgress?: Function, resume?: boolean}} opts
+     * @param {{post?: Post, loop?: boolean, onEnded?: Function, onProgress?: Function, resume?: boolean, poster?: string|false, preload?: string}} opts
+     *   poster: the still the caller sized for its box (false = none). Pass it here rather than
+     *   setting video.poster afterwards, or the element downloads two posters.
      */
     function wire(video, media, opts = {}) {
       video.muted = state.muted;
@@ -30,7 +32,8 @@ XR.define("app.playback", ["app.ports.playerEngine", "app.ports.mediaResolver", 
       video.setAttribute("playsinline", "");
       video.preload = opts.preload || "metadata";
       video.loop = opts.loop ?? (prefs.get("loopShorts") && media.duration > 0 && media.duration <= 60);
-      if (media.poster) video.poster = resolver.poster(media, opts.posterSize || "medium");
+      const still = opts.poster !== undefined ? opts.poster : media.poster && resolver.poster(media, opts.posterSize || "medium");
+      if (still) video.poster = still;
 
       let attached = false, destroyed = false, lastSave = 0, seenTimer = 0, playPromise = null;
       const h = {
@@ -39,7 +42,8 @@ XR.define("app.playback", ["app.ports.playerEngine", "app.ports.mediaResolver", 
         attach() {
           if (attached || destroyed) return;
           attached = true;
-          engine.attach(video, media, { localDir: prefs.get("localMediaDir") });
+          /* the engine sizes the rung to the element; the budget caps it on slow or metered links */
+          engine.attach(video, media, { localDir: prefs.get("localMediaDir"), maxBitrate: mediaPolicy.budget().maxBitrate });
           if (opts.resume !== false && prefs.get("rememberProgress")) {
             const e = activity.progressEntry(media.id);
             if (e && e.t > 3) {

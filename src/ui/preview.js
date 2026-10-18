@@ -69,12 +69,23 @@ XR.define("ui.preview", ["ui.dom"], function (dom) {
     if (hgt > budgetH) { hgt = budgetH; w = hgt * ar; }
     w = Math.round(w); hgt = Math.round(hgt);
 
-    const src = ctx.thumb ? ctx.thumb(media, Math.round(w * 1.4)) : "";
+    const src = ctx.thumb ? ctx.thumb(media, w, hgt) : "";
     const art = h("img.preview-art", {
       alt: media.alt || post.text?.slice(0, 90) || "",
       loading: "eager", decoding: "async", draggable: false,
     });
-    if (src) art.src = src;
+    /* paint the pixels the tile already has, then swap in the sharper still once it is
+       decoded — the card never opens on an empty frame */
+    const tileImg = el.querySelector(".tile-img");
+    const have = tileImg && tileImg.complete && tileImg.naturalWidth > 0 ? tileImg.currentSrc || tileImg.src : "";
+    if (have && src && have !== src) {
+      art.src = have;
+      const sharp = new Image();
+      sharp.decoding = "async";
+      sharp.src = src;
+      (sharp.decode ? sharp.decode() : new Promise((r, j) => { sharp.onload = r; sharp.onerror = j; }))
+        .then(() => { if (currentKey === key) art.src = src; }, () => { /* keep the tile pixels */ });
+    } else if (src) art.src = src;
     const videoSlot = h("div.preview-videoslot");
 
     card = h("div.preview-card", {

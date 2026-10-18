@@ -4,7 +4,7 @@
    of scaling the tile.
    createTile(post, ctx, opts) → { el, post, update(), destroy() }
 
-   ctx  : { thumb(media,width), avatar(post,px), isSeen(id), isStarred(id), progressOf(post), kindOf(post), sources(media) }
+   ctx  : { thumb(media,width,height), avatar(post,px), lazy(img,src), unlazy(img,abort), isSeen(id), isStarred(id), progressOf(post), kindOf(post), sources(media) }
     opts : { width, shape: natural|portrait|poster|square, info: hover|always|never, blur, seenDim, hoverPreview, priority, vibrate(ms),
              tag, onOpen(post, e), onMenu(post, e), onStar(post), onHide(post), onCreator(username), index,
              selectActive(): bool, onToggleSelect(post, e), isSelected(post): bool } */
@@ -27,16 +27,17 @@ XR.define("ui.tile", ["ui.dom", "ui.icons", "ui.preview"], function (dom, icons,
     const kind = ctx.kindOf(post);
     const width = opts.width || 240;
     const aspect = aspectFor(post, opts.shape || "natural");
+    const height = Math.round(width / aspect);   // the still is requested for this exact box
 
     /* priority tiles (first row of the first shelves) skip lazy loading and fetch at high priority */
     const img = h("img.tile-img", { alt: media?.alt || "", loading: opts.priority ? "eager" : "lazy", decoding: "async", draggable: false, fetchpriority: opts.priority ? "high" : undefined });
     const reveal = () => img.classList.add("is-loaded");
     img.addEventListener("load", reveal, { once: true });
     if (media) {
-      const src = ctx.thumb(media, width);
+      const src = ctx.thumb(media, width, height);
       if (opts.lazy && ctx.lazy) ctx.lazy(img, src); else img.src = src;
       if (img.complete && img.naturalWidth > 0) reveal();
-      img.addEventListener("error", (e) => { if (!img.dataset.fallback && media.poster && media.poster !== media.thumb) { img.dataset.fallback = "1"; img.src = ctx.thumb({ ...media, thumb: media.poster }, width); } else { reveal(); el.classList.add("tile-broken"); } }, { once: false });
+      img.addEventListener("error", (e) => { if (!img.dataset.fallback && media.poster && media.poster !== media.thumb) { img.dataset.fallback = "1"; img.src = ctx.thumb({ ...media, thumb: media.poster }, width, height); } else { reveal(); el.classList.add("tile-broken"); } }, { once: false });
     } else reveal();
 
     /* dark meta chips, bottom-left over the scrim */
@@ -54,9 +55,19 @@ XR.define("ui.tile", ["ui.dom", "ui.icons", "ui.preview"], function (dom, icons,
     const more = h("button.tile-more", { "aria-label": "More", onclick: (e) => { e.stopPropagation(); opts.onMenu?.(post, e); } }, icons.icon("more", 15));
     const check = opts.onToggleSelect ? h("span.tile-check", { "aria-hidden": "true" }, icons.icon("check", 13)) : null;
 
+    /* The creator strip is invisible until hover unless tiles always show details, so its
+       avatar is only fetched when the strip can actually be seen (one request per tile saved). */
+    let armAvatar = null;
+    function avatarImg() {
+      const a = h("img.avatar.avatar-xs", { alt: "", loading: "lazy", decoding: "async" });
+      const url = ctx.avatar(post, 24);
+      if (opts.info === "always") a.src = url;
+      else armAvatar = () => { if (!a.getAttribute("src")) a.src = url; };
+      return a;
+    }
     const info = opts.info === "never" ? null : h("div.tile-info",
       h("button.tile-creator", { onclick: (e) => { e.stopPropagation(); opts.onCreator?.(post.author.username); } },
-        post.author.avatar ? h("img.avatar.avatar-xs", { src: ctx.avatar(post, 24), alt: "", loading: "lazy" }) : h("span.avatar.avatar-xs.avatar-fallback", post.author.username[0]?.toUpperCase()),
+        post.author.avatar ? avatarImg() : h("span.avatar.avatar-xs.avatar-fallback", post.author.username[0]?.toUpperCase()),
         h("span.tile-handle", "@" + post.author.username)),
       post.metrics.likes ? h("span.tile-likes", icons.icon("heart", 11, { filled: true }), dom.compact(post.metrics.likes)) : null,
       post.text ? h("p.tile-caption", post.text) : null);
@@ -91,6 +102,7 @@ XR.define("ui.tile", ["ui.dom", "ui.icons", "ui.preview"], function (dom, icons,
     el.addEventListener("pointercancel", cancelPress, { passive: true });
     el.addEventListener("click", (e) => { if (pressed) { pressed = false; e.stopImmediatePropagation(); e.preventDefault(); } }, true);
     if (opts.blur) el.classList.add("tile-blur");
+    if (armAvatar) { el.addEventListener("pointerenter", armAvatar, { once: true }); el.addEventListener("focusin", armAvatar, { once: true }); }
 
     /* hover-intent → the floating preview card zooms out of this tile (desktop) */
     let hoverTimer = 0;
@@ -125,7 +137,8 @@ XR.define("ui.tile", ["ui.dom", "ui.icons", "ui.preview"], function (dom, icons,
       destroy() {
         clearTimeout(hoverTimer);
         if (preview.isOpenFor(post.id)) preview.close();
-        if (ctx.unlazy) ctx.unlazy(img);
+        /* unmounted while still downloading (fast scroll through a grid): cancel it */
+        if (ctx.unlazy) ctx.unlazy(img, true);
         el.remove();
       },
     };

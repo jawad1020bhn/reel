@@ -71,7 +71,8 @@ XR.define("features.creators", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry"
       const seen = c.ids.filter((id) => activity.isSeen(id)).length;
       const heroArt = catalog.query({ creator: c.username, sort: "likes" }).items.find((p) => p.media.length) || res.items.find((p) => p.media.length);
       const head = h("header.creator-head",
-        heroArt ? h("div.creator-hero-art", { style: { backgroundImage: `url("${media.poster(heroArt.media[0], 900)}")` }, "aria-hidden": "true" }) : null,
+        /* the hero wash is blurred 22px and dimmed: a small still is indistinguishable from a 900px one */
+        heroArt ? h("div.creator-hero-art", { style: { backgroundImage: `url("${media.placeholder(heroArt.media[0])}")` }, "aria-hidden": "true" }) : null,
         W.avatar(media.avatar({ author: { avatar: c.avatar } }, 120), c.name, 88),
         h("div.creator-head-text",
           h("h1.page-title", c.name),

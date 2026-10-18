@@ -4,10 +4,10 @@ XR.define("ui.tiles", ["ui.tile", "ui.postMenu", "app.media", "app.activity", "a
   function (tile, postMenu, media, activity, catalog, actions, prefs, resolver, platform) {
     "use strict";
     const ctx = {
-      thumb: (m, w) => media.thumb(m, w),
+      thumb: (m, w, h) => media.thumb(m, w, h),
       avatar: (p, px) => media.avatar(p, px),
       lazy: (img, src) => media.lazy(img, src),
-      unlazy: (img) => media.unlazy(img),
+      unlazy: (img, abort) => media.unlazy(img, abort),
       isSeen: (id) => activity.isSeen(id),
       isStarred: (id) => activity.isStarred(id),
       progressOf: (p) => activity.progressOf(p),

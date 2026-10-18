@@ -85,7 +85,8 @@ XR.define("shell.layout", ["ui.dom", "ui.icons", "ui.widgets", "app.features", "
 
       const inner = h("div.hdr-in", h("div.hdr-left", back, brand, navEl), actions);
       const header = h("header.hdr", inner, chips);
-      const outlet = h("div.outlet", { id: "outlet", tabindex: "-1", "aria-label": "Content" });
+      /* the outlet is the page scroller: lazy stills observe it, not the viewport (app.media.lazy) */
+      const outlet = h("div.outlet", { id: "outlet", tabindex: "-1", "aria-label": "Content", dataset: { scrollRoot: "y" } });
       const skip = h("a.skip-link", { href: "#outlet", onclick: () => setTimeout(() => outlet.focus({ preventScroll: true }), 0) }, i18n.t("Skip to content"));
       const main = h("main.main", header, outlet);
       const app = h("div.app", { id: "app" }, skip, main);
