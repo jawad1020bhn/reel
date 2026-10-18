@@ -9,17 +9,27 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
 
     const KIND_CHIPS = [["all", "All", "grid"], ["video", "Videos", "play"], ["short", "Shorts", "zap"], ["long", "Long", "film"], ["photo", "Photos", "image"], ["carousel", "Albums", "layers"], ["gif", "GIFs", "gif"]];
     const STATE_CHIPS = [["unseen", "Unseen", "eye"], ["starred", "Starred", "star"], ["progress", "In progress", "clock"], ["seen", "Seen", "check"], ["hidden", "Hidden", "eyeOff"]];
-    const SORT_OPTIONS = [["saved", "Recently saved"], ["newest", "Newest posted"], ["oldest", "Oldest posted"], ["likes", "Most liked"], ["views", "Most viewed"], ["longest", "Longest"], ["shortest", "Shortest"], ["creator", "By creator"], ["random", "Shuffled"]];
+    const SORT_OPTIONS = [["smart", "Smart shuffle"], ["saved", "Recently saved"], ["newest", "Newest posted"], ["oldest", "Oldest posted"], ["likes", "Most liked"], ["views", "Most viewed"], ["longest", "Longest"], ["shortest", "Shortest"], ["creator", "By creator"], ["random", "Shuffled"]];
     /* Filters that have no chip of their own: they only exist in the Filters sheet,
        so the badge counts exactly these and nothing else. */
     const SHEET_FILTERS = ["creator", "collection", "month", "savedMonth"];
 
     const setSpec = (patch, { replace = true } = {}) => nav.setQuery(engine.toParams({ ...S.spec, ...patch }), { replace });
 
+    /* Default order: a smart shuffle seeded once per page load. Reloading deals a new deck;
+       moving around the app and coming back keeps the same one (scroll restore + back button
+       still make sense). An explicit ?sort= in the URL always wins. */
+    const LOAD_SEED = 1 + Math.floor(Math.random() * 2147483646);
+    const specFrom = (query) => {
+      const spec = engine.fromParams(query);
+      if (query.sort === undefined && !spec.q) { spec.sort = "smart"; spec.seed = spec.seed || LOAD_SEED; }
+      return spec;
+    };
+
     /* ------------------------------------------------------------ render -- */
     function mount(outlet, route) {
       S.host = outlet;
-      S.spec = engine.fromParams(route.query);
+      S.spec = specFrom(route.query);
       const page = h("div.library");
       const toolbar = h("div.lib-toolbar");
       const chips = h("div.lib-chips");
@@ -67,7 +77,7 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
       S.grid?.destroy(); S.grid = null; S.host = null; S.ids = [];
     }
     function update(route) {
-      const next = engine.fromParams(route.query);
+      const next = specFrom(route.query);
       const changed = JSON.stringify(next) !== JSON.stringify(S.spec);
       S.spec = next;
       if (changed) { syncToolbar(); runQuery(); }
@@ -85,7 +95,7 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
         oninput: () => { clearTimeout(S.queryTimer); S.queryTimer = setTimeout(() => setSpec({ q: q.value.trim() }), 260); },
         onkeydown: (e) => { if (e.key === "Escape") { q.value = ""; setSpec({ q: "" }); q.blur(); } if (e.key === "Enter") { clearTimeout(S.queryTimer); setSpec({ q: q.value.trim() }); } },
       });
-      const sort = W.select(SORT_OPTIONS.map(([value, label]) => ({ value, label })), S.spec.sort, (v) => setSpec({ sort: v, seed: v === "random" ? util.daySeed() : 0 }), { cls: "lib-sort" });
+      const sort = W.select(SORT_OPTIONS.map(([value, label]) => ({ value, label })), S.spec.sort, (v) => setSpec({ sort: v, seed: v === "random" || v === "smart" ? Math.floor(Math.random() * 2147483646) + 1 : 0 }), { cls: "lib-sort" });
       sort.setAttribute("aria-label", "Sort order");
       const filterCount = h("span.lib-filter-count", { hidden: true });
       const filterBtn = h("button.btn.lib-filter", { "aria-haspopup": "dialog", onclick: () => openFilters() },
@@ -142,7 +152,7 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
         Ordering joins them on phones, where the toolbar keeps only search + filters. */
     function openFilters() {
       const narrow = innerWidth < 700;
-      const sort = narrow ? W.select(SORT_OPTIONS.map(([value, label]) => ({ value, label })), S.spec.sort, (v) => setSpec({ sort: v, seed: v === "random" ? util.daySeed() : 0 }), { cls: "filter-control" }) : null;
+      const sort = narrow ? W.select(SORT_OPTIONS.map(([value, label]) => ({ value, label })), S.spec.sort, (v) => setSpec({ sort: v, seed: v === "random" || v === "smart" ? Math.floor(Math.random() * 2147483646) + 1 : 0 }), { cls: "filter-control" }) : null;
       const creator = W.select([{ value: "", label: "Any creator" }, ...catalog.creators().map((c) => ({ value: c.username, label: `@${c.username} · ${c.count}` }))], S.spec.creator, (v) => setSpec({ creator: v }), { cls: "filter-control" });
       const collection = W.select([{ value: "", label: "Any collection" }, ...activity.collections().map((c) => ({ value: c.id, label: `${c.name} · ${c.ids.length}` }))], S.spec.collection, (v) => setSpec({ collection: v }), { cls: "filter-control" });
       const month = W.select([{ value: "", label: "Any month posted" }, ...catalog.months.map((m) => ({ value: m.key, label: `${m.label} · ${m.count}` }))], S.spec.month, (v) => setSpec({ month: v }), { cls: "filter-control" });
@@ -317,7 +327,7 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
       if (kind === "bulk" || kind === "hide" || (kind === "star" && S.spec.state === "starred") || (kind === "seen" && (S.spec.state === "seen" || S.spec.state === "unseen")) || kind === "collection" && S.spec.collection) runQuery(false);
       else { S.grid.each((t) => { if (!ids.length || ids.includes(t.post.id)) t.update(); }); renderChips(); }
     }
-    function shuffle() { setSpec({ sort: "random", seed: Math.floor(Math.random() * 99999) + 1 }); }
+    function shuffle() { setSpec({ sort: "smart", seed: Math.floor(Math.random() * 2147483646) + 1 }); }
     /** Phones have no room for the three grid actions; they share one sheet. */
     function moreMenu(anchor) {
       menu.open(anchor, [
@@ -358,7 +368,7 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
         { id: "library.starred", title: "Library: starred", icon: "star", run: () => nav.go("library", {}, { state: "starred" }) },
         { id: "library.shorts", title: "Library: shorts", icon: "zap", run: () => nav.go("library", {}, { kind: "short" }) },
         { id: "library.photos", title: "Library: photos", icon: "image", run: () => nav.go("library", {}, { kind: "photo" }) },
-        { id: "library.shuffle", title: "Library: shuffle order", icon: "shuffle", run: () => nav.go("library", {}, { sort: "random", seed: Date.now() % 99999 }) },
+        { id: "library.shuffle", title: "Library: shuffle order", icon: "shuffle", run: () => nav.go("library", {}, { sort: "smart", seed: Date.now() % 2147483646 }) },
         ...activity.views().map((v) => ({ id: "view:" + v.name, title: "View: " + v.name, icon: "view", run: () => nav.go("library", {}, v.spec) })),
       ],
     };
