@@ -9,12 +9,10 @@ XR.define("features.import", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog", "
     function render() {
       dom.clear(host);
       const src = catalog.source;
-      const empty = !catalog.size;
       const page = h("div.import",
         (catalog.size ? W.pageBar : W.pageHead)(catalog.size ? "Import posts" : "Welcome to XReels",
           catalog.size ? `Currently showing ${src.count} posts from ${src.label}` : "Your X bookmarks, as a private video & photo feed.",
           catalog.size ? W.btn("Manage libraries", { icon: "database", onClick: () => nav.go("settings") }) : null),
-        empty ? demoBanner() : null,
         h("div.import-grid",
           card("upload", "Upload a file", "Drop it anywhere in the app, or pick it.", h("div.stack",
             h("label.dropzone", { for: "xr-file", ondragover: (e) => { e.preventDefault(); e.currentTarget.classList.add("over"); }, ondragleave: (e) => e.currentTarget.classList.remove("over"), ondrop: (e) => { e.preventDefault(); e.currentTarget.classList.remove("over"); const f = e.dataTransfer.files[0]; if (f) analyzeFile(f); } },
@@ -43,24 +41,6 @@ XR.define("features.import", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog", "
       if (pendingFile) { const f = pendingFile; pendingFile = null; analyzeFile(f); }
     }
 
-    /** First run: the demo is the fastest path to the aha moment. Import is still primary. */
-    function demoBanner() {
-      const btn = W.btn("Explore the sample library", { icon: "sparkles", kind: "primary", onClick: async () => {
-        btn.disabled = true;
-        try {
-          await importer.loadSample();
-          actions.toast("Sample library loaded", "success");
-          nav.go("discover");
-        } catch (err) { actions.toast(err.message, "error"); btn.disabled = false; }
-      } });
-      return h("section.import-demo",
-        h("div.import-demo-mark", icons.icon("play", 22, { filled: true })),
-        h("div.import-demo-text",
-          h("b", "No export handy?"),
-          h("p", "Open a 42-post demo library with six creators, arcs, albums and a Watch feed. It lives in this browser — nothing leaves your machine.")),
-        h("div.import-demo-actions", btn,
-          h("span.import-demo-note", "or bring your own below")));
-    }
     const card = (icon, title, text, body) => h("section.import-card",
       h("div.import-card-head", icons.icon(icon, 18), h("h2", title)),
       h("p.import-lede", text),

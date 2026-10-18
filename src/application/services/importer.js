@@ -2,7 +2,6 @@
 
    Sources (DataSourcePort implementations live in infra.datasources):
      auto   : data/posts.js (script tag) → data/posts.json (http only)
-     sample : data/posts.sample.js (neutral demo library)
      file   : a File dropped/picked by the user
      text   : JSON pasted by the user
      url    : a remote JSON (http contexts only)
@@ -207,16 +206,6 @@ XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.po
     async function importFile(file) { const src = sources.get("file"); const res = await src.load(file); return analyze(res.text, { label: res.label }); }
     async function importText(text, label = "Pasted JSON") { return analyze(text, { label }); }
     async function importUrl(url) { const src = sources.get("url"); if (!src?.available()) throw new Error("URL import needs the app to be served over http(s)."); const res = await src.load(url); return analyze(res.json ?? res.text, { label: res.label }); }
-    /** Load the neutral demo library shipped in data/posts.sample.js as a separate library. */
-    async function loadSample() {
-      const src = sources.get("sample");
-      const res = await src.load();
-      if (!res) throw new Error("Sample library not found");
-      const an = await analyze(res.json, { label: "Sample library" });
-      const existing = (await loadIndex()).items.find((d) => d.label === "Sample library");
-      if (existing) { index.active = existing.id; await saveIndex(); return boot(); }
-      return commit(an, { mode: "new", name: "Sample library" });
-    }
 
     /* ------------------------------------------------------- libraries -- */
     async function switchTo(id) {
@@ -250,7 +239,7 @@ XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.po
     }
 
     return {
-      boot, analyze, commit, importFile, importText, importUrl, loadSample, diffAgainstCatalog,
+      boot, analyze, commit, importFile, importText, importUrl, diffAgainstCatalog,
       libraries, activeId, switchTo, renameLibrary, removeLibrary, forgetImported, clearCache, reload,
       exportPosts, fingerprintOf, KEY_AUTO, KEY_INDEX, keyFor,
     };

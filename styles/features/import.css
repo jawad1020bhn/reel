@@ -17,19 +17,6 @@
 .import-card h2 { font-size: 16.5px; font-weight: 600; letter-spacing: -0.01em; }
 .import-lede { color: var(--fg-2); font-size: 13px; line-height: 1.45; margin-top: -6px; }
 
-/* first-run demo strip: the fastest path to the aha moment, still secondary to import */
-.import-demo {
-  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 18px;
-  padding: 18px 20px; margin-bottom: 18px; border-radius: var(--r-xl);
-  background: radial-gradient(120% 160% at 0% 0%, rgb(229 9 20 / 0.10), transparent 58%), rgb(255 255 255 / 0.035);
-  border: 1px solid var(--line);
-}
-.import-demo-mark { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; color: var(--fg); background: rgb(255 255 255 / 0.08); border: 1px solid var(--line-strong); }
-.import-demo-text b { display: block; font-size: 14.5px; font-weight: 600; }
-.import-demo-text p { color: var(--fg-2); font-size: 12.5px; line-height: 1.5; margin-top: 2px; max-width: 62ch; }
-.import-demo-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 7px; }
-.import-demo-note { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--fg-3); }
-
 .dropzone {
   position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
   flex: 1; min-height: 216px; padding: 26px 20px; cursor: pointer; text-align: center; overflow: hidden;
@@ -111,11 +98,6 @@
   .import-card:nth-child(3) > .stack { display: flex; flex-direction: column; }
 }
 @media (max-width: 760px) {
-  .import-demo { grid-template-columns: auto minmax(0, 1fr); align-items: start; }
-  .import-demo-actions { grid-column: 1 / -1; align-items: stretch; }
-  .import-demo-actions .btn { width: 100%; }
-  .import-demo-note { text-align: center; }
-}
 @media (max-width: 640px) {
   .import-card { padding: 16px; border-radius: var(--r-lg); }
   .dropzone { min-height: 190px; }
