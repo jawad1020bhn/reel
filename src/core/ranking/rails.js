@@ -206,11 +206,13 @@ XR.define("core.ranking.rails", ["core.query.engine", "core.util"], function (en
 
     const rails = [];
     const seenIds = new Map();                                 // postId → shelves it already sits in
+    let postCap = PER_POST;                                    // relaxed by the last-chance pass below
+    let minCap = Infinity;                                     // ditto: builders' minimum line-up size
     const finish = (def, rail) => {
       if (!rail) return false;
-      /* a post may sit on at most PER_POST shelves per page; ranked rails keep their order intact */
-      const items = rail.layout === "rank" ? rail.items : rail.items.filter((p) => (seenIds.get(p.id) || 0) < PER_POST);
-      if (items.length < (rail.min ?? 3)) return false;
+      /* a post may sit on at most postCap shelves per page; ranked rails keep their order intact */
+      const items = rail.layout === "rank" ? rail.items : rail.items.filter((p) => (seenIds.get(p.id) || 0) < postCap);
+      if (items.length < Math.min(rail.min ?? 3, minCap)) return false;
       for (const p of items) seenIds.set(p.id, (seenIds.get(p.id) || 0) + 1);
       rails.push({ id: def.id, family: def.family, watchable: true, layout: "", specDisabled: false, ...rail, items });
       return true;
@@ -226,6 +228,11 @@ XR.define("core.ranking.rails", ["core.query.engine", "core.util"], function (en
     const target = count - rails.length;
     const usedFamilies = new Set(), tried = new Set();
     let picked = 0;
+    const attempt = (def) => {
+      let rail = null;
+      try { rail = def.build(B); } catch { rail = null; }
+      return finish(def, rail);
+    };
     for (let pass = 0; pass < 2 && picked < target; pass++) {
       const candidates = POOL.filter((d) => !tried.has(d.id));
       while (picked < target && candidates.length) {
@@ -233,9 +240,25 @@ XR.define("core.ranking.rails", ["core.query.engine", "core.util"], function (en
         candidates.splice(candidates.indexOf(def), 1);
         if (pass === 0 && usedFamilies.has(def.family)) continue;
         tried.add(def.id);
-        let rail = null;
-        try { rail = def.build(B); } catch { rail = null; }
-        if (finish(def, rail)) { usedFamilies.add(def.family); picked++; }
+        if (attempt(def)) { usedFamilies.add(def.family); picked++; }
+      }
+    }
+
+    /* Last chance: on a small library the per-post cap starves late shelves (every
+       post is already on PER_POST of them, so their line-ups filter down below the
+       minimum and the page comes up short). Relax the cap — and, if that is still
+       not enough, the minimum line-up size — and retry every builder that isn't
+       already on the page. Entity spotlights pick a fresh creator/tag via B.used,
+       so nothing repeats. */
+    for (const relax of [{ cap: PER_POST + 2, min: 3 }, { cap: PER_POST + 5, min: 2 }]) {
+      if (picked >= target) break;
+      postCap = relax.cap;
+      minCap = relax.min;
+      const retry = POOL.filter((d) => !rails.some((r) => r.id === d.id));
+      while (picked < target && retry.length) {
+        const def = pickWeighted(retry, (d) => d.weight * d.weight, rnd);
+        retry.splice(retry.indexOf(def), 1);
+        if (attempt(def)) picked++;
       }
     }
 

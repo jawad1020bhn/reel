@@ -64,7 +64,6 @@
 .lib-sort-note { display: none; }
 @media (max-width: 700px) {
   .lib-sort-note:not(:empty) { display: inline; }
-  .lib-sort-note:not(:empty)::before { content: " · "; }
 }
 
 /* filter sheet */
