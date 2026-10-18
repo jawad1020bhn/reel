@@ -1,8 +1,8 @@
 /* shell.layout — the application frame: a fixed cinematic header (brand wordmark,
-   sliding-pill text nav, expanding search, utility icons) with a frosted chip rail
-   on mobile, and the outlet where features mount. */
-XR.define("shell.layout", ["ui.dom", "ui.icons", "ui.widgets", "app.features", "app.nav", "app.playback", "app.catalog", "app.lock", "core.events", "core.domain.events", "core.i18n"],
-  function (dom, icons, W, features, nav, playback, catalog, lock, events, EV, i18n) {
+   sliding-pill text nav, expanding search, utility icons) with a chip rail on tablets and thumb-reachable navigation
+   on phones, and the outlet where features mount. */
+XR.define("shell.layout", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu", "app.features", "app.nav", "app.playback", "app.catalog", "app.lock", "core.events", "core.domain.events", "core.i18n"],
+  function (dom, icons, W, menu, features, nav, playback, catalog, lock, events, EV, i18n) {
     "use strict";
     const h = dom.h;
     let els = null;
@@ -36,16 +36,25 @@ XR.define("shell.layout", ["ui.dom", "ui.icons", "ui.widgets", "app.features", "
         type: "search", placeholder: i18n.t("Search titles, creators, #tags") + "  ( / )", "aria-label": "Search your library",
         autocomplete: "off", spellcheck: false, enterkeyhint: "search",
         onkeydown: (e) => {
-          if (e.key === "Enter") { nav.go("library", {}, { q: input.value.trim() }); closeSearch(); }
+          if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); nav.go("library", {}, { q: input.value.trim() }); closeSearch(); }
           else if (e.key === "Escape") { e.stopPropagation(); closeSearch(); }
         },
       });
-      const form = h("form.hdr-search", { role: "search", id: "hdr-search-form", onsubmit: (e) => { e.preventDefault(); nav.go("library", {}, { q: input.value.trim() }); closeSearch(); } },
+      let focusTimer = 0;
+      const form = h("form.hdr-search", { hidden: true, role: "search", id: "hdr-search-form", onsubmit: (e) => { e.preventDefault(); nav.go("library", {}, { q: input.value.trim() }); closeSearch(); } },
         icons.icon("search", 19), input,
         h("button.hdr-search-close", { type: "button", "aria-label": "Close search", onclick: () => closeSearch() }, icons.icon("x", 15)));
       const btn = h("button.hdr-icon.hdr-search-btn", { title: "Search ( / )", "aria-label": "Open search", "aria-expanded": "false", "aria-controls": "hdr-search-form", onclick: () => (form.classList.contains("open") ? closeSearch() : openSearch()) }, icons.icon("search", 21));
-      function openSearch() { form.classList.add("open"); btn.setAttribute("aria-expanded", "true"); setTimeout(() => input.focus(), 180); }
-      function closeSearch() { form.classList.remove("open"); btn.setAttribute("aria-expanded", "false"); input.value = ""; input.blur(); }
+      function openSearch() {
+        clearTimeout(focusTimer); form.hidden = false; form.classList.add("open");
+        btn.setAttribute("aria-expanded", "true");
+        focusTimer = setTimeout(() => { if (!form.hidden) input.focus(); }, 180);
+      }
+      function closeSearch() {
+        clearTimeout(focusTimer); form.classList.remove("open"); form.hidden = true;
+        btn.setAttribute("aria-expanded", "false"); input.value = "";
+        if (form.contains(document.activeElement)) btn.focus({ preventScroll: true });
+      }
       return { form, btn, input, openSearch, closeSearch };
     }
 
@@ -56,7 +65,7 @@ XR.define("shell.layout", ["ui.dom", "ui.icons", "ui.widgets", "app.features", "
       const secondary = items.filter((m) => m.order >= 100);
 
       const search = buildSearch();
-      const muteBtn = W.iconBtn(playback.muted ? "mute" : "volume", "Mute / unmute (m)", () => playback.toggleMuted(), { cls: "hdr-icon" });
+      const muteBtn = W.iconBtn(playback.muted ? "mute" : "volume", "Mute / unmute (m)", () => playback.toggleMuted(), { cls: "hdr-icon hdr-mute" });
       const source = h("button.src-chip", { title: "Data source · open Import", onclick: () => nav.go("import") },
         icons.icon("database", 14), h("span.src-chip-text", "…"));
 
@@ -74,11 +83,11 @@ XR.define("shell.layout", ["ui.dom", "ui.icons", "ui.widgets", "app.features", "
       const actions = h("div.hdr-actions",
         source,
         h("span.hdr-spacer"),
-        search.form,   /* the expanding field stays for the "/" shortcut and the palette; no icon in the header */
+        search.form, search.btn,
         muteBtn,
-        W.iconBtn("command", "Command palette (⌘K)", () => events.bus.emit(EV.PALETTE_OPEN, {}), { cls: "hdr-icon" }),
+        W.iconBtn("command", "Command palette (⌘K)", () => events.bus.emit(EV.PALETTE_OPEN, {}), { cls: "hdr-icon hdr-command" }),
         secondary.filter((m) => m.id !== "import").map((m) => {
-          const btn = W.iconBtn(m.icon, m.title, () => nav.go(m.id), { cls: "hdr-icon", size: 19 });
+          const btn = W.iconBtn(m.icon, m.title, () => nav.go(m.id), { cls: "hdr-icon hdr-secondary", size: 19 });
           btn.dataset.feature = m.id;            // so setActive can light the gear
           return btn;
         }));
@@ -86,12 +95,29 @@ XR.define("shell.layout", ["ui.dom", "ui.icons", "ui.widgets", "app.features", "
       const inner = h("div.hdr-in", h("div.hdr-left", back, brand, navEl), actions);
       const header = h("header.hdr", inner, chips);
       const outlet = h("div.outlet", { id: "outlet", tabindex: "-1", "aria-label": "Content" });
-      const skip = h("a.skip-link", { href: "#outlet", onclick: () => setTimeout(() => outlet.focus({ preventScroll: true }), 0) }, i18n.t("Skip to content"));
-      const main = h("main.main", header, outlet);
+      const skip = h("a.skip-link", { href: "#outlet", onclick: (e) => { e.preventDefault(); outlet.focus({ preventScroll: true }); } }, i18n.t("Skip to content"));
+      /* Four stable destinations, then the complete page list. Watch remains
+         immersive; its Back control returns to the same navigation context. */
+      const phoneIds = ["discover", "library", "watch", "collections"];
+      const phoneLinks = phoneIds.map((id) => {
+        const m = items.find((item) => item.id === id);
+        if (!m) return null;
+        return h("a.mobile-nav-link", { href: "#" + nav.build(id), dataset: { feature: id }, onclick: (e) => { e.preventDefault(); nav.go(id); } },
+          icons.icon(m.icon, 21), h("span", i18n.t(m.title)));
+      });
+      const moreBtn = h("button.mobile-nav-link.mobile-nav-more", { type: "button", "aria-label": "More pages", "aria-haspopup": "menu", onclick: () => {
+        menu.open(moreBtn, [
+          ...items.filter((m) => !phoneIds.includes(m.id)).map((m) => ({ label: m.title, icon: m.icon, checked: nav.current?.name === m.id, run: () => nav.go(m.id) })),
+          { sep: true },
+          { label: "Command palette", icon: "command", run: () => events.bus.emit(EV.PALETTE_OPEN, {}) },
+        ], { title: "More" });
+      } }, icons.icon("more", 21), h("span", i18n.t("More")));
+      const mobileNav = h("nav.mobile-nav", { "aria-label": "Primary" }, phoneLinks, moreBtn);
+      const main = h("main.main", header, outlet, mobileNav);
       const app = h("div.app", { id: "app" }, skip, main);
       document.body.appendChild(app);
 
-      els = { app, header, nav: navEl, chips, pill, outlet, main, search: search.input, searchBtn: search.btn, openSearch: search.openSearch, muteBtn, source, back };
+      els = { app, header, nav: navEl, chips, pill, outlet, main, mobileNav, moreBtn, phoneIds, search: search.input, searchBtn: search.btn, openSearch: search.openSearch, muteBtn, source, back };
 
       /* header reacts to the outlet scroll: scrim at top, solid once you move */
       outlet.addEventListener("scroll", dom.rafThrottle(() => {
@@ -133,7 +159,13 @@ XR.define("shell.layout", ["ui.dom", "ui.icons", "ui.widgets", "app.features", "
     function setActive(route) {
       if (!els) return;
       const f = features.get(route.name);
-      for (const a of els.app.querySelectorAll("[data-feature]")) a.classList.toggle("is-active", a.dataset.feature === route.name);
+      for (const a of els.app.querySelectorAll("[data-feature]")) {
+        const active = a.dataset.feature === route.name;
+        a.classList.toggle("is-active", active);
+        if (a.matches("a")) { if (active) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); }
+      }
+      els.moreBtn.classList.toggle("is-active", !els.phoneIds.includes(route.name));
+      menu.close();
       els.app.dataset.feature = route.name;
       els.app.classList.toggle("app-immersive", !!(f && f.layout === "immersive"));
       /* back only exists where there is somewhere to go back to (detail pages) */

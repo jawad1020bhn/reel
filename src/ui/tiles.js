@@ -45,6 +45,10 @@ XR.define("ui.tiles", ["ui.tile", "ui.postMenu", "app.media", "app.activity", "a
       });
     }
     const aspectOf = (post) => tile.aspectFor(post, prefs.get("tileShape"));
-    const infoHeight = () => (prefs.get("tileInfo") === "always" ? 54 : 0);
+    const infoHeight = (post) => {
+      const info = prefs.get("tileInfo");
+      if (info === "always") return (platform.isTouch() ? 44 : 20) + 8 + (post?.text ? 38 : 0);
+      return info !== "never" && (platform.isTouch() || innerWidth < 768) ? 44 : 0;
+    };
     return { make, ctx, aspectOf, infoHeight };
   });

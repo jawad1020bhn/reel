@@ -63,17 +63,36 @@ XR.define("ui.tile", ["ui.dom", "ui.icons", "ui.preview"], function (dom, icons,
 
     const el = h("article.tile", {
       class: `tile-${kind} ${opts.info === "always" ? "tile-info-always" : ""}`,
-      tabindex: "0", role: "button", dataset: { id: post.id, index: opts.index ?? "" },
+      dataset: { id: post.id, index: opts.index ?? "" },
       "aria-label": `${post.author.name}: ${post.text ? post.text.slice(0, 80) : kind}`,
       style: { "--aspect": aspect.toFixed(3) },
     }, h("div.tile-media", h("span.tile-skel", { "aria-hidden": "true" }), img, h("div.tile-scrim"), badges, tag, star, progress, more, check, kind === "short" || kind === "long" ? h("span.tile-play", icons.icon("play", 24, { filled: true })) : null), info);
 
+    const opener = h("button.tile-open", { type: "button", "aria-label": `${post.author.name}: ${post.text ? post.text.slice(0, 80) : kind}` });
+    el.querySelector(".tile-media").prepend(opener);
+    /* Hover-only metadata is a closed supplementary interface, not invisible
+       interactive content. Make it inert until pointer/keyboard focus reveals
+       it. Compact phone rows and the explicit Always preference stay exposed. */
+    let infoFocusFrame = 0;
+    function syncInfo() {
+      if (!info) return;
+      const compact = document.documentElement.dataset.touch === "on" || innerWidth < 768;
+      const expanded = opts.info === "always" || compact || el.matches(":hover, :focus-within");
+      info.inert = !expanded;
+      info.setAttribute("aria-hidden", expanded ? "false" : "true");
+    }
+    el.addEventListener("pointerenter", syncInfo);
+    el.addEventListener("pointerleave", syncInfo);
+    el.addEventListener("focusin", syncInfo);
+    el.addEventListener("focusout", () => { cancelAnimationFrame(infoFocusFrame); infoFocusFrame = requestAnimationFrame(syncInfo); });
+    window.addEventListener("resize", syncInfo, { passive: true });
+    syncInfo();
     const open = (e) => {
       if (opts.onToggleSelect && opts.selectActive?.()) { opts.onToggleSelect(post, e); return; }
       opts.onOpen?.(post, e);
     };
     el.addEventListener("click", open);
-    el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(e); } else if (e.key === "s" && opts.onStar) { opts.onStar(post); } });
+    el.addEventListener("keydown", (e) => { if (e.target === opener && e.key === "s" && opts.onStar) { e.preventDefault(); opts.onStar(post); } });
     el.addEventListener("contextmenu", (e) => { if (opts.onMenu) { e.preventDefault(); opts.onMenu(post, e); } });
 
     /* touch long-press → the post sheet (iOS Safari does not fire contextmenu for touch);
@@ -123,7 +142,8 @@ XR.define("ui.tile", ["ui.dom", "ui.icons", "ui.preview"], function (dom, icons,
         progress.firstChild.style.width = (p * 100).toFixed(1) + "%";
       },
       destroy() {
-        clearTimeout(hoverTimer);
+        clearTimeout(hoverTimer); cancelPress(); cancelAnimationFrame(infoFocusFrame);
+        window.removeEventListener("resize", syncInfo);
         if (preview.isOpenFor(post.id)) preview.close();
         if (ctx.unlazy) ctx.unlazy(img);
         el.remove();

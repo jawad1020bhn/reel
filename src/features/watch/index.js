@@ -41,11 +41,12 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
         h("div.watch-top-actions",
           W.iconBtn("fit", "Fit / fill (x)", () => cycleFit(), { cls: "watch-fit" }),
           W.iconBtn("pip", "Picture-in-picture (p)", () => togglePip(), { cls: "watch-pip" }),
+          W.iconBtn("sliders", "Player options", () => playerOptions(), { cls: "watch-options" }),
           W.iconBtn("expand", "Fullscreen (f)", () => platform.fullscreen(S.root), { cls: "watch-fs" })));
       const side = h("div.watch-side",
-        h("button.side-btn.side-mute", { title: "Mute (m)", onclick: () => playback.toggleMuted() }, icons.icon(playback.muted ? "mute" : "volume", 26), h("span.side-label", "Sound")),
-        h("button.side-btn.side-info", { title: "Caption & details (i)", onclick: (e) => { e.stopPropagation(); toggleInfo(); } }, icons.icon("info", 26), h("span.side-label", "Info")),
-        h("button.side-btn", { title: "More", onclick: (e) => { const p = current(); if (p) postMenu.open(p, e.currentTarget, { ids: S.ids, index: S.index, label: S.label, noWatch: true, noOpen: true }); } }, icons.icon("more", 26), h("span.side-label", "More")));
+        h("button.side-btn.side-mute", { "aria-label": "Mute / unmute", title: "Mute (m)", onclick: () => playback.toggleMuted() }, icons.icon(playback.muted ? "mute" : "volume", 26), h("span.side-label", "Sound")),
+        h("button.side-btn.side-info", { "aria-label": "Caption and details", title: "Caption & details (i)", onclick: (e) => { e.stopPropagation(); toggleInfo(); } }, icons.icon("info", 26), h("span.side-label", "Info")),
+        h("button.side-btn", { "aria-label": "Post actions", title: "More", onclick: (e) => { const p = current(); if (p) postMenu.open(p, e.currentTarget, { ids: S.ids, index: S.index, label: S.label, noWatch: true, noOpen: true }); } }, icons.icon("more", 26), h("span.side-label", "More")));
       const arrows = h("div.watch-arrows", W.iconBtn("chevronUp", "Previous (↑)", () => go(-1), { cls: "watch-arrow watch-arrow-up", size: 24 }), W.iconBtn("chevronDown", "Next (↓)", () => go(1), { cls: "watch-arrow watch-arrow-down", size: 24 }));
       const hud = h("div.watch-hud");
       const upnext = h("button.watch-upnext", { title: "Up next (↓)", onclick: () => go(1) });
@@ -58,15 +59,16 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
         h("div.nextup-actions",
           W.btn("Next", { icon: "chevronDown", kind: "primary", onClick: (e) => { e.stopPropagation(); fireNext(); } }),
           W.btn("Cancel", { icon: "x", onClick: (e) => { e.stopPropagation(); cancelNext(); } })));
-      const root = h("div.watch", { tabindex: "-1" }, track, top, side, arrows, hud, upnext, info, nextup, h("div.watch-heart", icons.icon("heart", 96, { filled: true })));
+      const root = h("div.watch", { tabindex: "-1" }, track, top, side, arrows, hud, upnext, info, nextup, h("div.watch-heart", icons.icon("heart", 96, { filled: true })), h("div.watch-seekflash"));
       outlet.appendChild(root);
       S.root = root; S.track = track; S.els = { top, side, arrows, hud, upnext, info, nextup, counter: top.querySelector(".watch-counter"), label: top.querySelector(".watch-label") };
       S.infoOpen = false; S.nextCancelled = false;
-      bindGestures();
+      const unbindGestures = bindGestures();
       bindKeys();
       armIdle();
       renderWindow(true);
       S.offs = [
+        unbindGestures,
         events.bus.on(EV.ACTIVITY_CHANGED, () => { if (S.infoOpen) renderInfo(); }),
         events.bus.on(EV.PLAYBACK_CHANGED, ({ muted }) => dom.replace(side.querySelector(".side-mute"), icons.icon(muted ? "mute" : "volume", 26), h("span.side-label", muted ? "Muted" : "Sound"))),
         events.bus.on(EV.PREFS_CHANGED, ({ patch }) => { if ("fit" in patch) { S.fitOverride = null; S.cells.forEach((c) => c.fit(fitMode())); } }),
@@ -79,15 +81,17 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
     function unmount() {
       for (const off of S.offs) off(); S.offs = [];
       keys.pop("watch"); keys.unbindScope("watch");
-      clearTimeout(S.seenTimer);
+      clearTimeout(S.seenTimer); clearTimeout(S.wheelTimer); clearTimeout(flashTimer);
+      menu.close();
       for (const c of S.cells.values()) c.destroy(); S.cells.clear();
       feed.setIndex(S.index);
       if (platform.isFullscreen()) platform.exitFullscreen();
+      S.endCard?.remove(); S.endCard = null;
       S.root = null; S.host = null; S.track = null;
       clearInterval(S.idleT); S.idleT = 0;
       killNextup(); S.infoOpen = false;
     }
-    function update(route) { if (route.query.post && S.ids[S.index] !== route.query.post) { const i = S.ids.indexOf(route.query.post); if (i >= 0) jump(i); else { unmount(); mount(S.host, route); } } }
+    function update(route) { if (route.query.post && S.ids[S.index] !== route.query.post) { const i = S.ids.indexOf(route.query.post); if (i >= 0) jump(i); else { const host = S.host; unmount(); mount(host, route); } } }
 
     const current = () => catalog.post(S.ids[S.index]) || null;
     const fitMode = () => S.fitOverride || prefs.get("fit");
@@ -101,7 +105,8 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
         onOpenCreator: (u) => actions.goCreator(u),
         onTag: (t) => actions.goTag(t),
         onOpenX: (p) => actions.openOnX(p),
-        onRetry: () => { const c = S.cells.get(S.index); if (c) { c.deactivate(); c.activate(); } },
+        onNext: () => go(1),
+        onRetry: () => { const c = S.cells.get(S.index); if (c) { c.destroy(); S.cells.delete(S.index); renderWindow(); } },
         onHide: (p) => { actions.hide(p); if (!go(1)) go(-1); },
         onUnplayable: () => { S.els?.upnext?.classList.remove("on"); },
         onCarouselEnd: () => {}, onCarouselStart: () => {},
@@ -126,6 +131,7 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
       // end card as a pseudo cell
       if (S.index >= S.ids.length - 1 - WINDOW && S.ids.length) {
         if (!S.endCard) { S.endCard = endCard(); S.track.appendChild(S.endCard); }
+        S.endCard.inert = true; S.endCard.setAttribute("aria-hidden", "true"); S.endCard.classList.remove("is-active");
         S.endCard.style.transform = `translate3d(0, ${(S.ids.length - S.index) * 100}%, 0)`;
       } else if (S.endCard) { S.endCard.remove(); S.endCard = null; }
       position(0, initial);
@@ -156,6 +162,7 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
       S.index = next;
       if (S.index === S.ids.length) { // end card
         for (const c of S.cells.values()) c.deactivate();
+        S.endCard.inert = false; S.endCard.removeAttribute("aria-hidden"); S.endCard.classList.add("is-active");
         position(0);
         S.els.counter.textContent = `${S.ids.length} / ${S.ids.length}`;
         return true;
@@ -164,7 +171,7 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
       return true;
     }
     function jump(i) { S.index = util.clamp(i, 0, S.ids.length - 1); for (const c of S.cells.values()) c.destroy(); S.cells.clear(); renderWindow(true); }
-    function bounce() { S.track.classList.add("bounce"); setTimeout(() => S.track.classList.remove("bounce"), 300); }
+    function bounce() { const track = S.track; track?.classList.add("bounce"); setTimeout(() => track?.classList.remove("bounce"), 300); }
     function endCard() {
       return h("section.cell.cell-end", h("div.end-card", icons.icon("check", 40), h("h2", "You're all caught up"), h("p.muted", `${S.ids.length} posts · ${S.label}`),
         h("div.end-actions", W.btn("Shuffle more", { icon: "shuffle", kind: "primary", onClick: () => actions.shufflePlay() }), W.btn("Unseen shorts", { icon: "zap", onClick: () => { const list = catalog.query({ kind: "short", state: "unseen", sort: "random", seed: Date.now() % 9999 }).items.map((p) => p.id); if (list.length) { feed.set(list, 0, { label: "Unseen shorts" }); jump(0); S.label = "Unseen shorts"; S.els.label.textContent = S.label; } else actions.toast("No unseen shorts left"); } }), W.btn("Back", { icon: "arrowLeft", onClick: () => nav.back("discover") }))));
@@ -275,12 +282,33 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
         const c = S.cells.get(S.index);
         const playing = c?.video && !c.video.paused && !c.video.ended;
         const upOpen = S.els.nextup.classList.contains("on");
-        const idle = Date.now() - S.lastAct > 3500 && playing && !S.infoOpen && !upOpen;
+        const focusedControl = document.activeElement !== S.root && S.root.contains(document.activeElement) && document.activeElement.matches(":focus-visible");
+        const scrubbing = c?.el.classList.contains("is-scrubbing");
+        const idle = Date.now() - S.lastAct > 3500 && playing && !S.infoOpen && !upOpen && !menu.isOpen && !focusedControl && !scrubbing;
         S.root.classList.toggle("is-idle", Boolean(idle));
       }, 700);
     }
     function toggleStar() { const p = current(); if (!p) return; const on = actions.star(p); if (on) heart(); }
     function heart() { const el = S.root.querySelector(".watch-heart"); el.classList.remove("pop"); void el.offsetWidth; el.classList.add("pop"); platform.vibrate(12); }
+    /** double-tap feedback: a pill at the finger, pointing where the video went */
+    function seekFlash(text, x, y, side) {
+      const el = S.root?.querySelector(".watch-seekflash");
+      if (!el) return;
+      el.textContent = text;
+      el.style.left = util.clamp(x, 58, S.root.clientWidth - 58) + "px";
+      el.style.top = util.clamp(y, 74, S.root.clientHeight - 74) + "px";
+      el.dataset.side = side;
+      el.classList.remove("pop"); void el.offsetWidth; el.classList.add("pop");
+      clearTimeout(seekFlashTimer); seekFlashTimer = setTimeout(() => el.classList.remove("pop"), 700);
+    }
+    let seekFlashTimer = 0;
+    function playerOptions() {
+      menu.open(S.root?.querySelector(".watch-options"), [
+        { label: "Fit / fill", icon: "fit", run: cycleFit },
+        { label: "Picture-in-picture", icon: "pip", run: togglePip },
+        { label: "Up next", icon: "list", run: () => queueSheet() },
+      ], { title: "Player options" });
+    }
     function cycleFit() { const order = ["auto", "cover", "contain"]; const cur = fitMode(); S.fitOverride = order[(order.indexOf(cur) + 1) % order.length]; S.cells.forEach((c) => c.fit(S.fitOverride)); flash(S.fitOverride === "cover" ? "Fill" : S.fitOverride === "contain" ? "Fit" : "Auto"); }
     function renderUpNext() {
       const el = S.els?.upnext; if (!el) return;
@@ -320,13 +348,14 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
         if (Math.abs(S.wheelAcc) >= 40) { const d = S.wheelAcc > 0 ? 1 : -1; S.wheelAcc = 0; go(d); }
       }, { passive: false });
 
-      let drag = null, lastTap = 0, tapTimer = 0, holdTimer = 0, holding = false;
+      let drag = null, lastTap = null, tapTimer = 0, holdTimer = 0, holding = false;
       const H = () => root.clientHeight || innerHeight;
       root.addEventListener("pointerdown", (e) => {
         if (e.button !== 0) return;
         if (e.target.closest("button, a, .cell-bar, .watch-top, .watch-side, .watch-arrows, .watch-info-card, .watch-nextup, .carousel-arrow, .cell-unplayable")) return;
         const cell = S.cells.get(S.index);
-        drag = { x0: e.clientX, y0: e.clientY, t0: Date.now(), axis: null, id: e.pointerId, cell, seekFrom: 0, dur: 0, moved: false, onCarousel: !!e.target.closest(".carousel") };
+        drag = { x0: e.clientX, y0: e.clientY, t0: Date.now(), axis: null, id: e.pointerId, type: e.pointerType, cell, seekFrom: 0, dur: 0, moved: false, carousel: e.target.closest(".carousel"), wasIdle: root.classList.contains("is-idle") };
+        root.classList.remove("is-idle", "chrome-hidden");
         holding = false;
         clearTimeout(holdTimer);
         holdTimer = setTimeout(() => { if (drag && !drag.moved && cell?.video) { holding = true; cell.setRate(Math.max(2, playback.speed)); flash("2×", true); root.classList.add("is-holding"); } }, 450);
@@ -340,13 +369,21 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
           if (holding) return;
           drag.axis = Math.abs(dy) >= Math.abs(dx) ? "y" : "x";
           if (drag.axis === "x") {
-            if (drag.onCarousel || !drag.cell?.video) { drag = null; return; } // native carousel scroll / nothing to seek
-            const v = drag.cell.video; drag.seekFrom = v.currentTime; drag.dur = v.duration || drag.cell.handle.media.duration;
+            if (drag.carousel) {
+              drag.scrollFrom = drag.carousel.scrollLeft;
+              root.classList.add("is-carousel-dragging");
+            } else {
+              if (!drag.cell?.video) { drag = null; return; }
+              const v = drag.cell.video; drag.seekFrom = v.currentTime; drag.dur = v.duration || drag.cell.handle.media.duration;
+              if (!Number.isFinite(drag.dur) || drag.dur <= 0) { drag = null; return; }
+            }
             root.setPointerCapture?.(e.pointerId);
           } else root.setPointerCapture?.(e.pointerId);
         }
         if (drag.axis === "y") { position(dy * 0.9); }
-        else if (drag.axis === "x") {
+        else if (drag.axis === "x" && drag.carousel) {
+          drag.carousel.scrollLeft = drag.scrollFrom - dx;
+        } else if (drag.axis === "x") {
           const w = root.clientWidth || innerWidth;
           const t = util.clamp(drag.seekFrom + (dx / w) * drag.dur, 0, drag.dur);
           drag.seekTo = t;
@@ -357,24 +394,59 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
       const end = (e) => {
         if (!drag || e.pointerId !== drag.id) return;
         const d = drag; drag = null;
-        clearTimeout(holdTimer);
+        clearTimeout(holdTimer); cancelAnimationFrame(d.seekRaf);
+        if (root.hasPointerCapture?.(e.pointerId)) root.releasePointerCapture(e.pointerId);
         if (holding) { holding = false; d.cell?.setRate(playback.speed); hideFlash(); root.classList.remove("is-holding"); return; }
         const dx = e.clientX - d.x0, dy = e.clientY - d.y0, dt = Date.now() - d.t0;
         if (d.axis === "y") {
           const v = Math.abs(dy) / Math.max(1, dt);
           if (Math.abs(dy) > Math.min(90, H() * 0.15) || v > 0.6) { if (!go(dy < 0 ? 1 : -1)) position(0); }
           else position(0);
+        } else if (d.axis === "x" && d.carousel) {
+          const w = d.carousel.clientWidth;
+          const from = Math.round(d.scrollFrom / w);
+          const advance = Math.abs(dx) > w * 0.15 || Math.abs(dx) / Math.max(1, dt) > 0.5;
+          const to = util.clamp(from + (advance ? (dx < 0 ? 1 : -1) : 0), 0, d.cell.carousel.length - 1);
+          root.classList.remove("is-carousel-dragging");
+          d.carousel.scrollTo({ left: to * w, behavior: document.documentElement.dataset.motion === "reduce" ? "auto" : "smooth" });
         } else if (d.axis === "x") { hideFlash(); d.cell.handle.seek(d.seekTo ?? d.seekFrom); }
         else if (!d.moved && dt < 350) { // tap
           const now = Date.now();
-          if (now - lastTap < 280) { clearTimeout(tapTimer); lastTap = 0; const p = current(); if (p && !activity.isStarred(p.id)) actions.star(p); heart(); }
-          else { lastTap = now; tapTimer = setTimeout(() => { const c = S.cells.get(S.index); if (c?.video) c.togglePlay(); else root.classList.toggle("chrome-hidden"); }, 280); }
+          if (lastTap && now - lastTap.at < 280 && lastTap.cell === d.cell && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 44) {
+            clearTimeout(tapTimer); lastTap = null;
+            const cell = S.cells.get(S.index);
+            const r = root.getBoundingClientRect();
+            const x = (e.clientX - r.left) / Math.max(1, r.width);
+            /* double-tap on the flanks skips, double-tap in the middle stars —
+               the gesture a phone expects, without losing the like */
+            if (cell?.video && d.type === "touch" && x < 0.4) { cell.seekBy(-10); seekFlash("−10s", e.clientX - r.left, e.clientY - r.top, "left"); }
+            else if (cell?.video && d.type === "touch" && x > 0.6) { cell.seekBy(10); seekFlash("+10s", e.clientX - r.left, e.clientY - r.top, "right"); }
+            else { const p = current(); if (p && !activity.isStarred(p.id)) actions.star(p); heart(); }
+          }
+          else {
+            clearTimeout(tapTimer);
+            lastTap = { at: now, x: e.clientX, y: e.clientY, cell: d.cell };
+            tapTimer = setTimeout(() => {
+              lastTap = null;
+              if (S.root !== root || S.cells.get(S.index) !== d.cell || d.wasIdle) return;
+              if (d.cell?.video) d.cell.togglePlay(); else root.classList.toggle("chrome-hidden");
+            }, 280);
+          }
         }
       };
       root.addEventListener("pointerup", end);
-      root.addEventListener("pointercancel", (e) => { if (drag && e.pointerId === drag.id) { drag = null; clearTimeout(holdTimer); position(0); if (holding) { holding = false; S.cells.get(S.index)?.setRate(playback.speed); hideFlash(); } } });
+      function cancelGesture() {
+        clearTimeout(holdTimer); clearTimeout(tapTimer); lastTap = null;
+        if (drag) cancelAnimationFrame(drag.seekRaf);
+        if (holding) { holding = false; drag?.cell?.setRate(playback.speed); hideFlash(); }
+        drag = null; root.classList.remove("is-holding", "is-carousel-dragging");
+        if (S.root === root) position(0);
+      }
+      root.addEventListener("pointercancel", cancelGesture);
+      root.addEventListener("focusin", () => { S.lastAct = Date.now(); root.classList.remove("is-idle"); });
       root.addEventListener("contextmenu", (e) => { if (e.target.closest(".cell-stage")) e.preventDefault(); });
       root.addEventListener("dblclick", (e) => e.preventDefault());
+      return () => { cancelGesture(); clearTimeout(seekFlashTimer); };
     }
     function bindKeys() {
       const b = (k, fn, desc) => keys.bind("watch", k, fn, { desc });

@@ -8,7 +8,7 @@
 }
 .settings-nav-title {
   margin: 0 0 8px; padding-left: 12px;
-  font-family: var(--mono); font-size: 9.5px; font-weight: 500; letter-spacing: 0.18em;
+  font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: 0.14em;
   text-transform: uppercase; color: var(--fg-3);
 }
 .settings-nav-link {
@@ -44,8 +44,10 @@
 .settings-body .row-desc { max-width: 52ch; line-height: 1.4; }
 .settings-body .row-btns { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 .settings-body .segmented { flex-wrap: wrap; justify-content: flex-end; }
-.settings-body .lib-list { margin-top: 4px; }
-.settings-body .lib-row { background: rgb(0 0 0 / 0.28); }
+.settings-body .lib-list { margin-top: 4px; gap: 0; }
+/* a ledger row, not a card inside the section card */
+.settings-body .lib-row { background: none; border: 0; border-top: 1px solid var(--line); border-radius: 0; padding: 13px 2px; }
+.settings-body .lib-row:first-child { border-top: 0; }
 .settings-body .lib-main { flex: 1; text-align: left; display: flex; align-items: center; gap: 10px; min-width: 0; }
 .settings-body .lib-main:hover .lib-name { color: var(--accent-strong); }
 .settings-body .lib-name { transition: color var(--dur) var(--ease-soft); }
@@ -72,3 +74,5 @@
   .settings-body .row-control > .input { width: 100%; }
   .settings-body .select { max-width: none; }
 }
+
+[data-touch="on"] .settings-nav-link { min-height: 44px; }

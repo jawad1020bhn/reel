@@ -31,7 +31,7 @@
   -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent 100%);
   mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent 100%);
 }
-.palette-group { padding: 12px 11px 5px; font-family: var(--mono); font-size: 9.5px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--fg-3); }
+.palette-group { padding: 12px 11px 5px; font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--fg-3); }
 .palette-item { position: relative; display: flex; align-items: center; gap: 11px; width: 100%; padding: 9px 11px 9px 13px; border-radius: var(--r-sm); font-size: 14px; text-align: left; color: var(--fg); transition: background 90ms linear; }
 .palette-item .icon { color: var(--fg-2); flex: none; }
 .palette-item.active { background: rgb(255 255 255 / 0.075); }
@@ -46,7 +46,7 @@
 .palette-empty .palette-tip b { font-family: var(--mono); color: var(--fg-2); font-weight: 500; }
 .palette-foot { display: flex; align-items: center; gap: 14px; padding: 9px 16px; border-top: 1px solid var(--line); color: var(--fg-3); font-size: 11.5px; }
 .palette-foot .kbd, .palette-foot kbd { margin-right: 4px; }
-.palette-foot-end { margin-left: auto; font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em; }
+.palette-foot-end { margin-left: auto; font-family: var(--mono); font-size: 11px; letter-spacing: 0.05em; }
 @media (max-width: 600px), (pointer: coarse) {
   .palette-close { display: grid; }
   .palette-esc { display: none; }

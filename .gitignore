@@ -15,3 +15,10 @@ Thumbs.db
 *~
 .idea/
 .vscode/
+
+# local design audits / agent runtime (the shared config and skill are source)
+.audit/
+.impeccable/config.local.json
+.impeccable/live/
+.impeccable/cache/
+.claude/skills/impeccable/scripts/bin/

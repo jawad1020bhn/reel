@@ -2,11 +2,17 @@
   "name": "xreels",
   "version": "1.1.0",
   "private": true,
-  "description": "Local-first viewer for your X bookmarks with media — open index.html, no server needed.",
+  "description": "Local-first viewer for your X bookmarks with media \u2014 open index.html, no server needed.",
   "license": "MIT",
   "scripts": {
     "lint": "node tools/lint-deps.mjs",
     "check": "node tools/lint-deps.mjs",
-    "site:password": "node tools/set-site-password.mjs"
+    "site:password": "node tools/set-site-password.mjs",
+    "test:ui": "node --test tests/ui.test.mjs",
+    "audit:ui": "bash tools/impeccable-audit.sh"
+  },
+  "devDependencies": {
+    "axe-core": "4.11.1",
+    "puppeteer-core": "25.14.0"
   }
 }
