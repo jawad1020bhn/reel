@@ -192,7 +192,7 @@ XR.define("features.settings", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog",
       const groups = {};
       for (const k of list) (groups[k.scope] ||= []).push(k);
       return W.section("About & shortcuts", "XReels — a local-first viewer for your X bookmarks. Open-source, no server, no tracking.",
-        h("div.shortcut-cols", Object.entries(groups).map(([scope, items]) => h("div.shortcut-group", h("h4", scope === "global" ? "Everywhere" : scope[0].toUpperCase() + scope.slice(1)), items.map((k) => h("div.shortcut", W.kbd(k.combo.replace("mod", platform.isTouch() ? "ctrl" : navigator.platform?.includes("Mac") ? "⌘" : "ctrl").replace("arrow", "")), h("span", k.desc)))))),
+        h("div.shortcut-cols", Object.entries(groups).map(([scope, items]) => h("div.shortcut-group", h("h3", scope === "global" ? "Everywhere" : scope[0].toUpperCase() + scope.slice(1)), items.map((k) => h("div.shortcut", W.kbd(k.combo.replace("mod", platform.isTouch() ? "ctrl" : navigator.platform?.includes("Mac") ? "⌘" : "ctrl").replace("arrow", "")), h("span", k.desc)))))),
         h("p.muted.small", "Watch gestures: swipe or wheel to move · tap to pause · double-tap to star · hold for 2× · drag sideways to seek."));
     }
     return {

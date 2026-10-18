@@ -83,7 +83,7 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
 .chip-ghost { background: transparent; border-style: dashed; }
 
 /* badges, avatars, kbd */
-.badge { display: inline-flex; align-items: center; gap: 4px; height: 19px; padding: 0 7px; border-radius: var(--r-xs); font-size: 10.5px; font-weight: 700; letter-spacing: 0.05em; background: rgb(12 12 12 / 0.75); color: #fff; font-variant-numeric: tabular-nums; }
+.badge { display: inline-flex; align-items: center; gap: 4px; height: 21px; padding: 0 7px; border-radius: var(--r-xs); font-size: 11px; font-weight: 700; letter-spacing: 0.05em; background: rgb(12 12 12 / 0.75); color: #fff; font-variant-numeric: tabular-nums; }
 .badge-dark { background: rgb(10 10 10 / 0.72); color: #fff; border: 1px solid rgb(255 255 255 / 0.10); }
 .badge-accent { background: var(--accent); color: var(--on-accent); }
 .avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: var(--bg-3); flex: none; }
@@ -101,7 +101,7 @@ kbd { display: inline-flex; align-items: center; justify-content: center; min-wi
 .stat { background: rgb(255 255 255 / 0.04); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 14px 16px; display: flex; flex-direction: column; gap: 3px; }
 .stat .icon { color: var(--fg-3); margin-bottom: 4px; }
 .stat-value { font-family: var(--display); font-weight: 400; font-size: 27px; letter-spacing: var(--display-tracking); line-height: 1; font-variant-numeric: tabular-nums; }
-.stat-label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--fg-2); }
+.stat-label { font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--fg-2); }
 .stat { transition: transform var(--dur) var(--ease), border-color var(--dur) var(--ease-soft), background var(--dur) var(--ease-soft), box-shadow var(--dur) var(--ease-soft); }
 .stat-link { cursor: pointer; }
 .stat-link:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: var(--shadow-1); }
@@ -133,8 +133,11 @@ kbd { display: inline-flex; align-items: center; justify-content: center; min-wi
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ------------------------------------------------------------------ toast -- */
-.toast-host { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: var(--z-toast); display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; width: min(92vw, 480px); }
-.toast { pointer-events: auto; display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 14px; border-radius: var(--r); background: var(--surface); border: 1px solid var(--line-strong); box-shadow: var(--shadow-2); color: var(--fg); max-width: 100%; opacity: 0; transform: translateY(12px) scale(0.98); transition: opacity var(--dur) var(--ease-soft), transform var(--dur) var(--ease); }
+.toast-host { position: fixed; left: 50%; bottom: calc(18px + var(--bottom-nav-h)); transform: translateX(-50%); z-index: var(--z-toast); display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; width: min(92vw, 480px); }
+.toast { pointer-events: none; display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 14px; border-radius: var(--r); background: var(--surface); border: 1px solid var(--line-strong); box-shadow: var(--shadow-2); color: var(--fg); max-width: 100%; opacity: 0; transform: translateY(12px) scale(0.98); transition: opacity var(--dur) var(--ease-soft), transform var(--dur) var(--ease); }
+.toast button, .toast a { pointer-events: auto; }
+/* A notification must not intercept a menu choice (for example Star → Speed). */
+body:has(.menu.in) .toast-host { z-index: calc(var(--z-menu) - 2); }
 .toast.in { opacity: 1; transform: none; }
 .toast.out { opacity: 0; transform: translateY(6px); }
 .toast-success .icon:first-child { color: var(--success); }
@@ -168,7 +171,7 @@ kbd { display: inline-flex; align-items: center; justify-content: center; min-wi
 /* ------------------------------------------------------------------- menu -- */
 .menu { position: fixed; z-index: var(--z-menu); min-width: 224px; max-width: 320px; padding: 6px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--r); box-shadow: var(--shadow-2); opacity: 0; transform: translateY(-4px) scale(0.98); transition: opacity 130ms var(--ease-soft), transform 130ms var(--ease); max-height: 80vh; overflow: auto; }
 .menu.in { opacity: 1; transform: none; }
-.menu-title { padding: 7px 10px 6px; font-family: var(--mono); font-size: 10px; font-weight: 600; color: var(--fg-2); text-transform: uppercase; letter-spacing: 0.14em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.menu-title { padding: 7px 10px 6px; font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--fg-2); text-transform: uppercase; letter-spacing: 0.14em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .menu-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border-radius: var(--r-xs); color: var(--fg); font-size: 13.5px; }
 .menu-item:hover, .menu-item:focus-visible { background: rgb(255 255 255 / 0.09); outline: none; }
 .menu-item.danger { color: #ff6b74; }
@@ -226,9 +229,9 @@ kbd { display: inline-flex; align-items: center; justify-content: center; min-wi
 .tile-scrim { position: absolute; inset: 0; z-index: 2; background: linear-gradient(to top, rgb(0 0 0 / 0.68), rgb(0 0 0 / 0.18) 46%, transparent 74%); pointer-events: none; }
 .tile-badges { position: absolute; left: 9px; bottom: 9px; z-index: 3; display: flex; gap: 5px; }
 .tile-tag {
-  position: absolute; top: 0; left: 0; z-index: 4; padding: 4px 7px 5px;
+  position: absolute; top: 0; left: 0; z-index: 4; padding: 5px 8px 6px;
   background: var(--accent); color: var(--on-accent); border-radius: 0 0 var(--r-xs) 0;
-  font-size: 9.5px; font-weight: 800; letter-spacing: 0.14em; line-height: 1;
+  font-size: 11px; font-weight: 800; letter-spacing: 0.14em; line-height: 1;
 }
 .tile-star {
   position: absolute; top: 8px; right: 42px; z-index: 4; width: 22px; height: 22px; border-radius: 50%;
@@ -249,13 +252,38 @@ kbd { display: inline-flex; align-items: center; justify-content: center; min-wi
 }
 .tile:hover .tile-more, .tile:focus-within .tile-more, [data-touch="on"] .tile-more { opacity: 1; }
 .tile-more:hover { background: rgb(10 10 10 / 0.85); }
+/* Touch targets: 44×44 is the floor for anything a finger has to hit
+   (the XReels interaction target). The chrome stays as small as the design wants — the
+   HIT AREA is what grows, via a transparent ::after on the round controls so
+   the visual density of the grid is untouched. */
 [data-touch="on"] .btn { min-height: 44px; }
-[data-touch="on"] .btn-sm { min-height: 36px; }
+[data-touch="on"] .btn-sm { min-height: 44px; }
 [data-touch="on"] .btn-icon { width: 44px; height: 44px; }
-[data-touch="on"] .chip { height: 40px; }
-[data-touch="on"] .hdr-icon { width: 40px; height: 40px; }
+[data-touch="on"] .chip { height: 44px; }
+[data-touch="on"] .hdr-icon { width: 44px; height: 44px; }
+[data-touch="on"] .chipnav-link { height: 44px; }
+[data-touch="on"] .brand { min-height: 44px; align-items: center; }
+/* segmented choices need their own 44px targets, not just a larger wrapper */
+[data-touch="on"] .seg { height: 44px; min-width: 44px; }
+[data-touch="on"] .segmented { padding: 3px; }
+[data-touch="on"] .segmented-sm .seg { height: 44px; }
+/* form fields */
+[data-touch="on"] .input, [data-touch="on"] .select { min-height: 44px; font-size: 16px; }
+[data-touch="on"] textarea.input { height: auto; min-height: 88px; }
+[data-touch="on"] .switch { min-height: 44px; }
+/* the tile's "…" keeps its 30px circle but claims a 44px target */
 [data-touch="on"] .tile-more { top: auto; bottom: 8px; right: 8px; width: 30px; height: 30px; opacity: 0.66; background: rgb(8 8 10 / 0.5); }
+[data-touch="on"] .tile-more::after { content: ""; position: absolute; inset: -7px; border-radius: 50%; }
 [data-touch="on"] .tile:active .tile-more { opacity: 1; }
+/* the creator line inside a tile is a real button — give it a real target */
+[data-touch="on"] .tile-creator { min-height: 44px; }
+/* Dense chart marks keep their own layout; the surrounding heatmap scrolls. */
+[data-touch="on"] .cal { --cal-cell: 22px; --cal-gap: 4px; }
+[data-touch="on"] .cal-gutter { width: 15px; }
+/* chart rows are buttons too */
+[data-touch="on"] .hbar { min-height: 44px; }
+[data-touch="on"] .rail-act { width: 44px; height: 44px; }
+[data-touch="on"] .hdr-search-close { width: 44px; }
 .tile.is-seen .tile-img { opacity: 0.5; }
 .tile.is-seen .tile-media::after { content: ""; position: absolute; inset: 0; z-index: 1; background: rgb(12 12 14 / 0.35); }
 .tile.is-seen:hover .tile-img { opacity: 0.85; }
@@ -264,9 +292,9 @@ kbd { display: inline-flex; align-items: center; justify-content: center; min-wi
 .tile.is-unavailable .tile-play { display: none; }
 .tile.is-dup .tile-media::before {
   content: "×2"; position: absolute; top: 8px; left: 40px; z-index: 3;
-  font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.1em; color: #fff;
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; color: #fff;
   background: rgb(10 10 10 / 0.68); border: 1px solid rgb(255 255 255 / 0.12);
-  border-radius: var(--r-xs); padding: 2px 6px;
+  border-radius: var(--r-xs); padding: 3px 6px;
 }
 .tile-broken .tile-media::after { content: "unavailable"; position: absolute; inset: 0; display: grid; place-items: center; color: var(--fg-3); font-size: 12px; }
 .tile-info { position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; padding: 30px 10px 9px; color: #fff; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; opacity: 0; transform: translateY(6px); transition: opacity var(--dur) var(--ease-soft), transform var(--dur) var(--ease-soft); pointer-events: none; }
@@ -384,14 +412,14 @@ kbd { display: inline-flex; align-items: center; justify-content: center; min-wi
 .rail-prev:hover .icon { transform: scaleX(-1) scale(1.25); }
 [data-touch="on"] .rail-arrow { display: none; }
 @media (max-width: 767px) {
-  .rail-item { width: 158px; }
+  .rail-item { width: min(200px, calc((100vw - 2 * var(--gutter) - var(--tile-gap)) / 2)); }
   .rail-wide .rail-item { width: 244px; }
   .rail-rank .rail-item { width: 232px; }
   .rail-ticks { display: none; }
   .rail-head { align-items: flex-start; padding-bottom: 8px; gap: 8px; }
   .rail-actions { opacity: 1; transform: none; margin-left: auto; margin-top: -4px; gap: 2px; }
   .rail-head .rail-ticks { margin-left: 0; }
-  .rail-act { width: 30px; height: 30px; padding: 0; justify-content: center; border-radius: 50%; background: rgb(255 255 255 / 0.055); }
+  .rail-act { width: 44px; height: 44px; padding: 0; justify-content: center; border-radius: 50%; background: rgb(255 255 255 / 0.055); }
   .rail-act span { display: none; }          /* icon-only actions on phones */
 }
 
@@ -416,7 +444,7 @@ kbd { display: inline-flex; align-items: center; justify-content: center; min-wi
 /* ------------------------------------------------------------- bars/charts -- */
 .chart { width: 100%; height: auto; display: block; }
 .chart-bars-narrow { margin-inline: auto; }
-.chart-label { fill: var(--fg-2); font-size: 10px; }
+.chart-label { fill: var(--fg-2); font-size: 11px; }
 .chart .bar.clickable { cursor: pointer; } .chart .bar.clickable:hover rect { opacity: 1; filter: brightness(1.25); }
 .hbars { display: flex; flex-direction: column; gap: 6px; }
 .hbar { display: grid; grid-template-columns: minmax(70px, 130px) 1fr 48px; align-items: center; gap: 10px; width: 100%; font-size: 13px; padding: 2px 0; }
@@ -435,7 +463,7 @@ kbd { display: inline-flex; align-items: center; justify-content: center; min-wi
 
 /* ------------------------------------------------------- shortcuts, syntax -- */
 .shortcut-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px 26px; padding: 8px 0; }
-.shortcut-group h4 { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.16em; color: var(--fg-2); margin-bottom: 8px; }
+.shortcut-group h3 { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.16em; color: var(--fg-2); margin-bottom: 8px; }
 .shortcut { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 5px 0; font-size: 13px; border-top: 1px solid var(--line); }
 .syntax-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .syntax-table td { padding: 7px 8px 7px 0; border-top: 1px solid var(--line); vertical-align: top; }
@@ -452,4 +480,25 @@ kbd { display: inline-flex; align-items: center; justify-content: center; min-wi
 @media (prefers-reduced-motion: reduce) {
   .tile-media:has(.tile-img:not(.is-loaded)) { animation: none; }
   .rail-item, .masonry-item > * { animation-duration: 1ms; animation-delay: 0ms; }
+}
+
+/* Metadata on a phone cannot depend on hover. Reserve a compact, single-line
+   creator row (ui.tiles.infoHeight includes it in virtual masonry geometry). */
+.tile-open { position: absolute; inset: 0; z-index: 3; width: 100%; height: 100%; border-radius: inherit; background: transparent; }
+.tile:focus-within .tile-media { outline: 2px solid var(--accent); outline-offset: -2px; }
+.tile-creator { flex: 1; }
+.tile-info { visibility: hidden; }
+.tile:hover .tile-info, .tile:focus-within .tile-info, .tile-info-always .tile-info { visibility: visible; }
+.tile:focus-within .tile-info { opacity: 1; transform: none; pointer-events: auto; }
+[data-touch="on"] .tile:not(.tile-info-always) .tile-info { position: static; visibility: visible; opacity: 1; transform: none; pointer-events: auto; padding: 0 2px; height: 44px; flex-wrap: nowrap; color: var(--fg); }
+[data-touch="on"] .tile:not(.tile-info-always) .tile-caption { display: none; }
+[data-touch="on"] .tile-handle { max-width: 100%; }
+[data-touch="on"] .tile-creator { overflow: hidden; }
+
+@media (max-width: 767px) {
+  .tile:not(.tile-info-always) .tile-info { position: static; visibility: visible; opacity: 1; transform: none; pointer-events: auto; padding: 0 2px; height: 44px; flex-wrap: nowrap; color: var(--fg); }
+  .tile:not(.tile-info-always) .tile-caption { display: none; }
+  .tile-creator { min-height: 44px; overflow: hidden; }
+  .tile-handle { max-width: 100%; }
+  .rail-track { -webkit-mask-image: linear-gradient(90deg, transparent, #000 10px, #000 calc(100% - 24px), transparent); mask-image: linear-gradient(90deg, transparent, #000 10px, #000 calc(100% - 24px), transparent); }
 }

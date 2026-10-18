@@ -37,8 +37,14 @@
   --display: "Bebas Neue", "Arial Narrow", Impact, sans-serif;
   --display-weight: 400;          /* Bebas ships one weight only — never faux-bold it */
   --display-tracking: 0.015em;
-  --eyebrow-size: 10.5px;
+  --eyebrow-size: 11px;
   --eyebrow-tracking: 0.16em;
+
+  /* The Legibility Floor: functional text — anything the user reads in order to
+     act — never renders below 11px. The old 8.5 / 9 / 9.5 micro steps failed on
+     high-DPI screens and small viewports, so the ramp now starts at 11px and
+     the only sub-12px step left is `label`. */
+  --fs-floor: 11px;
 
   /* ---- palette ----------------------------------------------------------- */
   /* neutrals: void → app surface → elevated */
@@ -54,7 +60,7 @@
 
   --fg: #f8f8f8;
   --fg-1: rgb(255 255 255 / 0.85);
-  --fg-2: #8f8f8f;                /* muted-foreground */
+  --fg-2: #9b9b9b;                /* muted-foreground — lifted to hold 4.5:1 on raised surfaces too */
   --fg-3: rgb(255 255 255 / 0.56);
 
   --line: #222222;
@@ -69,6 +75,7 @@
   --accent-h: 356; --accent-s: 86%; --accent-l: 47%;   /* kept for chart code */
   --accent: #e50914;
   --accent-strong: #f6121d;
+  --accent-text: #ff6b74;         /* crimson AS TEXT on dark surfaces — #e50914 only reaches 4.2:1 on near-black */
   --accent-soft: rgb(229 9 20 / 0.16);
   --accent-glow: rgb(229 9 20 / 0.4);
   --on-accent: #ffffff;
@@ -96,6 +103,7 @@
   --r-pill: 999px;
 
   /* ---- layout ------------------------------------------------------------- */
+  --bottom-nav-h: 0px;
   --hdr-h: 64px;                   /* the bar itself (desktop) */
   --hdr-offset: 64px;             /* full chrome height incl. the mobile chip rail (set by shell.layout) */
   --gutter: 16px;                 /* page gutter: 16 → 32 → 64 with width */

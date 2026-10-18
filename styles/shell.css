@@ -170,6 +170,43 @@
   .hdr-search.open { width: calc(100vw - 2 * var(--gutter)); }
 }
 
+/* Phones use a stable bottom bar, not a clipped row of page chips. Tablets
+   retain the full chip rail and desktops retain the text navigation. */
+.mobile-nav { display: none; }
+@media (max-width: 767px) {
+  :root { --bottom-nav-h: calc(64px + env(safe-area-inset-bottom, 0px)); }
+  .hdr-chips, .hdr-command, .hdr-secondary { display: none; }
+  .hdr-in { gap: 8px; }
+  .hdr-left { gap: 8px; }
+  .hdr-actions { gap: 4px; }
+  .hdr-icon, .hdr-icon.hdr-back { width: 44px; height: 44px; flex: none; }
+  .brand { min-height: 44px; align-items: center; }
+  .mobile-nav {
+    position: fixed; inset-inline: 0; bottom: 0; z-index: var(--z-hdr);
+    display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));
+    min-height: var(--bottom-nav-h);
+    padding: 4px env(safe-area-inset-right, 0px) calc(4px + env(safe-area-inset-bottom, 0px)) env(safe-area-inset-left, 0px);
+    background: var(--glass); border-top: 1px solid var(--line-strong);
+  }
+  .mobile-nav-link {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 56px; min-width: 0; gap: 4px; padding: 4px 2px;
+    color: var(--fg-2); font-size: 11px; font-weight: 500; line-height: 1.25;
+    border-radius: var(--r); transition: color var(--dur) var(--ease-soft), background var(--dur) var(--ease-soft);
+  }
+  .mobile-nav-link .icon { flex: none; }
+  .mobile-nav-link:hover, .mobile-nav-link.is-active { color: var(--fg); }
+  .mobile-nav-link.is-active .icon { color: var(--accent-text); }
+  .mobile-nav-link:active { background: var(--bg-2); }
+  .outlet:not([data-feature="watch"]) > :not(.discover) { padding-bottom: calc(28px + var(--bottom-nav-h)); }
+  .outlet > .discover { padding-bottom: var(--bottom-nav-h); }
+  .app-immersive .mobile-nav { display: none; }
+  .hdr-search { height: 44px; top: calc(28px + env(safe-area-inset-top, 0px)); }
+  .hdr-search-input { height: 100%; font-size: 16px; }
+}
+.hdr-search[hidden] { display: none; }
+.skip-link { min-height: 44px; }
+
 /* immersive (Watch): no chrome at all */
 .app-immersive .hdr { display: none; }
 .app-immersive .outlet { overflow: hidden; }
@@ -240,3 +277,5 @@
   transform: translateY(-160%); transition: transform var(--dur) var(--ease);
 }
 .skip-link:focus-visible { transform: none; outline-offset: 3px; }
+
+:root:has(.app-immersive) { --bottom-nav-h: 0px; }

@@ -64,7 +64,7 @@ XR.define("features.insights", ["ui.dom", "ui.icons", "ui.widgets", "ui.charts",
       page.appendChild(grid);
       host.appendChild(page);
     }
-    const panel = (title, body, foot) => h("section.panel", h("h3.panel-title", title), body, foot ? h("p.panel-foot.muted.small", foot) : null);
+    const panel = (title, body, foot) => h("section.panel", h("h2.panel-title", title), body, foot ? h("p.panel-foot.muted.small", foot) : null);
 
     const dayKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 

@@ -128,19 +128,18 @@ XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "
         h("div.billboard-vignette"),
         slate, content, callout, muteBtn);
 
-      /* mobile: portrait poster card with stacked pills */
+      /* mobile: compact artwork, one clear primary action, details on demand */
       const mobile = h("div.bb-mobile",
         h("div.bb-mobile-card",
           bg ? artReveal(h("img.bb-mobile-art", { src: bg, alt: m?.alt || "", draggable: false, decoding: "async" })) : h("div.bb-mobile-art"),
           h("div.bb-mobile-scrim"),
-          h("p.bb-mobile-slate", h("span.bb-dot", { "aria-hidden": "true" }), t("Spotlight"), h("i", "·"), h("span.bb-slate-soft", t("Newest unseen"))),
           h("div.bb-mobile-info",
-            h("h2.bb-mobile-title", headline),
+            h("h1.bb-mobile-title", headline),
             h("div.bb-mobile-meta", h("b", "@" + post.author.username), h("i.dot", "•"), h("span", KIND_LABEL[kind] || "Post"), m?.duration && m.kind !== "photo" ? [h("i.dot", "•"), h("span", dom.duration(m.duration))] : []),
             descBody ? h("p.bb-mobile-desc", descBody) : null,
             h("div.bb-mobile-actions",
               W.btn(kind === "photo" || kind === "carousel" ? "View" : "Play", { icon: "play", kind: "light", onClick: () => open() }),
-              W.btn("More info", { icon: "info", kind: "glass", onClick: () => actions.view([post.id], 0, { label: "Spotlight" }) })))));
+              W.iconBtn("info", "More info", () => actions.view([post.id], 0, { label: "Spotlight" }), { cls: "bb-mobile-details" })))));
 
       const section = h("section.billboard", frame, mobile);
       if (bg) dominantColor(bg).then((rgb) => { if (rgb) section.style.setProperty("--dom", rgb); });

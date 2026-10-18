@@ -38,7 +38,7 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.postMenu",
 
       playback.pauseAll();
 
-      S.el = h("div.viewer", { role: "dialog", "aria-modal": "true", tabindex: "-1" },
+      S.el = h("div.viewer", { role: "dialog", "aria-modal": "true", "aria-label": "Media viewer", tabindex: "-1" },
         h("div.viewer-backdrop", { onclick: () => close() }),
         h("div.viewer-ambient"),
 
@@ -346,10 +346,8 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.postMenu",
         onclick: (e) => { e.stopPropagation(); if (S.handle) S.handle.toggle(); },
       }, icons.icon("play", 18, { filled: true }));
 
-      const scrub = h("div.viewer-scrub", { role: "slider", "aria-label": "Seek" },
-        h("div.viewer-scrub-buffer"),
-        h("div.viewer-scrub-fill"),
-        h("div.viewer-scrub-thumb"));
+      const seek = h("input.viewer-seek", { type: "range", min: 0, max: 100, step: 0.1, value: 0, disabled: true, "aria-label": "Seek video" });
+      const scrub = h("div.viewer-scrub", h("div.viewer-scrub-buffer"), h("div.viewer-scrub-fill"), seek);
 
       const timeLabel = h("span.viewer-time", "0:00 / 0:00");
 
@@ -366,43 +364,34 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.postMenu",
         onclick: (e) => { e.stopPropagation(); playback.toggleMuted(); },
       }, icons.icon(playback.muted ? "mute" : "volume", 18));
 
-      /* Drag / Click seeking */
-      let seeking = false;
-      function seekToPoint(clientX) {
-        const rect = scrub.getBoundingClientRect();
-        const ratio = util.clamp((clientX - rect.left) / rect.width, 0, 1);
+      /* Native range input handles mouse/touch/keyboard without global listeners
+         that could outlive this stage when the post changes mid-drag. */
+      seek.addEventListener("input", () => {
         const dur = video.duration || m.duration || 0;
-        if (dur > 0) {
-          video.currentTime = ratio * dur;
+        if (Number.isFinite(dur) && dur > 0) {
+          try { video.currentTime = Number(seek.value) / 100 * dur; } catch { /* not yet seekable */ }
           updateControlsProgress(video.currentTime, dur);
         }
-      }
-
-      scrub.addEventListener("mousedown", (e) => {
-        seeking = true;
-        seekToPoint(e.clientX);
-        const onMove = (ev) => { if (seeking) seekToPoint(ev.clientX); };
-        const onUp = () => {
-          seeking = false;
-          window.removeEventListener("mousemove", onMove);
-          window.removeEventListener("mouseup", onUp);
-        };
-        window.addEventListener("mousemove", onMove);
-        window.addEventListener("mouseup", onUp);
       });
-
-      scrub.addEventListener("touchstart", (e) => {
-        seeking = true;
-        if (e.touches[0]) seekToPoint(e.touches[0].clientX);
-        const onTouchMove = (ev) => { if (seeking && ev.touches[0]) seekToPoint(ev.touches[0].clientX); };
-        const onTouchEnd = () => {
-          seeking = false;
-          window.removeEventListener("touchmove", onTouchMove);
-          window.removeEventListener("touchend", onTouchEnd);
-        };
-        window.addEventListener("touchmove", onTouchMove);
-        window.addEventListener("touchend", onTouchEnd);
-      }, { passive: true });
+      seek.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") return;
+        e.stopPropagation();
+        const delta = { ArrowLeft: -5, ArrowDown: -5, ArrowRight: 5, ArrowUp: 5 }[e.key];
+        const dur = video.duration || m.duration || 0;
+        if (!Number.isFinite(dur) || dur <= 0 || (delta === undefined && e.key !== "Home" && e.key !== "End")) return;
+        e.preventDefault();
+        try { video.currentTime = e.key === "Home" ? 0 : e.key === "End" ? dur : util.clamp(video.currentTime + delta, 0, dur); } catch { /* not yet seekable */ }
+        updateControlsProgress(video.currentTime, dur);
+      });
+      const metadata = () => updateControlsProgress(video.currentTime, video.duration || m.duration);
+      video.addEventListener("loadedmetadata", metadata);
+      video.addEventListener("durationchange", metadata);
+      video.addEventListener("progress", () => {
+        if (video.buffered.length && Number.isFinite(video.duration) && video.duration > 0) {
+          const buffer = scrub.querySelector(".viewer-scrub-buffer");
+          buffer.style.width = video.buffered.end(video.buffered.length - 1) / video.duration * 100 + "%";
+        }
+      });
 
       video.addEventListener("play", () => {
         playBtn.innerHTML = "";
@@ -414,13 +403,25 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.postMenu",
       });
 
       dom.append(host, [playBtn, scrub, timeLabel, speedBtn, muteBtn]);
+      playBtn.setAttribute("aria-label", video.paused ? "Play video" : "Pause video");
+      video.addEventListener("play", () => playBtn.setAttribute("aria-label", "Pause video"));
+      video.addEventListener("pause", () => playBtn.setAttribute("aria-label", "Play video"));
+      metadata();
     }
 
     function updateControlsProgress(cur, dur) {
       if (!S.el) return;
       const fill = S.el.querySelector(".viewer-scrub-fill");
       const time = S.el.querySelector(".viewer-time");
-      if (fill && dur > 0) {
+      const seek = S.el.querySelector(".viewer-seek");
+      if (seek) {
+        seek.disabled = !(Number.isFinite(dur) && dur > 0);
+        if (!seek.disabled) {
+          seek.value = String(util.clamp(cur / dur * 100, 0, 100));
+          seek.setAttribute("aria-valuetext", dom.duration(cur) + " of " + dom.duration(dur));
+        }
+      }
+      if (fill && Number.isFinite(dur) && dur > 0) {
         const pct = util.clamp((cur / dur) * 100, 0, 100);
         fill.style.width = pct + "%";
       }

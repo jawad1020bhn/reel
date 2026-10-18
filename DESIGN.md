@@ -12,7 +12,7 @@ colors:
   glass-panel: "#141416"
   glass-panel-strong: "#1c1c1f"
   ink: "#f8f8f8"
-  ink-muted: "#8f8f8f"
+  ink-muted: "#9b9b9b"
   hairline: "#222222"
   crimson: "#e50914"
   crimson-hot: "#f6121d"
@@ -77,7 +77,7 @@ typography:
     letterSpacing: "0.015em"
   eyebrow:
     fontFamily: "Bebas Neue, Arial Narrow, Impact, sans-serif"
-    fontSize: "10.5px"
+    fontSize: "11px"
     fontWeight: 400
     lineHeight: 1
     letterSpacing: "0.16em"
@@ -93,17 +93,17 @@ typography:
     lineHeight: 1.4
   micro-2:
     fontFamily: "Geist, -apple-system, Segoe UI, Roboto, sans-serif"
-    fontSize: "8.5px"
+    fontSize: "11px"
     fontWeight: 400
     lineHeight: 1.45
   micro-1:
     fontFamily: "Geist, -apple-system, Segoe UI, Roboto, sans-serif"
-    fontSize: "9px"
+    fontSize: "11px"
     fontWeight: 400
     lineHeight: 1.45
   micro:
     fontFamily: "Geist, -apple-system, Segoe UI, Roboto, sans-serif"
-    fontSize: "9.5px"
+    fontSize: "12px"
     fontWeight: 400
     lineHeight: 1.45
   caption:
@@ -350,7 +350,7 @@ status, progress, and brand moments.
 - **Hover Fill** (#2a2a2e) / **Strong** (#3a3a3f): interactive fills.
 - **Card Void** (#0b0b0b): cards and popovers.
 - **Glass Panel** (#141416) / **Strong** (#1c1c1f): opaque near-black menus, toasts, sheets.
-- **Ink** (#f8f8f8): primary text; **Muted** (#8f8f8f) for secondary text.
+- **Ink** (#f8f8f8): primary text; **Muted** (#9b9b9b) for secondary text. Muted is lifted to #9b9b9b so it still clears 4.5:1 on the raised surfaces (segmented tracks, cards) and not only on the page.
 - **Hairline** (#222222): borders and dividers; stronger hairlines at rgba(255,255,255,.15).
 
 ### Named Rules
@@ -379,13 +379,13 @@ on media; body text caps at comfortable measure on dark surfaces.
 
 ### Hierarchy
 - **Display** (400, clamp(2.2rem→3.4rem), line-height 1, tracking 0.015em): billboard titles, feature headings, splash. Bebas only; one weight.
-- **Eyebrow** (400, 10.5px, tracking 0.16em, uppercase): section labels, colophon text.
+- **Eyebrow** (400, 11px, tracking 0.16em, uppercase): section labels, colophon text.
 - **Body** (400, 14px, line-height 1.55): paragraphs, descriptions, meta rows.
 - **Label** (mono 500, 11px): metrics, timestamps, keyboard hints, data readouts.
 
 ### Utility Ramp
 Between those four anchors sits one deliberate half-step ramp, because the UI runs
-dense: 8.5 / 9 / 9.5 (mono micro-labels), 12 / 12.5 / 13 (captions and meta rows),
+dense: 11 / 12 (micro-labels and captions), 12.5 / 13 (captions and meta rows),
 15 / 15.5 / 16.5 (list titles), 17–28 (card and panel titles), 30–40 (page and
 section heads), 48–120 (billboard display, clamp endpoints), 168 / 224 (Top-10
 ghost numerals). Steps exist for a reason — never invent a size between them.
@@ -393,6 +393,14 @@ ghost numerals). Steps exist for a reason — never invent a size between them.
 ### Named Rules
 **The Single Weight Rule.** Bebas Neue ships one weight; faux-bold, faux-italic,
 and per-letter scaling are forbidden. Hierarchy through size and tracking only.
+
+**The Legibility Floor.** Functional text — anything the user reads in order to
+act, including letterspaced micro-labels and badges — never renders below 11px.
+The old 8.5 / 9 / 9.5 steps are retired: they failed on high-DPI screens and on
+small viewports, and "it is on the ramp" is not an exemption. When a label needs
+to be quieter than 12px, buy the quietness with tracking, weight and colour,
+never with size. The ramp now starts at 11px (`label` and the legacy micro
+aliases); `micro` and `caption` use 12px.
 
 ## 4. Elevation
 
@@ -435,14 +443,32 @@ on lift (hover, focus, dialog, preview) and return instantly on settle.
 - **Focus:** crimson 2px ring; error states use #e01d29 copy, never red borders on the field.
 
 ### Navigation
-- 64px header, black → transparent scrim origin, glass blur only when scrolled.
-- Nav pills: Geist 13px; active = pill fill #2a2a2e; hover = white/6% fill.
-- Keyboard-first: ⌘K palette shortcuts are always annotated in labels (mono).
+- A fixed, safe-area-aware header: black scrim at rest, an opaque near-black surface after scrolling (no full-width backdrop blur).
+- Desktop: text links and the existing sliding pill. Tablets: horizontally scrollable page chips.
+- Phones below 768px: a 56px top bar plus a 64px bottom navigation bar, with the home-indicator inset added. Discover, Library, Watch, Collections, and More are always findable; More retains Creators, Insights, Import, Settings, and the command palette.
+- Watch remains immersive and has its own Back control. Bottom navigation must not cover bulk actions, toasts, or page endings.
+- Primary links expose `aria-current="page"`; search is a visible action and its closed form is actually hidden.
+- Keyboard-first: ⌘K palette shortcuts remain annotated in labels (mono).
+
+### Touch Targets
+- **44×44 CSS px** is the XReels target for primary controls, navigation, segmented choices, and media controls. A smaller drawing may use a transparent hit-area extension (for example the tile's 30px “More” circle has a 44px hit area).
+- On touch, inputs and selects are at least 44px tall and use 16px text to avoid iOS focus zoom. Textareas retain their multiline height.
+- Heatmap days and SVG chart marks are dense data visualizations, not evidence of universal 44px compliance. The audit reports them separately for further accessibility review.
+- Touch tile metadata is a visible 44px creator row, never a hover requirement. Desktop hover-only metadata is supplementary, inert and hidden from assistive technology until hover or keyboard focus reveals it. Masonry geometry reserves the actual metadata height.
+
+### Video Player
+- **The scrubber is a control, not a hairline.** A thin buffered/played track sits under a native range input with a visible thumb and a real 44px hit band. Both Watch and Viewer support touch dragging, keyboard ±5s, Home/End, and spoken elapsed/total values.
+- **The clock stays visible on phones.** Elapsed and total time appear where space permits; the smallest Watch layouts keep elapsed time.
+- **Double-tap seeks on touch.** Left 40% −10s, right 40% +10s, centre still stars. Feedback stays inside the viewport. Desktop double-tap retains the existing Star behaviour.
+- **Playback is explicit.** A play/pause button and speed choice (0.5×–2×) live on the Watch surface. Muted autoplay offers “Tap for sound”. Fit/fill, PiP, and Up next remain available through Player options on phones.
+- **Gestures have lifecycles.** Carousel horizontal drags do not seek; vertical swipes navigate the feed. Cancellation, route changes, virtualisation, and hold-to-speed release clear pending work. Only the active cell's controls are focusable. Recovery Next is manual, independent of auto-advance; Retry creates a fresh player attachment.
+- **Landscape is its own layout.** Short-screen recovery cards retain their width cap, use a compact action row, and do not overlap the side rail. Viewer controls give the seek bar its own row on touch-sized screens.
+- **Respect reduced motion.** Feedback remains visible without a scale animation; no new animation may bypass the global motion preference.
 
 ### Signature Components
 - **Rail:** horizontal scroller of tiles with 8px gaps, directional arrow scrims at ≥1024px, snap scrolling, no visible scrollbar by default.
-- **Billboard:** full-bleed hero, artwork right, copy ladder left (eyebrow → display → meta → CTA), bottom vignette to #18181b.
-- **Watch feed:** vertical near-fullscreen video stack; one video lives at a time, autoplay muted, scrubber as a 2px crimson line along the edge.
+- **Billboard:** desktop artwork and copy retain their cinematic treatment. On phones, a compact artwork card uses a two-line title, one primary Play/View action and an icon for details; it leaves the first shelf within reach.
+- **Watch feed:** a virtualised, immersive video stack; only one video plays at a time. Default autoplay remains muted. Thin crimson progress is paired with a usable thumb, clock, and explicit playback controls.
 
 ## 6. Do's and Don'ts
 
@@ -452,6 +478,7 @@ on lift (hover, focus, dialog, preview) and return instantly on settle.
 - **Do** annotate every keyboard affordance in Geist Mono.
 - **Do** use the crimson ring for focus across the whole app; one focus language.
 - **Do** honor `[data-motion="reduce"]` for every animation shipped.
+- **Do** keep functional text at 11px or above, and primary touch controls at 44×44; review dense chart marks separately.
 
 ### Don't:
 - **Don't** introduce a light theme or accent picker; the artwork is authored for black.
@@ -460,3 +487,5 @@ on lift (hover, focus, dialog, preview) and return instantly on settle.
 - **Don't** open a modal when an inline surface exists.
 - **Don't** let chrome outshine media: if the screenshot's brightest zone is not the artwork, fix the chrome.
 - **Don't** faux-bold Bebas Neue or letter-space body text.
+- **Don't** nest a card inside a card; a section is a surface, and what lives in it is a row, not another box.
+- **Don't** set crimson text on a near-black surface with #e50914 — it only reaches 4.2:1 there. Use `crimson-tint` (#ff6b74) for crimson *text*; reserve #e50914 for fills, borders and marks.

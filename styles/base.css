@@ -72,7 +72,7 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; }
 
   .page-title { font-family: var(--display); font-weight: var(--display-weight); letter-spacing: var(--display-tracking); font-size: clamp(34px, 4.4vw, 58px); line-height: 1; }
   .page-title::after { content: ""; display: block; width: 30px; height: 3px; margin-top: 10px; border-radius: var(--r-pill); background: var(--accent); }
-  .page-sub { color: var(--fg-2); margin-top: 8px; font-family: var(--mono); font-size: 10.5px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; font-variant-numeric: tabular-nums; }
+  .page-sub { color: var(--fg-2); margin-top: 8px; font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; font-variant-numeric: tabular-nums; }
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
 /* quiet variant for top-level pages: the nav names the page, so only the info line and the controls remain */
 .page-bar { align-items: center; min-height: 36px; margin-bottom: 14px; }

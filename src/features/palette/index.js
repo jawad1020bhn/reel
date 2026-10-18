@@ -127,7 +127,7 @@ XR.define("features.palette", ["ui.dom", "ui.icons", "ui.widgets", "ui.keys", "u
       close();
       const groups = {};
       for (const k of keys.list()) (groups[k.scope] ||= []).push(k);
-      const body = h("div.shortcut-cols", Object.entries(groups).map(([scope, items2]) => h("div.shortcut-group", h("h4", scope === "global" ? "Everywhere" : scope[0].toUpperCase() + scope.slice(1)), items2.map((k) => h("div.shortcut", W.kbd(k.combo.replace("mod", "ctrl").replace("arrow", "")), h("span", k.desc))))));
+      const body = h("div.shortcut-cols", Object.entries(groups).map(([scope, items2]) => h("div.shortcut-group", h("h3", scope === "global" ? "Everywhere" : scope[0].toUpperCase() + scope.slice(1)), items2.map((k) => h("div.shortcut", W.kbd(k.combo.replace("mod", "ctrl").replace("arrow", "")), h("span", k.desc))))));
       dialog.open({ title: "Keyboard shortcuts", size: "lg", body });
     }
     return {

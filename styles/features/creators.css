@@ -37,7 +37,7 @@
 .creator-names span { color: var(--fg-2); font-size: 12.5px; }
 .creator-go { flex: none; color: var(--fg-3); opacity: 0; transform: translateX(-4px); transition: opacity var(--dur) var(--ease-soft), transform var(--dur) var(--ease); }
 .creator-card:hover .creator-go, .creator-card:focus-visible .creator-go { opacity: 1; transform: none; color: var(--fg); }
-.creator-counts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin: 12px 14px 0; padding: 10px 0 13px; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 10px; letter-spacing: 0.05em; color: var(--fg-2); font-variant-numeric: tabular-nums; }
+.creator-counts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin: 12px 14px 0; padding: 10px 0 13px; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 11px; letter-spacing: 0.04em; color: var(--fg-2); font-variant-numeric: tabular-nums; }
 .creator-counts span { display: inline-flex; align-items: center; gap: 5px; }
 .creator-counts .icon { opacity: 0.75; }
 .creator-counts .affinity { margin-left: auto; color: var(--teal); opacity: 0.85; }
@@ -66,7 +66,7 @@
 .creator-stats .stat { padding: 0 19px; min-width: 0; background: none; border: 0; border-left: 1px solid rgb(255 255 255 / 0.14); border-radius: 0; gap: 2px; }
 .creator-stats .stat:first-child { padding-left: 0; border-left: 0; }
 .creator-stats .stat-value { font-size: 23px; }
-.creator-stats .stat-label { font-size: 9px; letter-spacing: 0.12em; }
+.creator-stats .stat-label { font-size: 11px; letter-spacing: 0.1em; }
 .creator-actions { display: flex; gap: 8px; flex-wrap: wrap; align-self: flex-end; }
 .creator-page .back-link { margin-bottom: 14px; }
 .creator-page .segmented { margin-bottom: 14px; }
@@ -86,7 +86,7 @@
   .creator-names b { font-size: 13.5px; }
   .creator-names span { font-size: 11.5px; }
   .creator-go { display: none; }
-  .creator-counts { margin: 9px 10px 0; padding: 8px 0 10px; gap: 3px 9px; font-size: 9px; letter-spacing: 0.03em; }
+  .creator-counts { margin: 9px 10px 0; padding: 8px 0 10px; gap: 3px 9px; font-size: 11px; letter-spacing: 0.02em; }
   .creator-counts .affinity { margin-left: 0; }
   .creator-search { width: 100%; }
   .creator-head { padding: 18px 16px; gap: 14px; border-radius: var(--r-lg); }
