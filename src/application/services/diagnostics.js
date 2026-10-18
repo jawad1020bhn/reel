@@ -21,6 +21,20 @@ XR.define("app.diagnostics", ["core.events", "app.ports.storage", "app.ports.pla
   };
   events.bus.tap((name, payload) => { log.push({ at: Math.round(now()), name, info: summarise(payload) }); if (log.length > LOG_MAX) log.shift(); });
 
+  function timingSummary() {
+    const open = new Map(), out = [];
+    for (const item of marks) {
+      const match = item.name.match(/^(.*):(start|end)$/);
+      if (!match) continue;
+      if (match[2] === "start") open.set(match[1], item.at);
+      else if (open.has(match[1])) {
+        out.push({ name: match[1], durationMs: item.at - open.get(match[1]) });
+        open.delete(match[1]);
+      }
+    }
+    return out;
+  }
+
   function env() {
     const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
     return {
@@ -37,7 +51,7 @@ XR.define("app.diagnostics", ["core.events", "app.ports.storage", "app.ports.pla
   }
   async function snapshot(extra = {}) {
     let estimate = null; try { estimate = await storage.estimate(); } catch { /* n/a */ }
-    return { when: new Date().toISOString(), env: env(), marks: marks.slice(), events: log.slice(-60), storageEstimate: estimate, ...extra };
+    return { when: new Date().toISOString(), env: env(), marks: marks.slice(), timings: timingSummary(), events: log.slice(-60), storageEstimate: estimate, ...extra };
   }
   return { mark, marks: () => marks.slice(), log: () => log.slice(), env, snapshot };
 });

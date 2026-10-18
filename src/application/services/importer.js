@@ -15,8 +15,8 @@
    What gets stored is always the *normalised* Post[] (small, vendor-free), keyed with a
    fingerprint so an unchanged data/posts.js costs no re-parsing. Large exports are indexed in
    chunks (and in a Worker when served over http) so the splash keeps animating. */
-XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.ports.platform", "core.adapters.registry", "core.util", "core.events", "core.domain.events", "app.catalog", "app.prefs"],
-  function (storage, sources, platform, registry, util, events, EV, catalog, prefs) {
+XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.ports.platform", "core.adapters.registry", "core.util", "core.events", "core.domain.events", "app.catalog", "app.prefs", "app.diagnostics"],
+  function (storage, sources, platform, registry, util, events, EV, catalog, prefs, diag) {
     "use strict";
     const KEY_AUTO = "xreels.dataset.auto.v1";       // cache of the normalised data/posts.js
     const KEY_INDEX = "xreels.datasets.v1";          // libraries index
@@ -24,6 +24,7 @@ XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.po
     const WORKER_MIN = 3000;                         // posts; below this the main thread is fine
 
     const progress = (phase, message, extra = {}) => events.bus.emit(EV.DATASET_PROGRESS, { phase, message, ...extra });
+    const mark = (name) => diag.mark(`importer:${name}`);
 
     function fingerprintOf(json) {
       const text = typeof json === "string" ? json : JSON.stringify(json);
@@ -88,7 +89,10 @@ XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.po
 
     async function activate(posts, source) {
       const list = prefs.get("keepTextOnly") ? posts : posts.filter((p) => p.media.length);
-      catalog.load(list, source);
+      progress("index", "Building your library index…");
+      mark("catalog-index:start");
+      await catalog.load(list, source);
+      mark("catalog-index:end");
       return catalog.source;
     }
 
@@ -97,36 +101,57 @@ XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.po
       const auto = sources.get("auto");
       if (!auto?.available()) return null;
       progress("read", "Reading data/posts.js…");
+      mark("auto-read:start");
       const res = await auto.load();          // throws with a precise message on a syntax error
+      mark("auto-read:end");
       if (!res) return null;
-      const fp = fingerprintOf(res.json ?? res.text);
+      const input = res.json ?? res.text;
+      mark("fingerprint:start");
+      const fp = fingerprintOf(input);
+      mark("fingerprint:end");
+      mark("auto-cache-read:start");
       const cached = await storage.get(KEY_AUTO).catch(() => null);
+      mark("auto-cache-read:end");
       if (cached && cached.fingerprint === fp && Array.isArray(cached.posts) && cached.posts.length) {
+        mark("normalize:cache-hit");
         return { posts: cached.posts, source: { id: "auto", label: res.label, fingerprint: fp, adapter: cached.adapter, cached: true } };
       }
       progress("index", "Indexing posts…");
-      const { result } = await normalizeInput(res.json ?? res.text, res.label);
+      mark("normalize:start");
+      const { result } = await normalizeInput(input, res.label);
+      mark("normalize:end");
+      mark("auto-cache-write:start");
       await storage.set(KEY_AUTO, { fingerprint: fp, posts: result.posts, adapter: result.adapter, at: Date.now() }).catch(() => {});
+      mark("auto-cache-write:end");
       return { posts: result.posts, source: { id: "auto", label: res.label, fingerprint: fp, adapter: result.adapter, cached: false } };
     }
     async function loadLibrary(id) {
       await loadIndex();
       const meta = index.items.find((d) => d.id === id);
       if (!meta) return null;
+      mark("library-cache-read:start");
       const stored = await storage.get(meta.key || keyFor(id)).catch(() => null);
+      mark("library-cache-read:end");
       if (!stored || !Array.isArray(stored.posts) || !stored.posts.length) return null;
       return { posts: stored.posts, source: { id, label: meta.label, fingerprint: stored.fingerprint || "", adapter: stored.adapter, at: stored.at, library: meta } };
     }
 
     /** Called once at boot (and after switching libraries). Resolves with the catalog source. */
     async function boot() {
+      mark("boot:start");
+      mark("dataset-index-read:start");
       await loadIndex();
+      mark("dataset-index-read:end");
       const steps = index.active && index.active !== "auto" ? [() => loadLibrary(index.active), loadAuto] : [loadAuto];
       let lastError = null;
       for (const step of steps) {
         try {
           const found = await step();
-          if (found) return activate(found.posts, found.source);
+          if (found) {
+            const source = await activate(found.posts, found.source);
+            mark("boot:end");
+            return source;
+          }
         } catch (err) {
           console.error("[importer] source failed", err);
           lastError = err;
@@ -135,10 +160,20 @@ XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.po
       }
       /* nothing usable: fall back to the first stored library, if any */
       for (const d of index.items) {
-        try { const found = await loadLibrary(d.id); if (found) { index.active = d.id; await saveIndex(); return activate(found.posts, found.source); } } catch { /* next */ }
+        try {
+          const found = await loadLibrary(d.id);
+          if (found) {
+            index.active = d.id;
+            await saveIndex();
+            const source = await activate(found.posts, found.source);
+            mark("boot:end");
+            return source;
+          }
+        } catch { /* next */ }
       }
-      catalog.load([], { id: "none", label: "No data", error: lastError ? String(lastError.message || lastError) : "" });
-      return catalog.source;
+      const source = await activate([], { id: "none", label: "No data", error: lastError ? String(lastError.message || lastError) : "" });
+      mark("boot:end");
+      return source;
     }
 
     /* --------------------------------------------------------- user path -- */

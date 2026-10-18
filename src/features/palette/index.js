@@ -42,6 +42,13 @@ XR.define("features.palette", ["ui.dom", "ui.icons", "ui.widgets", "ui.keys", "u
       document.body.appendChild(el);
       requestAnimationFrame(() => { el.classList.add("in"); input.focus(); });
       filter();
+      /* Optional feature commands are available after their modules are loaded; keep
+         the palette responsive now and refresh its results when that background load ends. */
+      features.loadAll().then(() => {
+        if (!el) return;
+        baseCommands = collect();
+        filter();
+      });
     }
     function close() {
       if (!el) return;

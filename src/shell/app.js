@@ -46,6 +46,25 @@ XR.define("shell.app", ["ui.dom", "ui.keys", "ui.toast", "ui.dialog", "ui.menu",
     function wireGlobals() {
       // pause media when the tab is hidden; resume the active one when back
       document.addEventListener("visibilitychange", () => { if (document.hidden) playback.pauseAll(); });
+      /* Viewer code is loaded only on first use. Queue the latest request until its
+         listener and stylesheet are ready, then replay it once. */
+      let viewerLoading = false, queuedViewer = null;
+      events.bus.on(EV.VIEWER_OPEN, (payload) => {
+        const viewer = features.get("viewer");
+        if (viewer && !viewer.lazy) return;
+        queuedViewer = payload;
+        if (viewerLoading) return;
+        viewerLoading = true;
+        features.load("viewer").then(() => {
+          viewerLoading = false;
+          const pending = queuedViewer; queuedViewer = null;
+          if (pending) events.bus.emit(EV.VIEWER_OPEN, pending);
+        }).catch((err) => {
+          viewerLoading = false; queuedViewer = null;
+          console.error("[app] viewer failed to load", err);
+          toast.toast("Couldn't open the viewer: " + String(err && err.message || err), "error");
+        });
+      });
       // drag & drop a JSON/JS export anywhere → Import screen handles it
       let dragDepth = 0;
       document.addEventListener("dragenter", (e) => { if (hasFiles(e)) { dragDepth++; document.documentElement.classList.add("is-dragging"); } });

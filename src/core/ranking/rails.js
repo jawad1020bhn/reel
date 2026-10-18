@@ -271,12 +271,14 @@ XR.define("core.ranking.rails", ["core.query.engine", "core.util"], function (en
     return [...anchor, ...rest];
   }
 
-  /** The post to feature at the top: one of the newest unseen posts, weighted by likes;
-      falls back to the newest post. Deterministic for a seed. */
+  /** The post to feature at the top: one of the newest unseen image-only posts, weighted by likes;
+      falls back to the newest available image-only post. Deterministic for a seed. */
   function spotlight(posts, ctx, opts = {}) {
-    const unseen = engine.run(posts, { state: "unseen", sort: "saved" }, ctx).items;
-    const pool = unseen.slice(0, 10).filter((p) => !ctx.isUnavailable?.(p.id));
-    if (!pool.length) return unseen[0] || engine.run(posts, { sort: "saved" }, ctx).items[0] || null;
+    const images = (spec) => engine.run(posts, { kind: "photo", ...spec }, ctx).items
+      .filter((p) => !ctx.isUnavailable?.(p.id));
+    const unseen = images({ state: "unseen", sort: "saved" });
+    const pool = unseen.slice(0, 10);
+    if (!pool.length) return images({ sort: "saved" })[0] || null;
     const rnd = util.seededRandom(opts.seed || util.daySeed());
     /* weight: recency rank (newest = 10 … oldest = 1) × log-likes, so a loved post can beat a newer one */
     return pickWeighted(pool, (p) => (10 - pool.indexOf(p)) * (1 + Math.log10(1 + (p.metrics.likes || 0))), rnd);

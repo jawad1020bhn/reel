@@ -43,47 +43,76 @@ XR.define("app.catalog", ["core.domain.model", "core.query.engine", "core.rankin
     };
 
     /* ----------------------------------------------------------- index -- */
-    function load(posts, source) {
-      state.posts = posts;
-      state.byId = new Map();
-      state.mediaById = new Map();
-      state.creators = new Map();
-      state.hashtags = new Map();
+    let loadVersion = 0;
+    const INDEX_CHUNK = 800;
+    const yieldToMain = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+    /** Build indexes off to the side, then publish them atomically. Very large libraries
+        yield between chunks so the browser can paint the splash and process input; if a
+        newer library load starts, the older build quietly abandons its partial maps. */
+    async function load(posts, source) {
+      const version = ++loadVersion;
+      const shouldYield = posts.length >= 3000;
+      const byId = new Map(), mediaById = new Map(), creators = new Map(), hashtags = new Map();
       const months = new Map(), savedMonths = new Map();
-      for (const p of posts) {
+      for (let i = 0; i < posts.length; i++) {
+        const p = posts[i];
         if (!p.haystack) p.haystack = model.haystack(p);
-        state.byId.set(p.id, p);
-        for (const m of p.media) state.mediaById.set(m.id, m);
+        byId.set(p.id, p);
+        for (const m of p.media) mediaById.set(m.id, m);
         const u = p.author.username;
-        let c = state.creators.get(u);
-        if (!c) { c = { username: u, name: p.author.name, avatar: p.author.avatar, id: p.author.id, count: 0, videos: 0, photos: 0, lastSavedAt: 0, likes: 0, ids: [] }; state.creators.set(u, c); }
+        let c = creators.get(u);
+        if (!c) { c = { username: u, name: p.author.name, avatar: p.author.avatar, id: p.author.id, count: 0, videos: 0, photos: 0, lastSavedAt: 0, likes: 0, ids: [] }; creators.set(u, c); }
         c.count++; c.ids.push(p.id); c.likes += p.metrics.likes;
         if (model.hasVideo(p)) c.videos++; else if (p.media.length) c.photos++;
         if (p.savedAt > c.lastSavedAt) { c.lastSavedAt = p.savedAt; c.avatar = p.author.avatar || c.avatar; c.name = p.author.name || c.name; }
-        for (const t of p.hashtags) state.hashtags.set(t, (state.hashtags.get(t) || 0) + 1);
+        for (const t of p.hashtags) hashtags.set(t, (hashtags.get(t) || 0) + 1);
         const mk = util.monthKey(p.createdAt); if (mk) months.set(mk, (months.get(mk) || 0) + 1);
         const sk = util.monthKey(p.savedAt); if (sk) savedMonths.set(sk, (savedMonths.get(sk) || 0) + 1);
+        if (shouldYield && (i + 1) % INDEX_CHUNK === 0 && i + 1 < posts.length) {
+          await yieldToMain();
+          if (version !== loadVersion) return null;
+        }
       }
       const toList = (map) => [...map.entries()].sort((a, b) => b[0].localeCompare(a[0])).map(([key, count]) => ({ key, count, label: monthLabel(key) }));
-      state.months = toList(months);
-      state.savedMonths = toList(savedMonths);
-      indexDuplicates(posts);
-      state.source = { ...source, count: posts.length, loadedAt: Date.now() };
-      state.ready = true;
+      const duplicates = await indexDuplicates(posts, version, shouldYield);
+      if (!duplicates || version !== loadVersion) return null;
+      Object.assign(state, {
+        posts, byId, mediaById, creators, hashtags,
+        months: toList(months), savedMonths: toList(savedMonths),
+        dupOf: duplicates.dupOf, dupGroups: duplicates.dupGroups,
+        source: { ...source, count: posts.length, loadedAt: Date.now() }, ready: true,
+      });
       events.bus.emit(EV.DATASET_CHANGED, { source: state.source, count: posts.length });
+      return state.source;
     }
     /** Duplicate = different posts carrying the same media (reposts/quotes of the same clip). */
-    function indexDuplicates(posts) {
+    async function indexDuplicates(posts, version, shouldYield) {
       const byMedia = new Map();
       const keyOf = (m) => (m.sources?.[0]?.url || m.thumb || m.poster || "").replace(/\?.*$/, "").replace(/\/\d+x\d+\//, "/");
-      for (const p of posts) for (const m of p.media) { const k = keyOf(m); if (!k) continue; if (!byMedia.has(k)) byMedia.set(k, new Set()); byMedia.get(k).add(p.id); }
-      state.dupOf = new Map(); state.dupGroups = [];
-      for (const set of byMedia.values()) {
-        if (set.size < 2) continue;
-        const ids = [...set];
-        state.dupGroups.push(ids);
-        for (const id of ids) state.dupOf.set(id, ids);
+      for (let i = 0; i < posts.length; i++) {
+        const p = posts[i];
+        for (const m of p.media) { const k = keyOf(m); if (!k) continue; if (!byMedia.has(k)) byMedia.set(k, new Set()); byMedia.get(k).add(p.id); }
+        if (shouldYield && (i + 1) % INDEX_CHUNK === 0 && i + 1 < posts.length) {
+          await yieldToMain();
+          if (version !== loadVersion) return null;
+        }
       }
+      const dupOf = new Map(), dupGroups = [];
+      let i = 0;
+      for (const set of byMedia.values()) {
+        if (set.size >= 2) {
+          const ids = [...set];
+          dupGroups.push(ids);
+          for (const id of ids) dupOf.set(id, ids);
+        }
+        i++;
+        if (shouldYield && i % INDEX_CHUNK === 0 && i < byMedia.size) {
+          await yieldToMain();
+          if (version !== loadVersion) return null;
+        }
+      }
+      return { dupOf, dupGroups };
     }
     const shuffle = (posts, opts) => rails.weightedShuffle(posts, ctx, opts);
     const duplicatesOf = (id) => (state.dupOf.get(id) || []).filter((x) => x !== id);
