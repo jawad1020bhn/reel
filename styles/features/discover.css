@@ -21,3 +21,46 @@
 .discover-pull.is-armed { background: var(--accent); color: #fff; border-color: transparent; transform: translate(-50%, var(--pull, 0px)) scale(1); }
 .discover-pull .icon { transition: transform 240ms var(--ease); }
 .discover-pull.is-armed .icon { transform: rotate(180deg); }
+
+/* ── Mobile: Discover rails — hide the creator row, let artwork breathe ── */
+@media (max-width: 767px) {
+  /* Remove the 44px account row (avatar + handle + likes) under each card */
+  .discover .tile-info {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  [data-touch="on"] .discover .tile-info {
+    display: none !important;
+  }
+
+  /* Reclaim the freed height: larger cards, calmer rhythm, clearer artwork */
+  .discover .rail-track {
+    gap: 12px;
+    padding-block: 6px 14px;
+  }
+  .discover .rail-item {
+    width: min(248px, calc((100vw - var(--gutter) * 2 - var(--tile-gap)) / 1.42));
+  }
+  .discover .rail-wide .rail-item {
+    width: min(300px, 82vw);
+  }
+
+  /* Skeletons must match the new card height so loading doesn't jump */
+  .discover .rail-skel-card {
+    height: 140px;
+  }
+  .discover .rail-wide .rail-skel-card {
+    height: 169px;
+  }
+}
+
+/* Touch tablets just above the phone breakpoint (e.g. 768–1024px iPads)
+   still stack the info row via [data-touch] — hide it there too. */
+@media (pointer: coarse) and (max-width: 1024px) {
+  .discover .tile-info {
+    display: none !important;
+  }
+}
