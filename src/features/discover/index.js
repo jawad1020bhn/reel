@@ -156,13 +156,12 @@ XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "
       return body.length >= 24 ? body : "";
     }
 
-    /** First sentence of the caption (hashtags stripped), trimmed to a headline. */
+    /** Banner title: always the first 3 words of the caption (hashtags stripped). */
     function headlineOf(post) {
       const clean = (post.text || "").replace(/#[\p{L}\p{N}_]+/gu, "").replace(/\s+/g, " ").trim();
       if (!clean) return "";
-      const sentence = clean.split(/(?<=[.!?])\s/)[0] || clean;
-      const base = sentence.length >= 12 ? sentence : clean;
-      return util.truncate(base, 96);
+      const words = clean.split(/\s+/).filter(Boolean);
+      return words.slice(0, 3).join(" ");
     }
 
     /** Average colour of the artwork, pulled deep and desaturated for the hero gradient. */
