@@ -358,7 +358,6 @@ test('numeric site gate fits desktop, mobile and short landscape with accessible
     const site = XR.resolve('app.site');
     site.hint = () => '';
     site.verify = async value => value === '001234';
-    site.remember = async () => true;
     XR.resolve('shell.siteGate').show();
   });
   for (const [width, height] of [[1440, 900], [390, 844], [320, 568], [844, 390]]) {
@@ -368,12 +367,18 @@ test('numeric site gate fits desktop, mobile and short landscape with accessible
       const input = document.querySelector('.site-input');
       const button = document.querySelector('.site-submit');
       return { overflow: gate.scrollWidth > gate.clientWidth, input: input.getBoundingClientRect().height,
-        button: button.getBoundingClientRect().height, mode: input.inputMode, type: input.type };
+        button: button.getBoundingClientRect().height, mode: input.inputMode, type: input.type,
+        autocomplete: input.autocomplete, namedPassword: input.name === 'password', hasForm: !!input.form,
+        hasRemember: !!gate.querySelector('.site-remember') };
     });
     assert.equal(geometry.overflow, false, `no horizontal overflow at ${width}`);
     assert.ok(geometry.input >= 44 && geometry.button >= 44);
     assert.equal(geometry.mode, 'numeric');
     assert.equal(geometry.type, 'password');
+    assert.equal(geometry.autocomplete, 'off');
+    assert.equal(geometry.namedPassword, false);
+    assert.equal(geometry.hasForm, false, 'no login form is exposed to browser password saving');
+    assert.equal(geometry.hasRemember, false);
     await page.screenshot({ path: `${SHOTS}/site-gate-${width}.png` });
   }
   await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
@@ -402,7 +407,7 @@ test('numeric site gate fits desktop, mobile and short landscape with accessible
   await page.waitForSelector('.site-gate', { hidden: true });
 });
 
-test('site gate recovers from verification errors and tolerates unavailable remember storage', async (t) => {
+test('site gate recovers from verification errors without a password-remember path', async (t) => {
   const page = await pageFor(t, 1280, 800, false);
   await open(page, 'discover');
   await page.evaluate(() => {
@@ -417,10 +422,21 @@ test('site gate recovers from verification errors and tolerates unavailable reme
   await page.evaluate(() => {
     const site = XR.resolve('app.site');
     site.verify = async () => true;
-    site.remember = async () => { throw new Error('storage unavailable'); };
   });
   await page.click('.site-submit');
   await page.waitForSelector('.site-gate', { hidden: true });
+  assert.equal(await page.evaluate(() => typeof XR.resolve('app.site').remember), 'undefined');
+
+  // A fresh boot calls ensure again; there is no saved unlock to bypass the prompt.
+  await page.evaluate(() => {
+    const site = XR.resolve('app.site');
+    site.applies = () => true;
+    site.forget = async () => { window.legacyUnlockCleared = (window.legacyUnlockCleared || 0) + 1; return true; };
+    void XR.resolve('shell.siteGate').ensure();
+  });
+  await page.waitForSelector('.site-gate');
+  assert.equal(await page.evaluate(() => window.legacyUnlockCleared), 1);
+  assert.equal(await page.$eval('.site-input', (el) => el.value), '', 'a fresh gate begins with an empty input');
 });
 
 test('navigation markers align at desktop breakpoints and survive rapid route changes', async (t) => {

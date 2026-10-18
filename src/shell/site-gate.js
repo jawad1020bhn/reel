@@ -3,7 +3,7 @@
 XR.define("shell.siteGate", ["ui.dom", "ui.icons", "app.site"], function (dom, icons, site) {
   "use strict";
   const h = dom.h;
-  let el = null, card = null, input = null, msg = null, submitBtn = null, rememberBox = null, revealBtn = null;
+  let el = null, card = null, input = null, msg = null, submitBtn = null, revealBtn = null;
   let release = null, busy = false;
 
   function fail(text) {
@@ -23,7 +23,6 @@ XR.define("shell.siteGate", ["ui.dom", "ui.icons", "app.site"], function (dom, i
     input.readOnly = value;
     submitBtn.disabled = value;
     revealBtn.disabled = value;
-    rememberBox.disabled = value;
     card.setAttribute("aria-busy", String(value));
     submitBtn.textContent = value ? "Opening library…" : "Enter library";
   }
@@ -55,8 +54,6 @@ XR.define("shell.siteGate", ["ui.dom", "ui.icons", "app.site"], function (dom, i
       input.focus(); input.select();
       return;
     }
-    // Storage can be unavailable in private browsing; a valid code still opens.
-    if (rememberBox.checked) { try { await site.remember(); } catch { /* session only */ } }
     if (el !== activeGate) return;
     input.value = "";
     const done = release; release = null;
@@ -68,13 +65,14 @@ XR.define("shell.siteGate", ["ui.dom", "ui.icons", "app.site"], function (dom, i
     if (el) return;
     busy = false;
     input = h("input.site-input#site-passcode", {
-      type: "password", name: "password", inputmode: "numeric", pattern: "[0-9]+",
-      autocomplete: "current-password", autocapitalize: "off", spellcheck: "false",
+      type: "password", inputmode: "numeric", pattern: "[0-9]+",
+      autocomplete: "off", autocapitalize: "off", autocorrect: "off", spellcheck: "false",
       placeholder: "Enter passcode", "aria-describedby": "site-code-help site-message",
       oninput: () => {
         input.removeAttribute("aria-invalid");
         msg.textContent = "";
       },
+      onkeydown: (e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } },
     });
     revealBtn = h("button.site-reveal", {
       type: "button", "aria-label": "Show passcode", "aria-pressed": "false",
@@ -87,14 +85,13 @@ XR.define("shell.siteGate", ["ui.dom", "ui.icons", "app.site"], function (dom, i
       },
     }, icons.icon("eye", 20));
     msg = h("p.site-msg#site-message", { "aria-live": "polite", "aria-atomic": "true" });
-    rememberBox = h("input", { type: "checkbox", checked: true });
-    submitBtn = h("button.site-submit", { type: "submit" }, "Enter library");
-    const form = h("form.site-form", { noValidate: true, onsubmit: (e) => { e.preventDefault(); submit(); } },
+    submitBtn = h("button.site-submit", { type: "button", onclick: submit }, "Enter library");
+    const form = h("div.site-form",
       h("label.site-label", { htmlFor: "site-passcode" }, "Passcode"),
       h("div.site-field", input, revealBtn),
-      h("p.site-help#site-code-help", site.hint() ? `Numbers only · Hint: ${site.hint()}` : "Numbers only. Your passcode stays hidden."),
-      h("label.site-remember", rememberBox,
-        h("span", h("span.site-remember-title", "Remember this browser"), h("span.site-remember-note", "Use only on a device you trust."))),
+      h("p.site-help#site-code-help", site.hint()
+        ? `Numbers only · Hint: ${site.hint()}`
+        : "Numbers only. XReels never saves your passcode."),
       submitBtn, msg);
     card = h("section.site-card", { "aria-labelledby": "site-heading" },
       h("div.site-lock", { "aria-hidden": "true" }, icons.icon("lock", 22)),
@@ -136,9 +133,9 @@ XR.define("shell.siteGate", ["ui.dom", "ui.icons", "app.site"], function (dom, i
 
   async function ensure() {
     if (!site.applies()) return true;
-    let unlocked = false;
-    try { unlocked = await site.isUnlocked(); } catch { /* prompt instead */ }
-    if (unlocked) return true;
+    // Remove the per-browser unlock digest used by older builds. This build
+    // always prompts on document load and never stores the typed passcode.
+    try { await site.forget(); } catch { /* the prompt is still mandatory */ }
     show();
     return new Promise((resolve) => { release = resolve; });
   }

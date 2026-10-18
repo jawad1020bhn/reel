@@ -9,6 +9,8 @@
     "check": "node tools/lint-deps.mjs",
     "site:password": "node tools/set-site-password.mjs",
     "test:ui": "node --test tests/ui.test.mjs",
+    "test:site": "node --test tests/site.test.mjs",
+    "test:ranking": "node --test tests/recommendations.test.mjs tests/ranking.test.mjs",
     "audit:ui": "bash tools/impeccable-audit.sh"
   },
   "devDependencies": {

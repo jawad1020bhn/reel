@@ -194,7 +194,7 @@ XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "
     /** Thin bar above the shelves: how many are on this mix. */
     function shelfBar(n) {
       return h("div.discover-bar",
-        h("p.discover-bar-note", t("{n} shelves picked for this visit", { n })));
+        h("p.discover-bar-note", t("{n} rails picked for this visit", { n })));
     }
 
     function startList(spec, label) {
