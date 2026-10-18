@@ -1,6 +1,6 @@
 /* features.settings — preferences, privacy (PIN, blur), data management, about. */
-XR.define("features.settings", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog", "ui.keys", "app.prefs", "app.lock", "app.activity", "app.catalog", "app.importer", "app.actions", "app.nav", "app.ports.storage", "app.ports.platform", "app.ports.playerEngine", "core.domain.model"],
-  function (dom, icons, W, dialog, keys, prefs, lock, activity, catalog, importer, actions, nav, storage, platform, player, model) {
+XR.define("features.settings", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog", "ui.keys", "app.prefs", "app.lock", "app.site", "app.activity", "app.catalog", "app.importer", "app.actions", "app.nav", "app.ports.storage", "app.ports.platform", "app.ports.playerEngine", "core.domain.model"],
+  function (dom, icons, W, dialog, keys, prefs, lock, site, activity, catalog, importer, actions, nav, storage, platform, player, model) {
     "use strict";
     const h = dom.h;
     let host = null;
@@ -88,7 +88,17 @@ XR.define("features.settings", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog",
       const pinRow = W.row("PIN lock", lock.isEnabled() ? "A PIN is required when the app opens" : "Ask for a PIN when the app opens", h("div.row-btns",
         lock.isEnabled() ? W.btn("Change", { icon: "edit", onClick: changePin }) : null,
         lock.isEnabled() ? W.btn("Remove", { icon: "unlock", kind: "danger", onClick: removePin }) : W.btn("Set PIN", { icon: "lock", kind: "primary", onClick: setPin })));
+      /* The site password belongs to the deployment (site.config.js), not to this
+         browser — so it can only be shown, locked or explained here. */
+      const siteRow = site.isEnabled()
+        ? W.row("Site password", site.applies()
+          ? "This deployment asks for a password before it opens. It is set in site.config.js, not in this browser."
+          : "A site password is configured in site.config.js, but it does not apply to a copy opened straight from a file.", site.applies()
+          ? h("div.row-btns", W.btn("Lock this browser", { icon: "lock", onClick: async () => { await site.forget(); location.reload(); } }))
+          : null)
+        : null;
       return W.section("Privacy", "Everything stays in this browser. Nothing is sent anywhere.",
+        siteRow,
         pinRow,
         W.row("Auto-lock", "Lock again after the tab has been hidden for this long (0 = only on launch)", W.numberInput(P("lockMinutes"), set("lockMinutes"), { min: 0, max: 600, suffix: "min" })),
         W.row("Blur thumbnails", "Grids and rails are blurred until you hover or tap (shift+B)", W.toggle(P("blur"), set("blur"))),

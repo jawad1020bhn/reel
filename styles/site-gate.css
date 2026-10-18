@@ -1,0 +1,43 @@
+/* site-gate.css — the password screen of a deployed build.
+   Same language as the PIN lock (shell.css): black void, crimson accent,
+   condensed display wordmark. It covers the app until the visitor is let in. */
+
+.site-gate {
+  position: fixed; inset: 0; z-index: calc(var(--z-preview) + 10);
+  background: var(--void);
+  display: grid; place-items: center; padding: 20px;
+  transition: opacity 240ms var(--ease);
+}
+.site-gate.out { opacity: 0; pointer-events: none; }
+html.is-site-gated { overflow: hidden; }
+
+.site-card {
+  width: min(360px, 100%);
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  text-align: center;
+}
+.site-card.shake { animation: site-shake 0.4s var(--ease); }
+@keyframes site-shake {
+  20% { transform: translateX(-8px); } 40% { transform: translateX(8px); }
+  60% { transform: translateX(-5px); } 80% { transform: translateX(5px); }
+}
+
+.site-logo { color: var(--accent); filter: drop-shadow(0 2px 22px rgb(229 9 20 / 0.5)); display: flex; }
+.site-title {
+  font-family: var(--display); font-weight: 400; font-size: 30px;
+  letter-spacing: var(--display-tracking); color: var(--fg); margin: 0;
+}
+.site-sub { margin: 0; color: var(--fg-2); font-size: 13.5px; max-width: 30ch; }
+.site-msg { color: var(--fg-3); min-height: 20px; font-size: 13px; margin: 0; }
+
+.site-form { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 12px; margin-top: 4px; }
+.site-field { width: 100%; }
+.site-input { width: 100%; height: 44px; text-align: center; letter-spacing: 0.08em; }
+.site-remember { color: var(--fg-3); font-size: 12.5px; user-select: none; }
+.site-submit { width: 100%; height: 42px; }
+.site-submit:disabled { opacity: 0.6; cursor: progress; }
+
+@media (prefers-reduced-motion: reduce) {
+  .site-gate { transition: none; }
+  .site-card.shake { animation: none; }
+}
