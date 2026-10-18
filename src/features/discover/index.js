@@ -11,7 +11,7 @@ XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "
     /* The page mix is seeded once per page load: a refresh deals a new mix (new
        shelves, new spotlight, new line-ups inside the shelves that stay), while
        browsing away and coming back within the same load keeps the mix you left.
-       The Shuffle button (or pressing R, or pull-to-shuffle) reseeds on demand. */
+       Pressing R (or pull-to-shuffle) reseeds on demand. */
     const newSeed = () => 1 + Math.floor(Math.random() * 2147483646);
     let loadSeed = newSeed();
     function sessionSeed() { return loadSeed; }
@@ -193,11 +193,10 @@ XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "
     }
 
     /* ---------------------------------------------------------------- rails -- */
-    /** Thin bar above the shelves: how many are on this mix, and the Shuffle control. */
+    /** Thin bar above the shelves: how many are on this mix. */
     function shelfBar(n) {
       return h("div.discover-bar",
-        h("p.discover-bar-note", t("{n} shelves picked for this visit", { n })),
-        W.btn("Shuffle", { icon: "shuffle", kind: "ghost", onClick: shuffle, title: t("New shelves and a new spotlight") }));
+        h("p.discover-bar-note", t("{n} shelves picked for this visit", { n })));
     }
 
     function startList(spec, label) {

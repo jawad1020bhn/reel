@@ -10,9 +10,9 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
     const KIND_CHIPS = [["all", "All", "grid"], ["video", "Videos", "play"], ["short", "Shorts", "zap"], ["long", "Long", "film"], ["photo", "Photos", "image"], ["carousel", "Albums", "layers"], ["gif", "GIFs", "gif"]];
     const STATE_CHIPS = [["unseen", "Unseen", "eye"], ["starred", "Starred", "star"], ["progress", "In progress", "clock"], ["seen", "Seen", "check"], ["hidden", "Hidden", "eyeOff"]];
     const SORT_OPTIONS = [["smart", "Smart shuffle"], ["saved", "Recently saved"], ["newest", "Newest posted"], ["oldest", "Oldest posted"], ["likes", "Most liked"], ["views", "Most viewed"], ["longest", "Longest"], ["shortest", "Shortest"], ["creator", "By creator"], ["random", "Shuffled"]];
-    /* Filters that have no chip of their own: they only exist in the Filters sheet,
-       so the badge counts exactly these and nothing else. */
-    const SHEET_FILTERS = ["creator", "collection", "month", "savedMonth"];
+    /* Everything the Filters sheet owns: the badge counts exactly these and nothing
+       else — the search box shows its own state on the page, so q never inflates it. */
+    const SHEET_FILTERS = ["kind", "state", "creator", "month", "savedMonth"];
 
     const setSpec = (patch, { replace = true } = {}) => nav.setQuery(engine.toParams({ ...S.spec, ...patch }), { replace });
 
@@ -41,14 +41,14 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
       const chips = h("div.lib-chips");
       const gridHost = h("div.lib-grid");
       const bulkBar = buildBulkBar();
-      const head = h("header.page-head.page-bar", h("div.page-bar-text", h("h1.page-title.sr-only", "Library"),
-        h("p.page-sub.lib-count", h("span.lib-sort-note"))));
-      page.append(head, toolbar, chips, gridHost);
+      /* No visible page-head: the nav names the page. The h1 stays sr-only so
+         screen readers still get a landmark heading, costing zero visual space. */
+      page.append(h("h1.sr-only", "Library"), toolbar, chips, gridHost);
       outlet.appendChild(page);
       /* The bar is fixed to the viewport, so it cannot live under the page's
          entry animation: that transform would make it a page-height anchor. */
       document.body.appendChild(bulkBar);
-      S.els = { page, head, toolbar, chips, gridHost, bulkBar };
+      S.els = { page, toolbar, chips, gridHost, bulkBar };
       renderToolbar();
       S.grid = masonryUI.createMasonry(gridHost, {
         scroller: outlet, colMin: colMin(), gap: gapPx(), overscan: 900,
@@ -126,8 +126,8 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
 
     /** Badge = filters that are only visible inside the sheet. Kind, state and the
         query each show their own state on the page, so they never inflate it. */
-    const filterCount = () => SHEET_FILTERS.filter((k) => S.spec[k]).length;
-    const hasFilters = () => ["q", "kind", "state", ...SHEET_FILTERS].some((k) => S.spec[k] && S.spec[k] !== "all");
+    const filterCount = () => SHEET_FILTERS.filter((k) => S.spec[k] && S.spec[k] !== "all").length;
+    const hasFilters = () => ["q", "collection", ...SHEET_FILTERS].some((k) => S.spec[k] && S.spec[k] !== "all");
 
     /** Clear what narrows the list, and keep how it is ordered. */
     function clearFilters() {
@@ -154,21 +154,21 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
       return h("label.filter-field", h("span.filter-label", label), control);
     }
 
-    /** The rest of the filters live in one sheet: the facets the chips cannot show.
+    /** All the filters live in one sheet: type, state and the quiet facets.
         Ordering joins them on phones, where the toolbar keeps only search + filters. */
     function openFilters() {
       const narrow = innerWidth < 700;
       const sort = narrow ? W.select(SORT_OPTIONS.map(([value, label]) => ({ value, label })), S.spec.sort, (v) => setSpec({ sort: v, seed: v === "random" || v === "smart" ? Math.floor(Math.random() * 2147483646) + 1 : 0 }), { cls: "filter-control" }) : null;
+      const type = W.select([{ value: "all", label: "Any type" }, ...KIND_CHIPS.slice(1).map(([value, label]) => ({ value, label }))], S.spec.kind, (v) => setSpec({ kind: v }), { cls: "filter-control" });
+      const state = W.select([{ value: "all", label: "Any state" }, ...STATE_CHIPS.map(([value, label]) => ({ value, label }))], S.spec.state, (v) => setSpec({ state: v }), { cls: "filter-control" });
       const creator = W.select([{ value: "", label: "Any creator" }, ...catalog.creators().map((c) => ({ value: c.username, label: `@${c.username} · ${c.count}` }))], S.spec.creator, (v) => setSpec({ creator: v }), { cls: "filter-control" });
-      const collection = W.select([{ value: "", label: "Any collection" }, ...activity.collections().map((c) => ({ value: c.id, label: `${c.name} · ${c.ids.length}` }))], S.spec.collection, (v) => setSpec({ collection: v }), { cls: "filter-control" });
       const month = W.select([{ value: "", label: "Any month posted" }, ...catalog.months.map((m) => ({ value: m.key, label: `${m.label} · ${m.count}` }))], S.spec.month, (v) => setSpec({ month: v }), { cls: "filter-control" });
       const saved = W.select([{ value: "", label: "Any month saved" }, ...catalog.savedMonths.map((m) => ({ value: m.key, label: `${m.label} · ${m.count}` }))], S.spec.savedMonth, (v) => setSpec({ savedMonth: v }), { cls: "filter-control" });
       const body = h("div.filter-sheet",
         sort ? field("Sort by", sort) : null,
+        h("div.filter-pair", field("Type", type), field("State", state)),
         field("Creator", creator),
-        field("Collection", collection),
-        h("div.filter-pair", field("Month posted", month), field("Month saved", saved)),
-        h("p.muted.small", "Media type and state are the chips above the grid."));
+        h("div.filter-pair", field("Month posted", month), field("Month saved", saved)));
       dialog.open({
         title: narrow ? "Sort & filter" : "Filters", size: "sm", body,
         actions: [
@@ -182,31 +182,23 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
     const chipGroup = (label, list) => h("div.chip-row", { role: "group", "aria-label": label + " filters" },
       h("span.chip-row-label", { "aria-hidden": "true" }, label), h("div.chip-row-body", list));
 
-    /** Counts read as "what would I get if I switched", with the rest of the
-        query applied — a filter never advertises results it cannot reach. */
-    const chipCounts = (key, list) => {
-      const out = {};
-      for (const [value] of list) out[value] = catalog.query({ ...S.spec, [key]: value }).total;
-      return out;
-    };
-
+    /** Applied filters read as one removable row: type and state (which live in
+        the Filters sheet), the quiet facets, and the search query. */
     function renderChips() {
       const { chips } = S.els;
       const focusKey = chips.contains(document.activeElement) ? document.activeElement.dataset.chip : null;
-      const kc = chipCounts("kind", KIND_CHIPS);
-      const sc = chipCounts("state", STATE_CHIPS);
-      const kindRow = chipGroup("Type", KIND_CHIPS.map(([value, label, icon]) =>
-        chipFor("kind:" + value, W.chip({ label, icon, count: kc[value], active: S.spec.kind === value, onClick: () => setSpec({ kind: S.spec.kind === value ? "all" : value }) }))));
-      const stateRow = chipGroup("State", STATE_CHIPS.map(([value, label, icon]) =>
-        chipFor("state:" + value, W.chip({ label, icon, count: sc[value], active: S.spec.state === value, onClick: () => setSpec({ state: S.spec.state === value ? "all" : value }) }))));
       const applied = [];
+      const kindOpt = KIND_CHIPS.find(([value]) => value === S.spec.kind);
+      if (S.spec.kind !== "all" && kindOpt) applied.push(chipFor("kind", W.chip({ label: kindOpt[1], icon: kindOpt[2], active: true, onRemove: () => setSpec({ kind: "all" }) })));
+      const stateOpt = STATE_CHIPS.find(([value]) => value === S.spec.state);
+      if (stateOpt) applied.push(chipFor("state", W.chip({ label: stateOpt[1], icon: stateOpt[2], active: true, onRemove: () => setSpec({ state: "all" }) })));
       if (S.spec.creator) applied.push(chipFor("creator", W.chip({ label: "@" + S.spec.creator, icon: "users", active: true, onRemove: () => setSpec({ creator: "" }) })));
       if (S.spec.collection) { const c = activity.collection(S.spec.collection); applied.push(chipFor("collection", W.chip({ label: c ? c.name : "Collection", icon: "folder", active: true, onRemove: () => setSpec({ collection: "" }) }))); }
       if (S.spec.month) applied.push(chipFor("month", W.chip({ label: "Posted " + S.spec.month, icon: "calendar", active: true, onRemove: () => setSpec({ month: "" }) })));
       if (S.spec.savedMonth) applied.push(chipFor("savedMonth", W.chip({ label: "Saved " + S.spec.savedMonth, icon: "bookmark", active: true, onRemove: () => setSpec({ savedMonth: "" }) })));
       if (S.spec.q) applied.push(chipFor("q", W.chip({ label: `“${util.truncate(S.spec.q, 30)}”`, icon: "search", active: true, onRemove: () => setSpec({ q: "" }) })));
       if (applied.length) applied.push(W.chip({ label: "Clear filters", icon: "x", cls: "chip-ghost", onClick: clearFilters }));
-      dom.replace(chips, kindRow, stateRow, applied.length ? chipGroup("Applied", applied) : null);
+      dom.replace(chips, applied.length ? chipGroup("Applied", applied) : null);
       /* Replacing the row would drop keyboard focus with it; put it back. */
       if (focusKey) chips.querySelector(`[data-chip="${focusKey}"]`)?.focus({ preventScroll: true });
     }
@@ -216,13 +208,6 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
       S.result = catalog.query(S.spec);
       S.ids = S.result.items.map((p) => p.id);
       renderChips();
-      const countEl = S.els.page.querySelector(".lib-count");
-      if (countEl) {
-        /* Phones fold sorting into the sheet, so the order needs a visible home. */
-        const note = countEl.querySelector(".lib-sort-note");
-        if (note) note.textContent = S.spec.sort && S.spec.sort !== "saved" ? (SORT_OPTIONS.find(([v]) => v === S.spec.sort) || [])[1] || "" : "";
-        countEl.title = engine.describe(S.spec);
-      }
       if (resetScroll) S.host.scrollTop = 0;
       S.grid.setItems(S.result.items);
       if (S.empty) { S.empty.remove(); S.empty = null; }

@@ -4,11 +4,8 @@
 .discover-foot { padding: 10px var(--gutter); }
 
 /* shelf bar — sits between the billboard and the first rail */
-.discover-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px var(--gutter) 2px; }
+.discover-bar { display: flex; align-items: center; gap: 12px; padding: 18px var(--gutter) 2px; }
 .discover-bar-note { margin: 0; font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fg-3, rgb(255 255 255 / 0.5)); }
-.discover-bar .btn { gap: 8px; border-color: rgb(255 255 255 / 0.14); }
-.discover-bar .btn:hover svg { transform: rotate(180deg); }
-.discover-bar .btn svg { transition: transform 0.4s cubic-bezier(0.2, 0.7, 0.2, 1); }
 @media (max-width: 640px) { .discover-bar { padding-top: 12px; } .discover-bar-note { display: none; } }
 
 /* pull-to-shuffle pill (touch): follows the finger from under the header, turns crimson when armed */
