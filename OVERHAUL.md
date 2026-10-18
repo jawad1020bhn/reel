@@ -160,3 +160,62 @@ styles through the manifest at runtime.
   engine/fallback policy remains in place.
 - Dense heatmap/SVG chart marks need a separate accessibility review; a clean
   Impeccable scan is not a universal 44px target or WCAG-conformance guarantee.
+
+## Mobile navigation refinement (follow-up pass)
+
+**2026-10-18 · Impeccable `adapt` + `polish` · shell chrome only**
+
+The desktop header was already on the 2026 pattern; the phone chrome was a
+first pass that still behaved like desktop components shrunk down. This pass
+keeps the Private Cinema identity, routes, features and data untouched, and
+reworks only the phone navigation surface.
+
+### What changed
+
+- **Bottom dock craft.** The moving selection surface now carries the same
+  short crimson marker as the desktop track, sits on a hairline-lit opaque
+  panel, and its labels truncate instead of wrapping at 320px. Tapping the
+  destination you are already on returns that page to the top.
+- **The bar names where you are.** At rest it holds the wordmark; once content
+  scrolls it cross-fades to the destination name. Detail pages keep Back plus
+  the name instead of the wordmark. Content only begins behind the bar at rest,
+  so there is no opaque strip over the artwork at the top of a page.
+- **Search is a mode, not a floating box.** On phones the search bar replaces
+  the app bar, with a labelled **Cancel** at a 44px target, 16px input text,
+  a shorter placeholder that fits, Escape handling anywhere in the bar, and a
+  scrim that dims the page and dock while the covered chrome leaves the tab
+  order (`inert`). Cancel never navigates; Enter does. Focus returns to the
+  search action on close.
+- **The More sheet behaves like a sheet.** Drag its handle (or flick) to
+  dismiss, with the backdrop dimming in step; a labelled **Cancel** row gives
+  the explicit, non-gesture exit. It can now use up to 86dvh.
+- **One bar action.** Sound is global rather than page chrome, so the phone bar
+  keeps Search only and sound moved into More next to the command palette. The
+  desktop mute control is unchanged.
+- **One icon family.** Discover used a bespoke sparkle glyph; it now uses the
+  drawn `compass` icon shared with the rest of the system.
+- **Landscape phones.** Short landscape (≤500px tall, ≤1023px wide) now keeps
+  the thumb-reachable dock in a compact 56px form with a 48px bar, instead of
+  the chip rail that cost 110px of a 390px-tall viewport.
+
+### Evidence
+
+- **18 browser regression tests pass**, including four new/extended ones:
+  phone search as a labelled mode (Cancel, Escape, focus return, axe
+  contrast/name rules on the open bar), re-tapping the current destination,
+  drag-to-dismiss on the More sheet, and the dock geometry/overflow checks
+  across 320×568, 360×800, 390×844, 768×1024, 844×390 and 1440×960.
+- Scoped axe rules (`color-contrast`, names, labels, ARIA values) run on the
+  open search bar and the refined sheet; both report zero violations.
+- Screenshots of every state (rest, scrolled, deep scroll, search empty and
+  typed, More sheet, 320px, small landscape, tablet, desktop, detail, settings)
+  are saved under **`.audit/`** and stay out of Git.
+
+### Limits
+
+- Chromium with synthesized touch only; iOS Safari and Android Chrome still
+  need a physical check for safe areas, the soft keyboard, and `inert` support
+  on older WebKit.
+- The Impeccable detector engine could not be fetched in this sandbox, so this
+  pass was verified with rendered inspection, the scoped axe runs and the
+  existing test suite rather than a fresh detector scan.
