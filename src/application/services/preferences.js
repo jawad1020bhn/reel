@@ -7,7 +7,7 @@ XR.define("app.prefs", ["app.ports.storage", "core.events", "core.domain.events"
 
   const DEFAULTS = Object.freeze({
     /* appearance */
-    language: "auto",         // auto | en | ar
+    language: "auto",         // auto | en  (the app ships English only)
     density: "cozy",          // compact | cozy | comfortable
     tileShape: "natural",     // natural | portrait | square
     tileInfo: "hover",        // hover | always | never  (creator/caption strip on tiles)

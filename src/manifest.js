@@ -37,7 +37,6 @@ window.XREELS_MANIFEST = {
     "src/core/domain/events.js",
     "src/core/util/index.js",
     "src/core/i18n/index.js",
-    "src/core/i18n/ar.js",
     "src/core/domain/model.js",
     "src/core/adapters/registry.js",
     "src/core/adapters/common.js",

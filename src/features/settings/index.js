@@ -61,7 +61,6 @@ XR.define("features.settings", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog",
     }
     function appearance() {
       return W.section("Appearance", "Cinematic dark — tuned so the artwork does the talking",
-        W.row("Language", "Follows the browser language", W.segmented([{ value: "auto", label: "Auto" }, { value: "en", label: "English" }, { value: "ar", label: "العربية" }], P("language"), (v) => { prefs.set({ language: v }); setTimeout(render, 0); })),
         W.row("Density", "Tile size in grids", W.segmented([{ value: "compact", label: "Compact" }, { value: "cozy", label: "Cozy" }, { value: "comfortable", label: "Roomy" }], P("density"), set("density"))),
         W.row("Tile shape", "", W.segmented([{ value: "natural", label: "Natural" }, { value: "portrait", label: "Portrait" }, { value: "square", label: "Square" }], P("tileShape"), set("tileShape"))),
         W.row("Tile details", "Creator and caption on tiles", W.segmented([{ value: "hover", label: "On hover" }, { value: "always", label: "Always" }, { value: "never", label: "Never" }], P("tileInfo"), set("tileInfo"))),

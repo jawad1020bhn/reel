@@ -3,18 +3,19 @@
        t("Shuffle play")            t("{n} posts", { n: 12 })
    Widgets (ui.widgets, ui.toast, ui.dialog, ui.menu, ui.rail, shell.layout) translate their
    labels themselves, so most feature code needs no t() at all. Dictionaries register with
-   i18n.register(code, { "English": "ترجمة" }, { dir: "rtl", name: "العربية" }).
-   Locale comes from prefs ("auto" = navigator.language). */
+   i18n.register(code, { "English": "translation" }, { dir: "ltr", name: "English" }).
+   Locale comes from prefs ("auto" = navigator.language). The app ships English only —
+   a dictionary is added by dropping a file in src/core/i18n/ and listing it in the manifest. */
 XR.define("core.i18n", [], function () {
   "use strict";
   const dicts = new Map();      // code → { strings, meta }
-  const RTL = new Set(["ar", "he", "fa", "ur"]);
   let current = "en";
   const listeners = new Set();
 
   function register(code, strings, meta = {}) {
     const prev = dicts.get(code);
-    dicts.set(code, { strings: { ...(prev?.strings || {}), ...strings }, meta: { name: code, dir: RTL.has(code) ? "rtl" : "ltr", ...(prev?.meta || {}), ...meta } });
+    /* A dictionary declares its own direction; anything without one reads left to right. */
+    dicts.set(code, { strings: { ...(prev?.strings || {}), ...strings }, meta: { name: code, dir: "ltr", ...(prev?.meta || {}), ...meta } });
   }
   register("en", {}, { name: "English", dir: "ltr" });
 
@@ -41,7 +42,7 @@ XR.define("core.i18n", [], function () {
   const locales = () => [...dicts.entries()].map(([code, d]) => ({ code, name: d.meta.name, dir: d.meta.dir }));
   const onChange = (fn) => { listeners.add(fn); return () => listeners.delete(fn); };
   /* locale-aware formatting helpers (Intl falls back gracefully) */
-  const intlLocale = () => (current === "ar" ? "ar-EG" : current);
+  const intlLocale = () => current;
   const number = (n) => { try { return new Intl.NumberFormat(intlLocale()).format(n); } catch { return String(n); } };
   const date = (ms, opts = { year: "numeric", month: "short", day: "numeric" }) => { try { return new Intl.DateTimeFormat(intlLocale(), opts).format(new Date(ms)); } catch { return new Date(ms).toLocaleDateString(); } };
   return { t, tn, register, setLocale, get locale() { return current; }, dir, isRTL, locales, onChange, number, date, has: (code) => dicts.has(code) };
