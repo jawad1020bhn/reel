@@ -22,6 +22,15 @@
 .discover-pull .icon { transition: transform 240ms var(--ease); }
 .discover-pull.is-armed .icon { transform: rotate(180deg); }
 
+/* ── Discover rails — no caption/account overlay on hover, keep the lift ── */
+.discover .rail .tile-info {
+  display: none !important;
+  visibility: hidden !important;
+}
+.discover .rail .tile:hover .tile-badges {
+  opacity: 1 !important;
+}
+
 /* ── Mobile: Discover rails — hide the creator row, let artwork breathe ── */
 @media (max-width: 767px) {
   /* Remove the 44px account row (avatar + handle + likes) under each card */
