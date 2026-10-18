@@ -75,15 +75,32 @@ XR.define("core.query.engine", ["core.query.search", "core.util"], function (sea
   /**
    * Smart shuffle — a deterministic (per seed) order that feels curated rather than random:
    *   1. weight each post: unseen ×3, in progress ×2, starred ×1.5, fresh saves up to ×1.8
-   *      (decaying over 60 days), a mild popularity lift (log10 likes), unavailable ×0.05;
-   *   2. Efraimidis–Spirakis sampling: key = rnd^(1/w), sort by key — heavier posts float up
-   *      but nothing is ever pinned, so every refresh is a genuinely new deck;
-   *   3. spread pass: no creator repeats within SPREAD slots and no more than RUN posts of
-   *      the same media kind in a row (looks ahead up to 12 slots; falls back when it can't).
+   *      (decaying over 60 days), a mild popularity lift (log10 likes), unavailable ×0.05.
+   *      Prolific creators are dampened (÷ 1 + log10 of their post count) so one account
+   *      with 500 saves cannot crowd out everyone else before the spread pass even runs;
+   *   2. exponential-race sampling (the numerically stable form of Efraimidis–Spirakis):
+   *      key = −ln(1 − rnd) / w, ascending — heavier posts float up but nothing is ever
+   *      pinned, so every new seed is a genuinely new deck;
+   *   3. spread pass with O(1) checks (last-position maps, current kind-run): prefer no
+   *      creator repeat within that creator's natural gap (SPREAD slots, tightened to
+   *      total ÷ their post count for prolific accounts), no more than RUN posts of
+   *      the same media kind in a row, and no shared lead hashtag within TAG_SPREAD
+   *      slots. Each slot takes the cheapest candidate in a lookahead window under a
+   *      penalty score that also paces creators against their fair share of the deck
+   *      so far (see below), so when the remaining pool cannot satisfy every rule —
+   *      one creator owning a third of the library, say — it breaks the least-bad one
+   *      instead of abandoning the rest or stranding that creator in the tail.
    */
   function smartShuffle(items, seed, ctx) {
-    const SPREAD = 4, RUN = 3, LOOK = 12, now = Date.now();
+    const SPREAD = 4, RUN = 3, TAG_SPREAD = 3, LOOK = 64, now = Date.now();
     const rnd = util.seededRandom(seed || 1);
+    const creatorCount = new Map();
+    for (const p of items) creatorCount.set(p.author.username, (creatorCount.get(p.author.username) || 0) + 1);
+    /* Each creator's natural spacing: an account with a third of the library cannot
+       keep the same 4-slot gap as an account with ten posts — it would be throttled
+       to the tail no matter its weight. Its target gap is total ÷ its count. */
+    const creatorGap = new Map();
+    for (const [user, count] of creatorCount) creatorGap.set(user, Math.min(SPREAD + 1, Math.max(1, items.length / count)));
     const weight = (p) => {
       let w = 1;
       if (ctx.isUnavailable?.(p.id)) w *= 0.05;
@@ -93,23 +110,59 @@ XR.define("core.query.engine", ["core.query.search", "core.util"], function (sea
       const ageDays = Math.max(0, (now - (p.savedAt || 0)) / 864e5);
       w *= 1 + 0.8 * Math.max(0, 1 - ageDays / 60);
       w *= 1 + 0.15 * Math.log10(1 + (p.metrics.likes || 0));
+      w /= 1 + Math.log10(creatorCount.get(p.author.username) || 1);
       return w;
     };
-    const keyed = items.map((p) => ({ p, k: Math.pow(rnd(), 1 / weight(p)) })).sort((a, b) => b.k - a.k).map((x) => x.p);
-    const kindOf = (p) => (p.media[0]?.kind === "photo" ? "photo" : "video");
-    const out = [], rest = keyed;
+    const keyed = items
+      .map((p) => ({ p, k: -Math.log(1 - rnd()) / weight(p) }))
+      .sort((a, b) => a.k - b.k)
+      .map((x) => x.p);
+    const kindOf = (p) => {
+      if (ctx.kindOf) return ctx.kindOf(p);
+      return p.media[0]?.kind === "photo" ? "photo" : "video";
+    };
+    const tagOf = (p) => (p.hashtags && p.hashtags[0]) || "";
+    const out = [], rest = keyed, total = items.length;
+    const lastCreator = new Map(), lastTag = new Map(), placedCreator = new Map();
+    let tailKind = null, tailRun = 0;
+    /* Soft-rule penalty for a candidate at the current tail: breaking a rule costs,
+       breaking it worse costs more (a creator 1 slot back ≫ a creator 4 slots back),
+       and an unbroken rule costs 0 — so the pick below trades rules off against each
+       other instead of dropping them in a fixed order. Creators also pay for running
+       ahead of their fair share of the deck so far, which paces a prolific account
+       evenly through the order instead of letting it pile up wherever the weighted
+       draw happened to cluster (or strand it all in the tail). */
+    const penalty = (c) => {
+      const pos = out.length;
+      let cost = 0;
+      const dc = pos - (lastCreator.get(c.author.username) ?? -Infinity);
+      const gap = creatorGap.get(c.author.username) || SPREAD + 1;
+      if (dc < gap) cost += (gap - dc) * 3;
+      const placed = placedCreator.get(c.author.username) || 0;
+      const ahead = (placed + 1) / (pos + 1) - (creatorCount.get(c.author.username) || 0) / total;
+      cost += ahead * 30; /* negative when behind fair share: a lagging creator is pulled forward */
+      if (tailRun >= RUN && kindOf(c) === tailKind) cost += 4;
+      const tag = tagOf(c);
+      if (tag) { const dt = pos - (lastTag.get(tag) ?? -Infinity); if (dt <= TAG_SPREAD) cost += TAG_SPREAD + 1 - dt; }
+      return cost;
+    };
     while (rest.length) {
-      let pick = -1;
-      for (let i = 0; i < Math.min(LOOK, rest.length); i++) {
-        const c = rest[i];
-        const recent = out.slice(-SPREAD);
-        if (recent.some((o) => o.author.username === c.author.username)) continue;
-        const tail = out.slice(-RUN);
-        if (tail.length === RUN && tail.every((o) => kindOf(o) === kindOf(c))) continue;
-        pick = i; break;
+      /* Cheapest candidate in the lookahead window; ties keep the weighted order.
+         Costs can go negative (a creator behind fair share), so the whole window
+         is scored — the first zero-cost candidate is not necessarily the best. */
+      let pick = 0, best = Infinity;
+      const lim = Math.min(LOOK, rest.length);
+      for (let i = 0; i < lim; i++) {
+        const cost = penalty(rest[i]);
+        if (cost < best) { best = cost; pick = i; }
       }
-      if (pick < 0) { pick = 0; for (let i = 0; i < Math.min(LOOK, rest.length); i++) if (!out.slice(-1).some((o) => o.author.username === rest[i].author.username)) { pick = i; break; } }
-      out.push(rest.splice(pick, 1)[0]);
+      const [chosen] = rest.splice(pick, 1);
+      out.push(chosen);
+      lastCreator.set(chosen.author.username, out.length - 1);
+      placedCreator.set(chosen.author.username, (placedCreator.get(chosen.author.username) || 0) + 1);
+      if (tagOf(chosen)) lastTag.set(tagOf(chosen), out.length - 1);
+      const k = kindOf(chosen);
+      if (k === tailKind) tailRun++; else { tailKind = k; tailRun = 1; }
     }
     return out;
   }

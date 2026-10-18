@@ -16,27 +16,33 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
 
     const setSpec = (patch, { replace = true } = {}) => nav.setQuery(engine.toParams({ ...S.spec, ...patch }), { replace });
 
-    /* Default order: a smart shuffle seeded once per page load. Reloading deals a new deck;
-       moving around the app and coming back keeps the same one (scroll restore + back button
-       still make sense). An explicit ?sort= in the URL always wins. */
-    const LOAD_SEED = 1 + Math.floor(Math.random() * 2147483646);
-    const specFrom = (query) => {
+    /* Default order: a smart shuffle. Every page load deals a fresh deck — including a
+       refresh that lands on a URL still carrying an old ?seed= (from the Shuffle button,
+       the sort menu or a saved view) — while moving around the app and coming back within
+       the same load keeps the deck you left (scroll restore + back button still make
+       sense). Non-shuffle sorts (?sort=newest etc.) always win, refresh included. */
+    const newSeed = () => 1 + Math.floor(Math.random() * 2147483646);
+    const LOAD_SEED = newSeed();
+    let firstMount = true;
+    const specFrom = (query, { freshDeck = false } = {}) => {
       const spec = engine.fromParams(query);
-      if (query.sort === undefined && !spec.q) { spec.sort = "smart"; spec.seed = spec.seed || LOAD_SEED; }
+      if (freshDeck && (spec.sort === "smart" || spec.sort === "random")) spec.seed = newSeed();
+      else if (query.sort === undefined && !spec.q) { spec.sort = "smart"; spec.seed = spec.seed || LOAD_SEED; }
       return spec;
     };
 
     /* ------------------------------------------------------------ render -- */
     function mount(outlet, route) {
       S.host = outlet;
-      S.spec = specFrom(route.query);
+      S.spec = specFrom(route.query, { freshDeck: firstMount });
+      firstMount = false;
       const page = h("div.library");
       const toolbar = h("div.lib-toolbar");
       const chips = h("div.lib-chips");
       const gridHost = h("div.lib-grid");
       const bulkBar = buildBulkBar();
       const head = h("header.page-head.page-bar", h("div.page-bar-text", h("h1.page-title.sr-only", "Library"),
-        h("p.page-sub.lib-count", h("span.lib-count-n"), h("span.lib-sort-note"))));
+        h("p.page-sub.lib-count", h("span.lib-sort-note"))));
       page.append(head, toolbar, chips, gridHost);
       outlet.appendChild(page);
       /* The bar is fixed to the viewport, so it cannot live under the page's
@@ -212,12 +218,6 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
       renderChips();
       const countEl = S.els.page.querySelector(".lib-count");
       if (countEl) {
-        /* Say the number once. When filters are on, the second number is the
-           whole archive, so "1 of 41" explains what the filters cost. */
-        const n = S.result.total, all = catalog.query({}).total;
-        const narrowed = hasFilters() && n !== all;
-        const countN = countEl.querySelector(".lib-count-n");
-        if (countN) countN.textContent = narrowed ? `${dom.compact(n)} of ${dom.compact(all)} ${all === 1 ? "post" : "posts"}` : `${dom.compact(n)} ${n === 1 ? "post" : "posts"}`;
         /* Phones fold sorting into the sheet, so the order needs a visible home. */
         const note = countEl.querySelector(".lib-sort-note");
         if (note) note.textContent = S.spec.sort && S.spec.sort !== "saved" ? (SORT_OPTIONS.find(([v]) => v === S.spec.sort) || [])[1] || "" : "";
@@ -327,7 +327,7 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
       if (kind === "bulk" || kind === "hide" || (kind === "star" && S.spec.state === "starred") || (kind === "seen" && (S.spec.state === "seen" || S.spec.state === "unseen")) || kind === "collection" && S.spec.collection) runQuery(false);
       else { S.grid.each((t) => { if (!ids.length || ids.includes(t.post.id)) t.update(); }); renderChips(); }
     }
-    function shuffle() { setSpec({ sort: "smart", seed: Math.floor(Math.random() * 2147483646) + 1 }); }
+    function shuffle() { setSpec({ sort: "smart", seed: newSeed() }); }
     /** Phones have no room for the three grid actions; they share one sheet. */
     function moreMenu(anchor) {
       menu.open(anchor, [

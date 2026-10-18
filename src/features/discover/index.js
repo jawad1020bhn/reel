@@ -8,19 +8,14 @@ XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "
     const h = dom.h;
     let host = null, rails = [], offs = [], refreshTimer = 0;
 
-    /* The page mix is seeded per session: stable while you browse around and come back,
-       new on a page reload or when you press Shuffle. */
-    const SEED_KEY = "xreels.discover.seed";
+    /* The page mix is seeded once per page load: a refresh deals a new mix (new
+       shelves, new spotlight, new line-ups inside the shelves that stay), while
+       browsing away and coming back within the same load keeps the mix you left.
+       The Shuffle button (or pressing R, or pull-to-shuffle) reseeds on demand. */
     const newSeed = () => 1 + Math.floor(Math.random() * 2147483646);
-    function sessionSeed() {
-      try { const v = Number(sessionStorage.getItem(SEED_KEY)); if (v > 0) return v; } catch { /* unavailable */ }
-      return reseed();
-    }
-    function reseed() {
-      const v = newSeed();
-      try { sessionStorage.setItem(SEED_KEY, String(v)); } catch { /* ignore */ }
-      return v;
-    }
+    let loadSeed = newSeed();
+    function sessionSeed() { return loadSeed; }
+    function reseed() { loadSeed = newSeed(); return loadSeed; }
     function shuffle() {
       platform.vibrate?.(10);
       reseed();
