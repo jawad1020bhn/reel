@@ -17,17 +17,22 @@ XR.define("shell.layout", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu", "app.f
         i18n.t(m.title));
     }
 
-    /* The frosted pill that slides behind the active nav link (500ms expo). */
+    /* One moving surface per navigation. Transform-only travel keeps the
+       active marker smooth without moving labels or changing their weight. */
     function movePill(animate = true) {
       if (!els) return;
-      const pill = els.pill;
-      const active = els.nav.querySelector(".hdr-link[data-feature].is-active");
-      if (!active) { pill.style.opacity = "0"; return; }
-      if (!animate) pill.style.transition = "none";
-      pill.style.left = active.offsetLeft + "px";
-      pill.style.width = active.offsetWidth + "px";
-      pill.style.opacity = "1";
-      if (!animate) { void pill.offsetWidth; pill.style.transition = ""; }
+      for (const [track, pill, selector] of [
+        [els.nav, els.pill, ".hdr-link.is-active"],
+        [els.mobileNav, els.mobilePill, ".mobile-nav-link.is-active"],
+      ]) {
+        const active = track.querySelector(selector);
+        if (!active || !track.getClientRects().length) { pill.style.opacity = "0"; continue; }
+        if (!animate) pill.style.transition = "none";
+        pill.style.transform = `translateX(${active.offsetLeft}px)`;
+        pill.style.width = active.offsetWidth + "px";
+        pill.style.opacity = "1";
+        if (!animate) { void pill.offsetWidth; pill.style.transition = ""; }
+      }
     }
 
     /* -------------------------------------------------------------- search -- */
@@ -44,11 +49,11 @@ XR.define("shell.layout", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu", "app.f
       const form = h("form.hdr-search", { hidden: true, role: "search", id: "hdr-search-form", onsubmit: (e) => { e.preventDefault(); nav.go("library", {}, { q: input.value.trim() }); closeSearch(); } },
         icons.icon("search", 19), input,
         h("button.hdr-search-close", { type: "button", "aria-label": "Close search", onclick: () => closeSearch() }, icons.icon("x", 15)));
-      const btn = h("button.hdr-icon.hdr-search-btn", { title: "Search ( / )", "aria-label": "Open search", "aria-expanded": "false", "aria-controls": "hdr-search-form", onclick: () => (form.classList.contains("open") ? closeSearch() : openSearch()) }, icons.icon("search", 21));
+      const btn = h("button.hdr-icon.hdr-search-btn", { title: "Search ( / )", "aria-label": "Open search", "aria-expanded": "false", "aria-controls": "hdr-search-form", onclick: () => (form.classList.contains("open") ? closeSearch() : openSearch()) }, icons.icon("search", 20), h("span.hdr-search-label", i18n.t("Search")), h("kbd.hdr-search-key", { "aria-hidden": "true" }, "/"));
       function openSearch() {
         clearTimeout(focusTimer); form.hidden = false; form.classList.add("open");
         btn.setAttribute("aria-expanded", "true");
-        focusTimer = setTimeout(() => { if (!form.hidden) input.focus(); }, 180);
+        focusTimer = setTimeout(() => { if (!form.hidden) input.focus(); }, 0);
       }
       function closeSearch() {
         clearTimeout(focusTimer); form.classList.remove("open"); form.hidden = true;
@@ -105,19 +110,22 @@ XR.define("shell.layout", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu", "app.f
         return h("a.mobile-nav-link", { href: "#" + nav.build(id), dataset: { feature: id }, onclick: (e) => { e.preventDefault(); nav.go(id); } },
           icons.icon(m.icon, 21), h("span", i18n.t(m.title)));
       });
-      const moreBtn = h("button.mobile-nav-link.mobile-nav-more", { type: "button", "aria-label": "More pages", "aria-haspopup": "menu", onclick: () => {
+      const moreBtn = h("button.mobile-nav-link.mobile-nav-more", { type: "button", "aria-label": "More pages", "aria-haspopup": "menu", "aria-expanded": "false", onclick: () => {
+        if (moreBtn.getAttribute("aria-expanded") === "true") { menu.close(); return; }
         menu.open(moreBtn, [
           ...items.filter((m) => !phoneIds.includes(m.id)).map((m) => ({ label: m.title, icon: m.icon, checked: nav.current?.name === m.id, run: () => nav.go(m.id) })),
           { sep: true },
           { label: "Command palette", icon: "command", run: () => events.bus.emit(EV.PALETTE_OPEN, {}) },
-        ], { title: "More" });
+        ], { title: "More", className: "navigation-menu", onClose: () => moreBtn.setAttribute("aria-expanded", "false") });
+        moreBtn.setAttribute("aria-expanded", "true");
       } }, icons.icon("more", 21), h("span", i18n.t("More")));
-      const mobileNav = h("nav.mobile-nav", { "aria-label": "Primary" }, phoneLinks, moreBtn);
+      const mobilePill = h("span.mobile-nav-pill", { "aria-hidden": "true" });
+      const mobileNav = h("nav.mobile-nav", { "aria-label": "Primary" }, mobilePill, phoneLinks, moreBtn);
       const main = h("main.main", header, outlet, mobileNav);
       const app = h("div.app", { id: "app" }, skip, main);
       document.body.appendChild(app);
 
-      els = { app, header, nav: navEl, chips, pill, outlet, main, mobileNav, moreBtn, phoneIds, search: search.input, searchBtn: search.btn, openSearch: search.openSearch, muteBtn, source, back };
+      els = { app, header, nav: navEl, chips, pill, outlet, main, mobileNav, mobilePill, moreBtn, phoneIds, search: search.input, searchBtn: search.btn, openSearch: search.openSearch, muteBtn, source, back };
 
       /* header reacts to the outlet scroll: scrim at top, solid once you move */
       outlet.addEventListener("scroll", dom.rafThrottle(() => {
@@ -125,7 +133,7 @@ XR.define("shell.layout", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu", "app.f
       }), { passive: true });
       window.addEventListener("resize", dom.rafThrottle(() => { movePill(false); syncHeaderChrome(false); }), { passive: true });
       if (typeof ResizeObserver === "function") new ResizeObserver(() => syncHeaderChrome()).observe(header);
-      document.fonts?.ready?.then(() => syncHeaderChrome(false)).catch(() => {});
+      document.fonts?.ready?.then(() => { movePill(false); syncHeaderChrome(false); }).catch(() => {});
       syncHeaderChrome(false);
 
       events.bus.on(EV.PLAYBACK_CHANGED, ({ muted }) => dom.replace(muteBtn, icons.icon(muted ? "mute" : "volume", 20)));
@@ -164,7 +172,9 @@ XR.define("shell.layout", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu", "app.f
         a.classList.toggle("is-active", active);
         if (a.matches("a")) { if (active) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); }
       }
-      els.moreBtn.classList.toggle("is-active", !els.phoneIds.includes(route.name));
+      const moreActive = !els.phoneIds.includes(route.name);
+      els.moreBtn.classList.toggle("is-active", moreActive);
+      els.moreBtn.setAttribute("aria-label", moreActive && f ? `More pages, current page: ${i18n.t(f.title)}` : "More pages");
       menu.close();
       els.app.dataset.feature = route.name;
       els.app.classList.toggle("app-immersive", !!(f && f.layout === "immersive"));
@@ -177,7 +187,7 @@ XR.define("shell.layout", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu", "app.f
       const activeChip = els.chips.querySelector(".chipnav-link.is-active");
       if (activeChip) {
         const left = activeChip.offsetLeft - (els.chips.clientWidth - activeChip.offsetWidth) / 2;
-        els.chips.scrollTo({ left: Math.max(0, left), behavior: "smooth" });
+        els.chips.scrollTo({ left: Math.max(0, left), behavior: document.documentElement.dataset.motion === "reduce" || matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
       }
       if (route.name === "library" && route.query.q !== undefined) els.search.value = route.query.q; else if (route.name !== "library") els.search.value = "";
     }

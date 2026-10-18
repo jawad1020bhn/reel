@@ -350,3 +350,136 @@ test("reduced-motion seeking still gives visible feedback and idle tap only reve
   assert.equal((await state(page)).paused, false, "first idle tap does not unexpectedly pause playback");
   assert.equal(await page.$eval(".watch", (el) => el.classList.contains("is-idle")), false);
 });
+
+test('numeric site gate fits desktop, mobile and short landscape with accessible controls', async (t) => {
+  const page = await pageFor(t);
+  await open(page, 'discover');
+  await page.evaluate(() => {
+    const site = XR.resolve('app.site');
+    site.hint = () => '';
+    site.verify = async value => value === '001234';
+    site.remember = async () => true;
+    XR.resolve('shell.siteGate').show();
+  });
+  for (const [width, height] of [[1440, 900], [390, 844], [320, 568], [844, 390]]) {
+    await page.setViewport({ width, height, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
+    const geometry = await page.evaluate(() => {
+      const gate = document.querySelector('.site-gate');
+      const input = document.querySelector('.site-input');
+      const button = document.querySelector('.site-submit');
+      return { overflow: gate.scrollWidth > gate.clientWidth, input: input.getBoundingClientRect().height,
+        button: button.getBoundingClientRect().height, mode: input.inputMode, type: input.type };
+    });
+    assert.equal(geometry.overflow, false, `no horizontal overflow at ${width}`);
+    assert.ok(geometry.input >= 44 && geometry.button >= 44);
+    assert.equal(geometry.mode, 'numeric');
+    assert.equal(geometry.type, 'password');
+    await page.screenshot({ path: `${SHOTS}/site-gate-${width}.png` });
+  }
+  await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
+  await page.evaluate(axe.source);
+  const report = await page.evaluate(async () => axe.run('.site-gate', {
+    runOnly: { type: 'rule', values: ['color-contrast', 'label', 'button-name', 'aria-valid-attr-value'] },
+  }));
+  assert.deepEqual(report.violations.map(v => v.id), []);
+  await page.click('.site-submit');
+  assert.match(await page.$eval('.site-msg', el => el.textContent), /Enter your passcode/);
+  await page.type('.site-input', 'abc');
+  await page.click('.site-submit');
+  assert.match(await page.$eval('.site-msg', el => el.textContent), /numbers only/);
+  await page.$eval('.site-input', el => { el.value = ''; });
+  await page.type('.site-input', '123');
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => document.querySelector('.site-input').getAttribute('aria-invalid') === 'true');
+  assert.match(await page.$eval('.site-msg', el => el.textContent), /isn't right/);
+  await page.type('.site-input', '001234'); // failed input was selected for replacement
+  await page.click('.site-reveal');
+  assert.equal(await page.$eval('.site-input', el => el.type), 'text');
+  assert.equal(await page.$eval('.site-input', el => el.value), '001234');
+  await page.click('.site-reveal');
+  assert.equal(await page.$eval('.site-input', el => el.type), 'password');
+  await page.click('.site-submit');
+  await page.waitForSelector('.site-gate', { hidden: true });
+});
+
+test('site gate recovers from verification errors and tolerates unavailable remember storage', async (t) => {
+  const page = await pageFor(t, 1280, 800, false);
+  await open(page, 'discover');
+  await page.evaluate(() => {
+    const site = XR.resolve('app.site');
+    site.verify = async () => { throw new Error('offline'); };
+    XR.resolve('shell.siteGate').show();
+  });
+  await page.type('.site-input', '001234');
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => document.querySelector('.site-msg').textContent.includes("Couldn't check"));
+  assert.equal(await page.$eval('.site-submit', el => el.disabled), false);
+  await page.evaluate(() => {
+    const site = XR.resolve('app.site');
+    site.verify = async () => true;
+    site.remember = async () => { throw new Error('storage unavailable'); };
+  });
+  await page.click('.site-submit');
+  await page.waitForSelector('.site-gate', { hidden: true });
+});
+
+test('navigation markers align at desktop breakpoints and survive rapid route changes', async (t) => {
+  const page = await pageFor(t, 1440, 900, false);
+  await open(page, 'library');
+  await page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'no-preference' }]);
+  for (const width of [1024, 1100, 1280, 1440]) {
+    await page.setViewport({ width, height: 900, deviceScaleFactor: 1, isMobile: false, hasTouch: false });
+    await page.waitForFunction(() => {
+      const active = document.querySelector('.hdr-link.is-active').getBoundingClientRect();
+      const marker = document.querySelector('.hdr-pill').getBoundingClientRect();
+      return Math.abs(active.left - marker.left) < 2 && Math.abs(active.width - marker.width) < 2;
+    });
+    const bounds = await page.evaluate(() => {
+      const nav = document.querySelector('.hdr-nav').getBoundingClientRect();
+      const actions = document.querySelector('.hdr-actions').getBoundingClientRect();
+      return { navRight: nav.right, actionsLeft: actions.left, actionsRight: actions.right, width: innerWidth };
+    });
+    assert.ok(bounds.navRight <= bounds.actionsLeft, `nav and actions don't collide at ${width}`);
+    assert.ok(bounds.actionsRight <= bounds.width, `utilities stay in viewport at ${width}`);
+  }
+  await page.evaluate(() => {
+    const nav = XR.resolve('app.nav');
+    nav.go('collections'); nav.go('creators'); nav.go('library');
+  });
+  await page.waitForSelector('.outlet[data-feature="library"] .lib-grid');
+  assert.equal(await page.$eval('.hdr-link[aria-current="page"]', el => el.dataset.feature), 'library');
+  await page.evaluate(axe.source);
+  const report = await page.evaluate(() => axe.run('.hdr', {
+    runOnly: { type: 'rule', values: ['color-contrast', 'button-name', 'label', 'aria-valid-attr-value'] },
+  }));
+  assert.deepEqual(report.violations.map(v => v.id), []);
+});
+
+test('mobile More sheet reports state, traps keyboard focus and returns it on Escape', async (t) => {
+  const page = await pageFor(t);
+  await open(page, 'library');
+  await tap(page, '.mobile-nav-more');
+  await page.waitForFunction(() => document.activeElement?.classList.contains('menu-item'));
+  assert.equal(await page.$eval('.mobile-nav-more', el => el.getAttribute('aria-expanded')), 'true');
+  await page.keyboard.press('End');
+  await page.keyboard.press('Tab');
+  assert.equal(await page.evaluate(() => document.activeElement === document.querySelector('.navigation-menu .menu-item')), true);
+  await page.waitForFunction(() => getComputedStyle(document.querySelector('.navigation-menu')).opacity === '1');
+  await page.screenshot({ path: resolve(SHOTS, '390-navigation-more.png') });
+  await page.evaluate(axe.source);
+  const report = await page.evaluate(() => axe.run('.navigation-menu', {
+    runOnly: { type: 'rule', values: ['color-contrast', 'button-name', 'aria-valid-attr-value'] },
+  }));
+  assert.deepEqual(report.violations.map(v => v.id), []);
+  await page.keyboard.press('Escape');
+  assert.equal(await page.$('.navigation-menu'), null);
+  assert.equal(await page.$eval('.mobile-nav-more', el => el.getAttribute('aria-expanded')), 'false');
+  assert.equal(await page.evaluate(() => document.activeElement === document.querySelector('.mobile-nav-more')), true);
+  const marker = await page.evaluate(() => {
+    const active = document.querySelector('.mobile-nav-link.is-active').getBoundingClientRect();
+    const pill = document.querySelector('.mobile-nav-pill');
+    return { delta: Math.abs(active.left - pill.getBoundingClientRect().left), duration: getComputedStyle(pill).transitionDuration };
+  });
+  assert.ok(marker.delta < 2);
+  assert.equal(marker.duration, '0s', 'reduced motion disables marker travel');
+});

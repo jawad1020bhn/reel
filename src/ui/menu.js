@@ -5,21 +5,40 @@ XR.define("ui.menu", ["ui.dom", "ui.icons", "core.i18n"], function (dom, icons, 
   "use strict";
   let currentBackdrop = null;
   const isSheetMode = () => document.documentElement.dataset.touch === "on" || innerWidth <= 700;
-  let current = null;
-  function close() { if (currentBackdrop) { currentBackdrop.remove(); currentBackdrop = null; } if (current) { current.remove(); current = null; document.removeEventListener("pointerdown", onDoc, true); document.removeEventListener("keydown", onKey, true); window.removeEventListener("resize", close); window.removeEventListener("scroll", close, true); } }
+  let current = null, trigger = null, onClosed = null;
+  function close() {
+    const restore = current?.contains(document.activeElement);
+    const previousTrigger = trigger, callback = onClosed;
+    trigger = null; onClosed = null;
+    if (currentBackdrop) { currentBackdrop.remove(); currentBackdrop = null; }
+    if (current) { current.remove(); current = null; }
+    document.removeEventListener("pointerdown", onDoc, true);
+    document.removeEventListener("keydown", onKey, true);
+    window.removeEventListener("resize", close);
+    window.removeEventListener("scroll", close, true);
+    callback?.();
+    if (restore && previousTrigger?.isConnected) previousTrigger.focus({ preventScroll: true });
+  }
   function onDoc(e) { if (current && !current.contains(e.target)) close(); }
   function onKey(e) {
     if (!current) return;
     if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); return; }
     const items = [...current.querySelectorAll(".menu-item:not([disabled])")];
     const i = items.indexOf(document.activeElement);
+    if (e.key === "Tab") {
+      e.preventDefault();
+      items[(i + (e.shiftKey ? -1 : 1) + items.length) % items.length]?.focus();
+    } else if (e.key === "Home") { e.preventDefault(); items[0]?.focus(); }
+    else if (e.key === "End") { e.preventDefault(); items[items.length - 1]?.focus(); }
     if (e.key === "ArrowDown") { e.preventDefault(); items[(i + 1) % items.length]?.focus(); }
     else if (e.key === "ArrowUp") { e.preventDefault(); items[(i - 1 + items.length) % items.length]?.focus(); }
   }
-  function open(anchor, items, { title = "", align = "start" } = {}) {
+  function open(anchor, items, { title = "", align = "start", className = "", onClose = null } = {}) {
     close();
+    trigger = anchor instanceof Element ? anchor : document.activeElement;
+    onClosed = onClose;
     const sheet = isSheetMode();
-    const el = dom.h("div.menu", { role: "menu", class: sheet ? "menu-sheet" : "" });
+    const el = dom.h("div.menu", { role: "menu", class: (sheet ? "menu-sheet " : "") + className, "aria-label": title ? i18n.t(title) : i18n.t("Actions") });
     if (sheet) el.appendChild(dom.h("div.sheet-grip"));
     if (title) el.appendChild(dom.h("div.menu-title", i18n.t(title)));
     for (const it of items) {
@@ -36,8 +55,12 @@ XR.define("ui.menu", ["ui.dom", "ui.icons", "core.i18n"], function (dom, icons, 
     document.body.appendChild(el);
     current = el; currentBackdrop = backdrop;
     if (sheet) {
-      requestAnimationFrame(() => { el.classList.add("in"); backdrop.classList.add("in"); });
-      setTimeout(() => { document.addEventListener("keydown", onKey, true); }, 0);
+      requestAnimationFrame(() => {
+        if (current !== el) return;
+        el.classList.add("in"); backdrop.classList.add("in");
+        el.querySelector(".menu-item:not([disabled])")?.focus({ preventScroll: true });
+      });
+      setTimeout(() => { if (current !== el) return; document.addEventListener("keydown", onKey, true); }, 0);
       return { el, close };
     }
     // position
@@ -49,8 +72,8 @@ XR.define("ui.menu", ["ui.dom", "ui.icons", "core.i18n"], function (dom, icons, 
     x = Math.max(8, Math.min(x, innerWidth - w - 8));
     y = Math.max(8, Math.min(y, innerHeight - hgt - 8));
     el.style.left = x + "px"; el.style.top = y + "px";
-    requestAnimationFrame(() => { el.classList.add("in"); el.querySelector(".menu-item:not([disabled])")?.focus({ preventScroll: true }); });
-    setTimeout(() => { document.addEventListener("pointerdown", onDoc, true); document.addEventListener("keydown", onKey, true); window.addEventListener("resize", close); window.addEventListener("scroll", close, true); }, 0);
+    requestAnimationFrame(() => { if (current !== el) return; el.classList.add("in"); el.querySelector(".menu-item:not([disabled])")?.focus({ preventScroll: true }); });
+    setTimeout(() => { if (current !== el) return; document.addEventListener("pointerdown", onDoc, true); document.addEventListener("keydown", onKey, true); window.addEventListener("resize", close); window.addEventListener("scroll", close, true); }, 0);
     return { el, close };
   }
   return { open, close, get isOpen() { return !!current; } };

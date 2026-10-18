@@ -444,8 +444,8 @@ on lift (hover, focus, dialog, preview) and return instantly on settle.
 
 ### Navigation
 - A fixed, safe-area-aware header: black scrim at rest, an opaque near-black surface after scrolling (no full-width backdrop blur).
-- Desktop: text links and the existing sliding pill. Tablets: horizontally scrollable page chips.
-- Phones below 768px: a 56px top bar plus a 64px bottom navigation bar, with the home-indicator inset added. Discover, Library, Watch, Collections, and More are always findable; More retains Creators, Insights, Import, Settings, and the command palette.
+- Desktop: text links in a near-black rounded track, a transform-driven active surface, and a short crimson active marker. Search gains a text label and shortcut hint on wide screens; compact widths keep the icon. Tablets retain horizontally scrollable, 44px page chips.
+- Phones below 768px: a 56px top bar plus a 64px opaque inset navigation dock, 10px from the edges with the home-indicator inset added. Reserve 84px plus the safe-area inset below content. A single moving neutral surface indicates the selected destination; labels stay fixed. Discover, Library, Watch, Collections, and More are always findable; More retains Creators, Insights, Import, Settings, and the command palette. Its sheet exposes expanded state, keyboard navigation, and focus return.
 - Watch remains immersive and has its own Back control. Bottom navigation must not cover bulk actions, toasts, or page endings.
 - Primary links expose `aria-current="page"`; search is a visible action and its closed form is actually hidden.
 - Keyboard-first: ⌘K palette shortcuts remain annotated in labels (mono).
