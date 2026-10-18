@@ -91,9 +91,9 @@ XR.define("features.settings", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog",
          browser — so it can only be shown, locked or explained here. */
       const siteRow = site.isEnabled()
         ? W.row("Site password", site.applies()
-          ? "This deployment asks for a password before it opens. It is set in site.config.js, not in this browser."
+          ? "This deployment asks for the passcode every time it opens. XReels does not remember it; the digest is set in site.config.js."
           : "A site password is configured in site.config.js, but it does not apply to a copy opened straight from a file.", site.applies()
-          ? h("div.row-btns", W.btn("Lock this browser", { icon: "lock", onClick: async () => { await site.forget(); location.reload(); } }))
+          ? h("div.row-btns", W.btn("Lock now", { icon: "lock", onClick: async () => { await site.forget(); location.reload(); } }))
           : null)
         : null;
       return W.section("Privacy", "Everything stays in this browser. Nothing is sent anywhere.",

@@ -13,11 +13,11 @@
    even the same shelf shows a different line-up on every shuffle (ranked and resume
    shelves keep their order). A different `seed` ⇒ a different page.
    New rails: add a builder to POOL. */
-XR.define("core.ranking.rails", ["core.query.engine", "core.util"], function (engine, util) {
+XR.define("core.ranking.rails", ["core.query.engine", "core.util", "core.ranking.recommendations"], function (engine, util, recs) {
   "use strict";
 
   const LIMIT = 24;
-  const COUNT = 13;          // shelves per page (anchor included when it exists)
+  const COUNT = 20;          // shelves per page (anchor included when it exists)
   const PER_POST = 3;        // a post may sit on at most this many shelves per page
   const WEEK = 7 * 864e5;
 
@@ -38,9 +38,17 @@ XR.define("core.ranking.rails", ["core.query.engine", "core.util"], function (en
   const HOUR = (ms) => new Date(ms).getHours();
   const primaryAspect = (p) => (p.media[0] && p.media[0].aspect) || 1;
   const byUser = (posts) => { const m = new Map(); for (const p of posts) { const u = p.author.username; m.set(u, (m.get(u) || 0) + 1); } return m; };
+  const available = (B, p) => visible(B.ctx)(p) && !B.ctx.isUnavailable?.(p.id);
+  const unseenAvailable = (B, p) => available(B, p) && !B.ctx.isSeen(p.id);
+  const rankItems = (B, posts, score, salt = 0, diversity = 0.18) =>
+    recs.diversify(recs.scorePosts(posts, score, B.seed + salt), B.limit, B.ctx, diversity).map((x) => x.post);
+  const recency = (p, B, halfLife = 90) => recs.freshness(p, B.now, halfLife);
+  const hasVideo = (p) => p.media.some((m) => m.kind !== "photo");
+  const watchDuration = (p) => p.media.reduce((sum, m) => sum + (m.kind === "photo" ? 0 : Math.max(0, m.duration || 0)), 0);
+  const FORMAT_LABEL = { short: "short clips", long: "long videos", photo: "photos", carousel: "albums", gif: "GIFs" };
 
   /* ---------------------------------------------------------------- pool -- */
-  /* A builder gets (B) = { posts, ctx, q, rnd, seed, now, limit } and returns a rail or null.
+  /* A builder gets (B) = { posts, ctx, q, rnd, seed, now, limit, profile } and returns a rail or null.
      `family` groups builders that would feel repetitive together; `weight` biases the draw. */
   const POOL = [
     /* ---- personal signals ---- */
@@ -56,6 +64,27 @@ XR.define("core.ranking.rails", ["core.query.engine", "core.util"], function (en
       const src = pick(recent, B.rnd); if (!src || !B.ctx.related) return null;
       const items = B.ctx.related(src.id, 60).filter((p) => visible(B.ctx)(p) && !B.ctx.isSeen(p.id));
       return { title: "Because you watched @{x}", params: { x: src.author.username }, hint: util.truncate((src.text || "").replace(/\s+/g, " ").trim(), 60) || "More like something you opened", items: util.shuffle(items, B.seed).slice(0, B.limit), spec: null, min: 4 };
+    } },
+    { id: "foryou", family: "personalized", weight: 4, build: (B) => {
+      const profile = B.profile();
+      const candidates = B.posts.filter((p) => unseenAvailable(B, p));
+      const items = rankItems(B, candidates, (p) => {
+        const taste = recs.fit(p, profile, B.ctx);
+        const quality = recs.quality(p, profile);
+        const fresh = recency(p, B);
+        const novelty = recs.novelty(p, profile);
+        return profile.hasHistory
+          ? 0.60 * taste + 0.17 * quality + 0.14 * fresh + 0.09 * novelty
+          : 0.46 * quality + 0.34 * fresh + 0.20 * novelty;
+      }, 101, 0.20);
+      return { title: "Your next watch", hint: "A local blend of familiar tastes and fresh saves", items, spec: { state: "unseen", sort: "smart", seed: B.seed }, specDisabled: true, min: 5 };
+    } },
+    { id: "sidequest", family: "serendipity", weight: 3, build: (B) => {
+      const profile = B.profile();
+      const candidates = B.posts.filter((p) => unseenAvailable(B, p) && recs.sideFit(p, profile) > 0);
+      const items = rankItems(B, candidates, (p) =>
+        0.76 * recs.sideFit(p, profile) + 0.14 * recs.quality(p, profile) + 0.10 * recency(p, B), 211, 0.24);
+      return { title: "Side quest", hint: "Adjacent topics linked to what you watched and starred", items, spec: null, min: 5 };
     } },
     { id: "starred", family: "starred", weight: 2, build: (B) => ({ title: "My list", hint: "Posts you starred", items: B.qw({ state: "starred", sort: "saved" }), spec: { state: "starred" }, min: 4 }) },
     { id: "again", family: "starred", weight: 1, build: (B) => {
@@ -98,6 +127,16 @@ XR.define("core.ranking.rails", ["core.query.engine", "core.util"], function (en
       const quiet = pool.slice(0, Math.max(10, Math.floor(pool.length / 2)));
       return { title: "Hidden gems", hint: "Unseen posts that never went viral", items: util.shuffle(quiet, B.seed + 5).slice(0, B.limit), spec: null, min: 5 };
     } },
+    { id: "sleepers", family: "pulse", weight: 2, build: (B) => {
+      const profile = B.profile();
+      const candidates = B.posts.filter((p) => unseenAvailable(B, p));
+      const items = rankItems(B, candidates, (p) => {
+        const views = Math.max(0, Number(p.metrics?.views) || 0);
+        const reach = views > 0 ? 1 - Math.min(1, Math.log1p(views) / Math.log1p(1e7)) : 0.6;
+        return 0.70 * recs.quality(p, profile) + 0.18 * reach + 0.12 * recency(p, B, 180);
+      }, 307, 0.21);
+      return { title: "Sleeper hits", hint: "Unseen posts with a strong response for their reach", items, spec: { state: "unseen" }, specDisabled: true, min: 5 };
+    } },
 
     /* ---- entity spotlights ---- */
     { id: "creator", family: "creator", weight: 3, build: (B) => {
@@ -130,6 +169,23 @@ XR.define("core.ranking.rails", ["core.query.engine", "core.util"], function (en
     { id: "quick", family: "video", weight: 2, build: (B) => {
       const items = engine.run(B.posts, { kind: "video", state: "unseen", sort: "shortest", limit: B.limit * 3 }, B.ctx).items.filter((p) => B.ctx.duration(p) > 0 && B.ctx.duration(p) <= 20);
       return { title: "Quick hits", hint: "Under 20 seconds each", items: util.shuffle(items, B.seed).slice(0, B.limit), spec: { kind: "video", sort: "shortest" }, min: 5 };
+    } },
+    { id: "fivemin", family: "session", weight: 3, build: (B) => {
+      const profile = B.profile();
+      const candidates = B.posts.filter((p) => unseenAvailable(B, p) && hasVideo(p) && watchDuration(p) > 0 && watchDuration(p) <= 300);
+      const scored = recs.scorePosts(candidates, (p) => {
+        const taste = recs.fit(p, profile, B.ctx);
+        const value = profile.hasHistory
+          ? 0.48 * taste + 0.24 * recs.quality(p, profile) + 0.18 * recency(p, B) + 0.10 * recs.novelty(p, profile)
+          : 0.50 * recs.quality(p, profile) + 0.34 * recency(p, B) + 0.16 * recs.novelty(p, profile);
+        return 0.22 + 0.78 * value;
+      }, B.seed + 601);
+      const selected = recs.budgetedSelection(scored, {
+        seconds: 300, maxItems: B.limit, step: 5, durationOf: watchDuration,
+      });
+      const items = recs.diversify(selected, B.limit, B.ctx, 0.22).map((x) => x.post);
+      return { title: "The five-minute queue", hint: "A personalized mini-marathon that fits about five minutes", items,
+        spec: { kind: "video", state: "unseen" }, specDisabled: true, min: 4 };
     } },
     { id: "long", family: "long", weight: 2, build: (B) => ({ title: "Long form", hint: "Clips over 3 minutes", items: B.q({ kind: "long", sort: "random", seed: B.seed }), spec: { kind: "long" }, layout: "wide" }) },
     { id: "binge", family: "long", weight: 1, build: (B) => ({ title: "Settle in", hint: "The longest videos you saved", items: B.qw({ kind: "video", sort: "longest" }), spec: { kind: "video", sort: "longest" }, layout: "wide", min: 4 }) },
@@ -185,6 +241,38 @@ XR.define("core.ranking.rails", ["core.query.engine", "core.util"], function (en
       const items = B.posts.filter((p) => visible(B.ctx)(p) && !aff.has(p.author.username) && !B.ctx.isSeen(p.id));
       return { title: "Creators you haven't opened yet", hint: "Accounts in your library you never tapped", items: util.shuffle(items, B.seed + 41).slice(0, B.limit), spec: null, min: 5 };
     } },
+    { id: "freshfaces", family: "creator4", weight: 3, build: (B) => {
+      const profile = B.profile();
+      const candidates = B.posts.filter((p) => unseenAvailable(B, p) && !profile.knownCreators.has(p.author.username));
+      const items = rankItems(B, candidates, (p) => {
+        const taste = recs.fit(p, profile, B.ctx);
+        return profile.hasHistory
+          ? 0.68 * taste + 0.18 * recs.quality(p, profile) + 0.14 * recency(p, B)
+          : 0.55 * recs.quality(p, profile) + 0.30 * recency(p, B) + 0.15 * recs.novelty(p, profile);
+      }, 401, 0.24);
+      return { title: "Fresh faces, familiar taste", hint: "New creators paired with topics and formats you like", items, spec: null, min: 5 };
+    } },
+    { id: "formatflip", family: "format2", weight: 2, build: (B) => {
+      const profile = B.profile();
+      const byFormat = new Map();
+      for (const p of B.posts) if (unseenAvailable(B, p)) {
+        const format = recs.formatOf(p, B.ctx);
+        if (!byFormat.has(format)) byFormat.set(format, []);
+        byFormat.get(format).push(p);
+      }
+      const options = [...byFormat.entries()].filter(([, items]) => items.length >= 5)
+        .map(([format, items]) => ({ format, items,
+          preference: profile.hasHistory ? (profile.formats.get(format) || 0) : (profile.formatCounts.get(format) || 0) / Math.max(1, profile.corpusCount),
+          tie: B.rnd(),
+        }))
+        .sort((a, b) => a.preference - b.preference || b.items.length - a.items.length || a.tie - b.tie);
+      const target = options[0]; if (!target) return null;
+      const items = rankItems(B, target.items, (p) =>
+        0.48 * recs.fit(p, profile, B.ctx) + 0.24 * recs.quality(p, profile) +
+        0.18 * recency(p, B) + 0.10 * recs.novelty(p, profile), 503, 0.20);
+      return { title: "A change of frame", hint: "A format you rarely open: {x}", hintParams: { x: FORMAT_LABEL[target.format] || target.format },
+        items, spec: { kind: target.format, state: "unseen", sort: "smart", seed: B.seed }, specDisabled: true, min: 5 };
+    } },
   ];
 
   /**
@@ -202,7 +290,10 @@ XR.define("core.ranking.rails", ["core.query.engine", "core.util"], function (en
     /* sorted shelves: 2× window, reshuffled per seed (see header) */
     const qw = (spec, salt = 0) => windowed(engine.run(posts, { ...spec, limit: limit * 2 }, ctx).items, seed + salt, limit);
     const used = { creators: new Set(), tags: new Set() };          // entity spotlights never repeat on one page
-    const B = { posts, ctx, q, qw, rnd, seed, now, limit, used };
+    let profileCache = null;
+    const B = { posts, ctx, q, qw, rnd, seed, now, limit, used,
+      profile: () => { if (!profileCache) profileCache = recs.buildProfile(posts, ctx); return profileCache; },
+    };
 
     const rails = [];
     const seenIds = new Map();                                 // postId → shelves it already sits in

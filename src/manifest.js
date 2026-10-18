@@ -48,6 +48,7 @@ window.XREELS_MANIFEST = {
     "src/core/adapters/generic.js",
     "src/core/query/search.js",
     "src/core/query/engine.js",
+    "src/core/ranking/recommendations.js",
     "src/core/ranking/rails.js",
     "src/application/ports.js",
     "src/application/state/store.js",
