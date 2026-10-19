@@ -1,4 +1,4 @@
-/* XReels module manifest — the SINGLE list of stylesheets and scripts, in load order.
+/* saves module manifest — the SINGLE list of stylesheets and scripts, in load order.
    Consumed by: index.html (via src/kernel/loader.js), tests/index.html, tests/run-node.mjs,
    tools/lint-deps.mjs. Add a new feature/adapter/module here (and only here).
    Rules: kernel first, boot.js last; everything in between is resolved lazily by the

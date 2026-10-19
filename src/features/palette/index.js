@@ -38,7 +38,7 @@ XR.define("features.palette", ["ui.dom", "ui.icons", "ui.widgets", "ui.keys", "u
             h("button.palette-close", { type: "button", "aria-label": "Close palette", title: "Close (esc)", onclick: () => close() }, icons.icon("x", 18)),
             h("span.palette-esc", W.kbd("esc"))),
           list,
-          h("div.palette-foot", h("span.foot-hint", W.kbd("↑↓"), " navigate · ", W.kbd("↵"), " run · ", W.kbd("esc"), " close"), h("span.palette-foot-end", "XREELS · ⌘K"))));
+          h("div.palette-foot", h("span.foot-hint", W.kbd("↑↓"), " navigate · ", W.kbd("↵"), " run · ", W.kbd("esc"), " close"), h("span.palette-foot-end", "SAVES · ⌘K"))));
       document.body.appendChild(el);
       historyEntry = overlay.register(close);
       requestAnimationFrame(() => { el.classList.add("in"); input.focus(); });

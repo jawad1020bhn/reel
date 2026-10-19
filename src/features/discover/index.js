@@ -267,11 +267,11 @@ XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "
       return h("footer.foot",
         h("div.foot-hairline"),
         h("div.foot-in",
-          h("div.foot-brand", h("span.foot-word", "X"), h("span.foot-word-rest", "REELS")),
+          h("div.foot-brand", icons.icon("bookmark", 18), h("span.foot-word", "saves")),
           h("p.foot-meta",
             `${dom.compact(stats.posts)} ${t("posts")} · ${dom.compact(stats.videos)} ${t("videos")} · ${dom.hours(stats.seconds)} ${t("of footage")} · ${stats.collections} ${t("collections")}`),
           h("p.foot-note", t("Local-first — everything stays in this browser. Nothing is sent anywhere.")),
-          h("p.foot-copy", "XReels © 2026")));
+          h("p.foot-copy", "saves © 2026")));
     }
 
     /* ------------------------------------------------------ pull to shuffle -- */

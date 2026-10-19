@@ -104,7 +104,7 @@ XR.define("shell.siteGate", ["ui.dom", "ui.icons", "app.site"], function (dom, i
     el = h("div.site-gate", { role: "dialog", "aria-modal": "true", "aria-labelledby": "site-heading" },
       h("header.site-header", brand, h("span.site-header-note", icons.icon("lock", 13), "Passcode required")),
       h("main.site-entry", intro, card),
-      h("footer.site-footer", h("span", "YOUR COLLECTION. YOUR SPACE."), h("span", "XREELS")));
+      h("footer.site-footer", h("span", "YOUR COLLECTION. YOUR SPACE."), h("span", "SAVES")));
     // The app has not booted, but keep keyboard focus inside the gate as a guard.
     el.addEventListener("keydown", (e) => {
       if (e.key !== "Tab") return;

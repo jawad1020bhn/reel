@@ -51,7 +51,7 @@ XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.po
     async function normalizeInput(input, label) {
       const json = registry.parseInput(input);
       const detected = registry.detect(json);
-      if (!detected) throw new Error("Unrecognised format — see docs/DATA-FORMATS.md for the shapes XReels understands.");
+      if (!detected) throw new Error("Unrecognised format — see docs/DATA-FORMATS.md for the shapes saves understands.");
       const approx = Array.isArray(json) ? json.length : (json.bookmarks || json.tweets || json.posts || json.data || []).length || 0;
       let result = null;
       if (approx >= WORKER_MIN && !platform.isFile() && typeof Worker === "function" && XR.has("infra.workers")) {
@@ -233,7 +233,7 @@ XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.po
 
     /** Export helpers (the normalised shape, re-importable). */
     function exportPosts(posts, { asScript = false } = {}) {
-      const payload = { export_version: "xreels-1", exported_at: new Date().toISOString(), count: posts.length, posts };
+      const payload = { export_version: "saves-1", exported_at: new Date().toISOString(), count: posts.length, posts };
       const json = JSON.stringify(payload, null, 1);
       return asScript ? `window.XREELS_DATA =\n${json}\n;\n` : json;
     }

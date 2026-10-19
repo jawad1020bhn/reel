@@ -60,13 +60,20 @@
 }
 .hdr-left { display: flex; align-items: center; gap: 18px; min-width: 0; }
 
-/* brand: crimson condensed wordmark */
-.brand { display: inline-flex; align-items: baseline; flex: none; line-height: 1; transform: translateY(1px); }
-.brand-word {
-  font-family: var(--display); font-weight: 400; font-size: 30px; letter-spacing: 0.02em;
-  color: var(--accent);
+/* brand: saves — bookmark mark + lowercase wordmark */
+.brand { display: inline-flex; align-items: center; gap: 10px; flex: none; line-height: 1; transform: translateY(1px); }
+.brand-icon {
+  display: grid; place-items: center; flex: none;
+  width: 32px; height: 32px; border-radius: 8px;
+  background: var(--accent); color: #fff;
+  box-shadow: 0 2px 10px rgb(229 9 20 / 0.35);
 }
-.brand-word-rest { color: var(--fg); margin-left: 1px; text-shadow: 0 2px 14px rgb(0 0 0 / 0.6); }
+.brand-icon .icon { width: 16px; height: 16px; }
+.brand-word {
+  font-family: var(--font); font-weight: 700; font-size: 22px; letter-spacing: -0.03em;
+  color: var(--fg); text-transform: lowercase;
+}
+.brand-word-rest { display: none; }
 
 
 /* A quiet, continuous track. The active surface moves; labels never jump. */
@@ -343,13 +350,22 @@
 }
 .splash-stage { perspective: 900px; }
 .splash-word {
-  display: flex; align-items: baseline; font-family: var(--display); font-weight: 400;
-  font-size: clamp(64px, 14vw, 120px); line-height: 0.9; letter-spacing: 0.03em;
+  display: flex; align-items: center; justify-content: center; gap: 14px;
+  font-family: var(--font); font-weight: 800; text-transform: lowercase;
+  font-size: clamp(64px, 14vw, 120px); line-height: 0.9; letter-spacing: -0.04em;
   color: var(--fg); transform-origin: center;
   animation: word-breathe 2.6s var(--ease-soft) infinite;
 }
-.splash-word > span:first-child { color: var(--accent); text-shadow: 0 0 34px rgb(229 9 20 / 0.55); }
+.splash-icon {
+  display: grid; place-items: center; flex: none;
+  width: clamp(52px, 10vw, 88px); height: clamp(52px, 10vw, 88px);
+  border-radius: 16px; background: var(--accent); color: #fff;
+  box-shadow: 0 0 34px rgb(229 9 20 / 0.55);
+}
+.splash-icon .icon { width: 55%; height: 55%; }
+.splash-word > span:last-child { text-shadow: 0 2px 24px rgb(0 0 0 / 0.6); }
 .splash-word-rest { margin-left: 4px; }
+.splash-saves { font-family: var(--font); letter-spacing: -0.05em; }
 @keyframes word-breathe {
   0% { transform: scale(1); letter-spacing: 0.03em; }
   50% { transform: scale(1.035); letter-spacing: 0.045em; }

@@ -121,8 +121,8 @@ XR.define("shell.layout", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu", "app.f
         /* Settings lives on the corner gear; a chip for it would be a duplicate */
         secondary.filter((m) => m.id !== "settings").map((m) => chipLink(m)));
 
-      const brand = h("a.brand", { href: "#/discover", onclick: (e) => { e.preventDefault(); nav.go("discover"); }, "aria-label": "XReels home" },
-        h("span.brand-word", "X"), h("span.brand-word.brand-word-rest", "REELS"));
+      const brand = h("a.brand", { href: "#/discover", onclick: (e) => { e.preventDefault(); nav.go("discover"); }, "aria-label": "saves home" },
+        h("span.brand-icon", icons.icon("bookmark", 16)), h("span.brand-word", "saves"));
       const back = h("button.hdr-icon.hdr-back", { title: "Back", "aria-label": "Back", onclick: () => nav.back() }, icons.icon("arrowLeft", 20));
       /* Phones only: the destination name takes the bar once the page scrolls.
          It is a duplicate of the page heading, so assistive tech skips it. */

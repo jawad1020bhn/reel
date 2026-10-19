@@ -8,7 +8,7 @@ XR.define("shell.splash", ["ui.dom", "ui.icons", "core.events", "core.domain.eve
     if (el) return;
     shownAt = Date.now();
     msg = dom.h("p.splash-msg", "Starting…");
-    mark = dom.h("h1.splash-word", dom.h("span", "X"), dom.h("span.splash-word-rest", "REELS"));
+    mark = dom.h("h1.splash-word.splash-saves", dom.h("span.splash-icon", icons.icon("bookmark", 28)), dom.h("span", "saves"));
     el = dom.h("div.splash",
       dom.h("div.splash-stage", mark),
       discreet ? null : msg,
