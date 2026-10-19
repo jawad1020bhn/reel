@@ -1,17 +1,18 @@
 /* ui.menu — popover menus anchored to an element or a pointer position.
    menu.open(anchorOrEvent, [{label, icon, run, danger, disabled, checked, sep}]) */
-XR.define("ui.menu", ["ui.dom", "ui.icons", "core.i18n"], function (dom, icons, i18n) {
+XR.define("ui.menu", ["ui.dom", "ui.icons", "ui.overlayHistory", "core.i18n"], function (dom, icons, overlay, i18n) {
   /* On touch devices / narrow screens the menu renders as a bottom sheet (native-app feel). */
   "use strict";
   let currentBackdrop = null;
   const isSheetMode = () => document.documentElement.dataset.touch === "on" || innerWidth <= 700;
-  let current = null, trigger = null, onClosed = null;
+  let current = null, trigger = null, onClosed = null, historyEntry = null;
   function close() {
     const restore = current?.contains(document.activeElement);
     const previousTrigger = trigger, callback = onClosed;
     trigger = null; onClosed = null;
     if (currentBackdrop) { currentBackdrop.remove(); currentBackdrop = null; }
     if (current) { current.remove(); current = null; }
+    if (historyEntry) { overlay.release(historyEntry); historyEntry = null; }
     document.removeEventListener("pointerdown", onDoc, true);
     document.removeEventListener("keydown", onKey, true);
     window.removeEventListener("resize", close);
@@ -117,6 +118,7 @@ XR.define("ui.menu", ["ui.dom", "ui.icons", "core.i18n"], function (dom, icons, 
     if (sheet) { backdrop = dom.h("div.sheet-backdrop", { onclick: close }); document.body.appendChild(backdrop); }
     document.body.appendChild(el);
     current = el; currentBackdrop = backdrop;
+    historyEntry = overlay.register(close);
     if (sheet) {
       attachSheetDrag(el, dragArea, backdrop);
       requestAnimationFrame(() => {

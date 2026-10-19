@@ -1,10 +1,10 @@
 /* features.palette — command palette (⌘K / Ctrl+K): navigation, feature commands,
    creators, collections, saved views and a free-text library search. Also the "?" shortcut sheet. */
-XR.define("features.palette", ["ui.dom", "ui.icons", "ui.widgets", "ui.keys", "ui.dialog", "app.features", "app.nav", "app.catalog", "app.actions", "core.events", "core.domain.events", "core.util", "core.i18n"],
-  function (dom, icons, W, keys, dialog, features, nav, catalog, actions, events, EV, util, i18n) {
+XR.define("features.palette", ["ui.dom", "ui.icons", "ui.widgets", "ui.keys", "ui.dialog", "ui.overlayHistory", "app.features", "app.nav", "app.catalog", "app.actions", "core.events", "core.domain.events", "core.util", "core.i18n"],
+  function (dom, icons, W, keys, dialog, overlay, features, nav, catalog, actions, events, EV, util, i18n) {
     "use strict";
     const h = dom.h;
-    let el = null, input = null, list = null, items = [], cursor = 0, baseCommands = [], prevFocus = null;
+    let el = null, input = null, list = null, items = [], cursor = 0, baseCommands = [], prevFocus = null, historyEntry = null;
 
     function collect() {
       const cmds = [];
@@ -40,6 +40,7 @@ XR.define("features.palette", ["ui.dom", "ui.icons", "ui.widgets", "ui.keys", "u
           list,
           h("div.palette-foot", h("span.foot-hint", W.kbd("↑↓"), " navigate · ", W.kbd("↵"), " run · ", W.kbd("esc"), " close"), h("span.palette-foot-end", "XREELS · ⌘K"))));
       document.body.appendChild(el);
+      historyEntry = overlay.register(close);
       requestAnimationFrame(() => { el.classList.add("in"); input.focus(); });
       filter();
       /* Optional feature commands are available after their modules are loaded; keep
@@ -53,6 +54,7 @@ XR.define("features.palette", ["ui.dom", "ui.icons", "ui.widgets", "ui.keys", "u
     function close() {
       if (!el) return;
       const node = el; el = null;
+      if (historyEntry) { overlay.release(historyEntry); historyEntry = null; }
       node.classList.remove("in");
       setTimeout(() => node.remove(), 150);
       if (prevFocus && prevFocus.isConnected && prevFocus.focus) prevFocus.focus({ preventScroll: true });

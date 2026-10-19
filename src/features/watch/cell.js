@@ -95,9 +95,9 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu",
         onProgress: (t, d) => { if (handle !== hd) return; if (!scrubbing) updateProgress(t, d); env.onProgress?.(t, d); },
       });
       video.addEventListener("waiting", () => el.classList.add("is-buffering"));
-      video.addEventListener("playing", () => { el.classList.remove("is-buffering"); el.classList.remove("is-paused"); syncControls(); });
+      video.addEventListener("playing", () => { el.classList.remove("is-buffering"); el.classList.remove("is-paused"); syncControls(); env.onPlayState?.(true, el); });
       video.addEventListener("canplay", () => el.classList.remove("is-buffering"));
-      video.addEventListener("pause", () => { if (active) el.classList.add("is-paused"); syncControls(); });
+      video.addEventListener("pause", () => { if (active) el.classList.add("is-paused"); syncControls(); env.onPlayState?.(false, el); });
       video.addEventListener("play", () => { el.classList.remove("is-paused"); syncControls(); });
       const metadata = () => { if (handle === hd) { updateProgress(video.currentTime, duration()); syncControls(); } };
       video.addEventListener("loadedmetadata", metadata);

@@ -1,7 +1,7 @@
 /* shell.css — frame: fixed cinematic header, mobile chip rail, outlet, lock gate, splash */
 
 /* ------------------------------------------------------------------ frame -- */
-.app { height: 100dvh; width: 100%; overflow: hidden; background: var(--bg); }
+.app { height: 100vh; height: 100dvh; width: 100%; overflow: hidden; background: var(--bg); }
 .main { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; position: relative; }
 .outlet { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; position: relative; }
 .outlet > * { animation: page-in 240ms var(--ease) both; }
@@ -83,7 +83,7 @@
   padding: 0 12px; border-radius: 10px; font-size: 13px; font-weight: 500;
   color: var(--fg-2); white-space: nowrap; transition: color 160ms ease, background 160ms ease;
 }
-.hdr-link:hover { color: var(--fg); background: rgb(255 255 255 / 0.035); }
+[data-hover="on"] .hdr-link:hover { color: var(--fg); background: rgb(255 255 255 / 0.035); }
 .hdr-link.is-active { color: var(--fg); }
 .hdr-link:focus-visible, .chipnav-link:focus-visible, .mobile-nav-link:focus-visible { outline: 2px solid var(--fg); outline-offset: -3px; }
 @media (min-width: 1440px) { .hdr-link { padding: 0 16px; font-size: 14px; } }
@@ -105,7 +105,7 @@
   width: 44px; height: 44px; border-radius: 12px; color: var(--fg-2);
   transition: background var(--dur) var(--ease-soft), color var(--dur) var(--ease-soft), transform var(--dur) var(--ease);
 }
-.hdr-icon:hover { background: rgb(255 255 255 / 0.07); color: var(--fg); }
+[data-hover="on"] .hdr-icon:hover { background: rgb(255 255 255 / 0.07); color: var(--fg); }
 .hdr-icon.is-active { background: rgb(255 255 255 / 0.12); }
 .hdr-icon:active { transform: scale(0.95); }
 
@@ -395,3 +395,11 @@
   .hdr-pill, .mobile-nav-pill, .mobile-nav-link .icon { transition: none !important; }
 }
 [data-motion="reduce"] .hdr-pill, [data-motion="reduce"] .mobile-nav-pill, [data-motion="reduce"] .mobile-nav-link .icon { transition: none !important; }
+
+
+/* 320px phones: five dock cells leave ~58px each; 11px "Collections" does not
+   fit. Drop one step of type rather than truncate a destination to nonsense. */
+@media (max-width: 360px) {
+  .mobile-nav { inset-inline: max(8px, env(safe-area-inset-left, 0px)) max(8px, env(safe-area-inset-right, 0px)); }
+  .mobile-nav-link { font-size: 10px; gap: 3px; letter-spacing: -0.01em; }
+}

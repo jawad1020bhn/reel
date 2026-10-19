@@ -107,13 +107,35 @@ XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "
       const callout = h("div.billboard-callout", icons.icon("bookmark", 14),
         h("span", post.savedAt ? `${t("Saved")} ${dom.relative(post.savedAt)}` : t("In your library")));
 
-      /* mute control for the trailer (desktop) */
+      /* The trailer belongs to the desktop billboard. Phones get a static card
+         (styles/editorial.css hides .billboard-frame below 768px), so attaching
+         the source there would stream a video nobody sees. */
       let video = null, muteBtn = null;
-      if (hasVideo) {
+      const wide = typeof matchMedia === "function" ? matchMedia("(min-width: 768px)") : null;
+      const saveData = !!(navigator.connection && navigator.connection.saveData);
+      const reduceMotion = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (hasVideo && !saveData && !reduceMotion) {
         video = h("video.billboard-video", { muted: true, loop: true, playsInline: true, preload: "metadata", poster: bg || undefined, "aria-hidden": "true" });
-        const best = [...(catalog.ctx.sources ? catalog.ctx.sources(m) : m.sources)].filter((s) => /^https?:/.test(s.url)).sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0];
-        if (best) video.src = best.url;
-        video.play().catch(() => { video = null; });
+        const attachTrailer = () => {
+          if (!wide || !wide.matches) {
+            video.pause();
+            if (video.getAttribute("src")) { video.removeAttribute("src"); video.load(); }
+            return;
+          }
+          if (!video.getAttribute("src")) {
+            const best = [...(catalog.ctx.sources ? catalog.ctx.sources(m) : m.sources)].filter((s) => /^https?:/.test(s.url)).sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0];
+            if (best) video.src = best.url;
+          }
+          if (video.getAttribute("src")) video.play().catch(() => {});
+        };
+        const onChange = () => {
+          /* The billboard is replaced on every post change; drop the listener
+             with the node instead of holding a detached <video> forever. */
+          if (!video.isConnected) { wide.removeEventListener("change", onChange); return; }
+          attachTrailer();
+        };
+        wide?.addEventListener?.("change", onChange);
+        attachTrailer();
         muteBtn = h("button.billboard-mute", { title: "Unmute trailer", "aria-label": "Unmute trailer", onclick: () => {
           if (!video) return;
           video.muted = !video.muted;

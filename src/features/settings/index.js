@@ -88,13 +88,11 @@ XR.define("features.settings", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog",
         lock.isEnabled() ? W.btn("Change", { icon: "edit", onClick: changePin }) : null,
         lock.isEnabled() ? W.btn("Remove", { icon: "unlock", kind: "danger", onClick: removePin }) : W.btn("Set PIN", { icon: "lock", kind: "primary", onClick: setPin })));
       /* The site password belongs to the deployment (site.config.js), not to this
-         browser — so it can only be shown, locked or explained here. */
+         browser — it is never stored, so it can only be explained here. */
       const siteRow = site.isEnabled()
         ? W.row("Site password", site.applies()
-          ? "This deployment asks for a password before it opens. It is set in site.config.js, not in this browser."
-          : "A site password is configured in site.config.js, but it does not apply to a copy opened straight from a file.", site.applies()
-          ? h("div.row-btns", W.btn("Lock this browser", { icon: "lock", onClick: async () => { await site.forget(); location.reload(); } }))
-          : null)
+          ? "This deployment asks for a password every time the app opens. It is set in site.config.js and never remembered by the browser."
+          : "A site password is configured in site.config.js, but it does not apply to a copy opened straight from a file.", null)
         : null;
       return W.section("Privacy", "Everything stays in this browser. Nothing is sent anywhere.",
         siteRow,

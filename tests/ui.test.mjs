@@ -33,7 +33,7 @@ let server, browser, origin;
 
 before(async () => {
   mkdirSync(SHOTS, { recursive: true });
-  const mime = { ".html": "text/html", ".js": "application/javascript", ".css": "text/css", ".json": "application/json", ".woff2": "font/woff2", ".webm": "video/webm" };
+  const mime = { ".html": "text/html", ".js": "application/javascript", ".css": "text/css", ".json": "application/json", ".webmanifest": "application/manifest+json", ".png": "image/png", ".woff2": "font/woff2", ".webm": "video/webm" };
   server = createServer(async (req, res) => {
     const pathname = new URL(req.url, "http://localhost").pathname;
     try {
@@ -456,7 +456,6 @@ test('numeric site gate fits desktop, mobile and short landscape with accessible
     const site = XR.resolve('app.site');
     site.hint = () => '';
     site.verify = async value => value === '001234';
-    site.remember = async () => true;
     XR.resolve('shell.siteGate').show();
   });
   for (const [width, height] of [[1440, 900], [390, 844], [320, 568], [844, 390]]) {
@@ -466,12 +465,14 @@ test('numeric site gate fits desktop, mobile and short landscape with accessible
       const input = document.querySelector('.site-input');
       const button = document.querySelector('.site-submit');
       return { overflow: gate.scrollWidth > gate.clientWidth, input: input.getBoundingClientRect().height,
-        button: button.getBoundingClientRect().height, mode: input.inputMode, type: input.type };
+        button: button.getBoundingClientRect().height, mode: input.inputMode, type: input.type,
+        remember: !!document.querySelector('.site-remember') };
     });
     assert.equal(geometry.overflow, false, `no horizontal overflow at ${width}`);
     assert.ok(geometry.input >= 44 && geometry.button >= 44);
     assert.equal(geometry.mode, 'numeric');
     assert.equal(geometry.type, 'password');
+    assert.equal(geometry.remember, false, 'no "remember this browser" control');
     await page.screenshot({ path: `${SHOTS}/site-gate-${width}.png` });
   }
   await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
@@ -498,9 +499,17 @@ test('numeric site gate fits desktop, mobile and short landscape with accessible
   assert.equal(await page.$eval('.site-input', el => el.type), 'password');
   await page.click('.site-submit');
   await page.waitForSelector('.site-gate', { hidden: true });
+  // Nothing about the unlock is persisted, so no key or API survives it.
+  const leftoverSite = await page.evaluate(async () => {
+    const site = XR.resolve('app.site');
+    const keys = await XR.resolve('app.ports.storage').keys();
+    return { remember: typeof site.remember, isUnlocked: typeof site.isUnlocked,
+      keys: keys.filter(key => key.includes('site.unlocked')) };
+  });
+  assert.deepEqual(leftoverSite, { remember: 'undefined', isUnlocked: 'undefined', keys: [] });
 });
 
-test('site gate recovers from verification errors and tolerates unavailable remember storage', async (t) => {
+test('site gate recovers from verification errors and asks again on every load', async (t) => {
   const page = await pageFor(t, 1280, 800, false);
   await open(page, 'discover');
   await page.evaluate(() => {
@@ -513,12 +522,24 @@ test('site gate recovers from verification errors and tolerates unavailable reme
   await page.waitForFunction(() => document.querySelector('.site-msg').textContent.includes("Couldn't check"));
   assert.equal(await page.$eval('.site-submit', el => el.disabled), false);
   await page.evaluate(() => {
-    const site = XR.resolve('app.site');
-    site.verify = async () => true;
-    site.remember = async () => { throw new Error('storage unavailable'); };
+    XR.resolve('app.site').verify = async value => value === '001234';
   });
   await page.click('.site-submit');
-  await page.waitForSelector('.site-gate', { hidden: true });
+  await page.waitForFunction(() => !document.querySelector('.site-gate'));
+  // A second boot must prompt again even though the code was just accepted.
+  await page.evaluate(() => {
+    const site = XR.resolve('app.site');
+    site.applies = () => true;
+    window.__gateState = 'pending';
+    XR.resolve('shell.siteGate').ensure().then(() => { window.__gateState = 'resolved'; });
+  });
+  await page.waitForSelector('.site-gate');
+  assert.equal(await page.evaluate(() => window.__gateState), 'pending');
+  await page.type('.site-input', '001234');
+  await page.click('.site-submit');
+  await page.waitForFunction(() => !document.querySelector('.site-gate'));
+  await page.waitForFunction(() => window.__gateState === 'resolved');
+  assert.deepEqual(await page.evaluate(async () => (await XR.resolve('app.ports.storage').keys()).filter(k => k.includes('site.unlocked'))), []);
 });
 
 test('navigation markers align at desktop breakpoints and survive rapid route changes', async (t) => {

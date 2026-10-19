@@ -48,8 +48,36 @@ XR.define("shell.app", ["ui.dom", "ui.keys", "ui.toast", "ui.dialog", "ui.menu",
     }
 
     function wireGlobals() {
-      // pause media when the tab is hidden; resume the active one when back
-      document.addEventListener("visibilitychange", () => { if (document.hidden) playback.pauseAll(); });
+      /* Keyboard insets: Chrome Android resizes the layout viewport, other engines
+         overlay it. --kb-inset is 0 when nothing is covered, so bottom sheets can
+         pad by it unconditionally. */
+      const vv = window.visualViewport;
+      if (vv) {
+        const syncKeyboardInset = () => {
+          const inset = Math.max(0, Math.round(innerHeight - vv.height - vv.offsetTop));
+          document.documentElement.style.setProperty("--kb-inset", inset + "px");
+        };
+        vv.addEventListener("resize", syncKeyboardInset, { passive: true });
+        vv.addEventListener("scroll", syncKeyboardInset, { passive: true });
+        syncKeyboardInset();
+      }
+      /* Pause when the page is hidden. Resume only when the same video was actually
+         playing, we were away briefly, and the user is still in Watch. */
+      let hiddenAt = 0, resumeHandle = null;
+      document.addEventListener("visibilitychange", () => {
+        if (document.hidden) {
+          const active = playback.active;
+          resumeHandle = active && active.video && !active.video.paused ? active : null;
+          hiddenAt = Date.now();
+          playback.pauseAll();
+          return;
+        }
+        const handle = resumeHandle;
+        resumeHandle = null;
+        if (handle && handle.video?.isConnected && Date.now() - hiddenAt < 60000 && nav.current?.name === "watch") {
+          handle.play();
+        }
+      });
       /* Viewer code is loaded only on first use. Queue the latest request until its
          listener and stylesheet are ready, then replay it once. */
       let viewerLoading = false, queuedViewer = null;

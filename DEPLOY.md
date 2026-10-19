@@ -47,7 +47,8 @@ window.XREELS_SITE = {
 
 Afterwards **redeploy** — the change is a file, it only takes effect once it is
 published. The visitor then gets a full-screen password prompt before the app
-boots; the unlock is remembered in that browser ("Remember this browser").
+boots, and **on every load** — the password is never remembered or cached in
+the browser, so closing the tab (or reloading) asks for it again.
 
 Leave `salt`/`hash` empty and the site opens straight away — that is what a
 local, double-clicked copy wants.
@@ -113,7 +114,7 @@ password does not un-publish an export that was pushed before.
 | The site opens without asking | `site.config.js` has an empty `hash`, or the change was not redeployed. Run the CLI again, redeploy, hard-reload (Ctrl/Cmd+Shift-R). |
 | The prompt asks for the wrong password | The digest in `site.config.js` is for a different password. Re-run `npm run site:password -- "…"` and redeploy. |
 | The prompt never appears although a hash is set | `site.config.js` was not published (check `https://<your-site>/site.config.js` in the browser — it must show a `hash`). |
-| The visitor is asked again after every reload | "Remember this browser" was unticked, or the browser blocks storage (private mode). |
+| The visitor is asked again after every reload | Expected: nothing about the unlock is stored, so each load asks for the password. |
 | The PIN I set locally is not asked on the site | Expected: the PIN lives in the local browser, the site password is the deployment-wide one. |
 | The app is blank / a red error page | A file failed to load — the error page names the file and line. Check the deploy log and that `src/`, `styles/`, `vendor/` and `site.config.js` were all published. |
 
@@ -124,3 +125,15 @@ password does not un-publish an export that was pushed before.
 `site.config.js` with an empty `hash` is the default that ships in the repo, so
 double-clicking `index.html` keeps working exactly as before: no prompt, no
 network, no server.
+
+---
+
+## 6. Installable app (Android home screen)
+
+The repo ships a web app manifest (`manifest.webmanifest`) and maskable icons in
+`assets/icons/`. Serve the folder over **HTTPS** and serve `.webmanifest` as
+`application/manifest+json` (Vercel, Netlify and GitHub Pages do this already).
+Chrome on Android will then offer *Install app* / *Add to Home screen*, opening
+standalone with the `#141414` theme colour and the red-X icon.
+
+The manifest is inert on `file://`; the app itself still runs there.

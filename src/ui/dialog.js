@@ -1,7 +1,7 @@
 /* ui.dialog — modal surfaces with focus trapping, Escape/backdrop close, and
    promise-based helpers: confirm(), prompt(), choose(). Uses a plain <div role=dialog>
    so it behaves the same on file:// across browsers. */
-XR.define("ui.dialog", ["ui.dom", "ui.icons", "core.i18n"], function (dom, icons, i18n) {
+XR.define("ui.dialog", ["ui.dom", "ui.icons", "ui.overlayHistory", "core.i18n"], function (dom, icons, overlay, i18n) {
   "use strict";
   const stack = [];
   const FOCUSABLE = "a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex='-1'])";
@@ -12,6 +12,7 @@ XR.define("ui.dialog", ["ui.dom", "ui.icons", "core.i18n"], function (dom, icons
    */
   function open(opts = {}) {
     const prevFocus = document.activeElement;
+    let historyEntry = null;
     const panel = dom.h("div.dialog", { role: "dialog", "aria-modal": "true", class: `dialog-${opts.size || "md"} ${opts.cls || ""}`, tabindex: "-1" });
     const backdrop = dom.h("div.dialog-backdrop", { onclick: (e) => { if (e.target === backdrop && opts.dismissable !== false) close(undefined); } }, panel);
     const body = dom.h("div.dialog-body");
@@ -32,6 +33,7 @@ XR.define("ui.dialog", ["ui.dom", "ui.icons", "core.i18n"], function (dom, icons
         backdrop.classList.add("out");
         setTimeout(() => backdrop.remove(), 160);
         stack.splice(stack.indexOf(api), 1);
+        if (historyEntry) { overlay.release(historyEntry); historyEntry = null; }
         document.removeEventListener("keydown", onKey, true);
         if (!stack.length) document.documentElement.classList.remove("has-dialog");
         if (prevFocus && prevFocus.focus) prevFocus.focus({ preventScroll: true });
@@ -60,6 +62,7 @@ XR.define("ui.dialog", ["ui.dom", "ui.icons", "core.i18n"], function (dom, icons
     document.body.appendChild(backdrop);
     document.documentElement.classList.add("has-dialog");
     stack.push(api);
+    historyEntry = overlay.register(() => close(undefined));
     requestAnimationFrame(() => {
       backdrop.classList.add("in");
       const f = panel.querySelector("[autofocus]") || panel.querySelector(FOCUSABLE) || panel;

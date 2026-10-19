@@ -3,7 +3,7 @@
 XR.define("shell.siteGate", ["ui.dom", "ui.icons", "app.site"], function (dom, icons, site) {
   "use strict";
   const h = dom.h;
-  let el = null, card = null, input = null, msg = null, submitBtn = null, rememberBox = null, revealBtn = null;
+  let el = null, card = null, input = null, msg = null, submitBtn = null, revealBtn = null;
   let release = null, busy = false;
 
   function fail(text) {
@@ -23,7 +23,6 @@ XR.define("shell.siteGate", ["ui.dom", "ui.icons", "app.site"], function (dom, i
     input.readOnly = value;
     submitBtn.disabled = value;
     revealBtn.disabled = value;
-    rememberBox.disabled = value;
     card.setAttribute("aria-busy", String(value));
     submitBtn.textContent = value ? "Opening library…" : "Enter library";
   }
@@ -55,8 +54,6 @@ XR.define("shell.siteGate", ["ui.dom", "ui.icons", "app.site"], function (dom, i
       input.focus(); input.select();
       return;
     }
-    // Storage can be unavailable in private browsing; a valid code still opens.
-    if (rememberBox.checked) { try { await site.remember(); } catch { /* session only */ } }
     if (el !== activeGate) return;
     input.value = "";
     const done = release; release = null;
@@ -68,8 +65,9 @@ XR.define("shell.siteGate", ["ui.dom", "ui.icons", "app.site"], function (dom, i
     if (el) return;
     busy = false;
     input = h("input.site-input#site-passcode", {
-      type: "password", name: "password", inputmode: "numeric", pattern: "[0-9]+",
-      autocomplete: "current-password", autocapitalize: "off", spellcheck: "false",
+      type: "password", name: "site-passcode", inputmode: "numeric", pattern: "[0-9]+",
+      // Ask the browser/password manager not to offer saving or autofilling it.
+      autocomplete: "off", autocapitalize: "off", spellcheck: "false",
       placeholder: "Enter passcode", "aria-describedby": "site-code-help site-message",
       oninput: () => {
         input.removeAttribute("aria-invalid");
@@ -87,14 +85,11 @@ XR.define("shell.siteGate", ["ui.dom", "ui.icons", "app.site"], function (dom, i
       },
     }, icons.icon("eye", 20));
     msg = h("p.site-msg#site-message", { "aria-live": "polite", "aria-atomic": "true" });
-    rememberBox = h("input", { type: "checkbox", checked: true });
     submitBtn = h("button.site-submit", { type: "submit" }, "Enter library");
     const form = h("form.site-form", { noValidate: true, onsubmit: (e) => { e.preventDefault(); submit(); } },
       h("label.site-label", { htmlFor: "site-passcode" }, "Passcode"),
       h("div.site-field", input, revealBtn),
       h("p.site-help#site-code-help", site.hint() ? `Numbers only · Hint: ${site.hint()}` : "Numbers only. Your passcode stays hidden."),
-      h("label.site-remember", rememberBox,
-        h("span", h("span.site-remember-title", "Remember this browser"), h("span.site-remember-note", "Use only on a device you trust."))),
       submitBtn, msg);
     card = h("section.site-card", { "aria-labelledby": "site-heading" },
       h("div.site-lock", { "aria-hidden": "true" }, icons.icon("lock", 22)),
@@ -134,11 +129,10 @@ XR.define("shell.siteGate", ["ui.dom", "ui.icons", "app.site"], function (dom, i
     setTimeout(() => node.remove(), 260);
   }
 
+  /* Asked on every load: the unlock is never persisted, so there is nothing to
+     check first. The promise settles only when the passcode has been accepted. */
   async function ensure() {
     if (!site.applies()) return true;
-    let unlocked = false;
-    try { unlocked = await site.isUnlocked(); } catch { /* prompt instead */ }
-    if (unlocked) return true;
     show();
     return new Promise((resolve) => { release = resolve; });
   }

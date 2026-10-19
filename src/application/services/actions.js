@@ -15,6 +15,15 @@ XR.define("app.actions", ["app.activity", "app.catalog", "app.feedContext", "app
     const openOnX = (post) => platform.openExternal(post.url);
     async function copyLink(post) { const ok = await platform.copy(post.url); toast(ok ? "Link copied" : "Couldn't copy — " + post.url, ok ? "success" : "error"); }
     async function copyText(post) { const ok = await platform.copy(post.rawText || post.text); toast(ok ? "Caption copied" : "Couldn't copy", ok ? "success" : "error"); }
+    const canShare = () => typeof platform.canShare === "function" ? platform.canShare() : false;
+    async function share(post) {
+      const url = post.url || "";
+      const data = { title: post.author?.name ? `${post.author.name} on X` : "XReels", text: post.text ? post.text.slice(0, 280) : "", url };
+      const ok = await platform.share(data);
+      /* A cancelled share sheet also resolves false; only fall back when the API is absent. */
+      if (!ok && !canShare()) { const copied = await platform.copy(url); toast(copied ? "Link copied" : "Couldn't share", copied ? "success" : "error"); }
+      return ok;
+    }
     function download(post, index = 0) { const m = post.media[index] || post.media[0]; if (m) media.open(m); }
 
     /** Watch a list starting at index: feed context + navigate. */
@@ -47,5 +56,5 @@ XR.define("app.actions", ["app.activity", "app.catalog", "app.feedContext", "app
       watch(picked.map((p) => p.id), 0, { label: "Shuffle" });
     }
 
-    return { star, hide, openOnX, copyLink, copyText, download, watch, view, open, goCreator, goTag, goCollection, goLibrary, addToCollection, shufflePlay, toast };
+    return { star, hide, openOnX, copyLink, copyText, canShare, share, download, watch, view, open, goCreator, goTag, goCollection, goLibrary, addToCollection, shufflePlay, toast };
   });

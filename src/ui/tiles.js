@@ -29,7 +29,7 @@ XR.define("ui.tiles", ["ui.tile", "ui.postMenu", "app.media", "app.activity", "a
         shape: o.shape || prefs.get("tileShape"),
         info: o.info || prefs.get("tileInfo"),
         blur: prefs.get("blur"), seenDim: prefs.get("seenDim"),
-        hoverPreview: o.hoverPreview ?? (prefs.get("hoverPreview") && !platform.isTouch()),
+        hoverPreview: o.hoverPreview ?? (prefs.get("hoverPreview") && hoverUI()),
         lazy: o.priority ? false : o.lazy !== false,
         priority: !!o.priority,
         onOpen: o.onOpen || ((p, e) => actions.open(ids, index, meta, e && (e.shiftKey || e.altKey) ? "watch" : prefs.get("tileOpens"))),
@@ -45,10 +45,13 @@ XR.define("ui.tiles", ["ui.tile", "ui.postMenu", "app.media", "app.activity", "a
       });
     }
     const aspectOf = (post) => tile.aspectFor(post, prefs.get("tileShape"));
+    /* Same capability the tile itself uses: a touchscreen laptop with a mouse
+       keeps hover UI and does not reserve the phone metadata strip. */
+    const hoverUI = () => (platform.canHover ? platform.canHover() : !platform.isTouch());
     const infoHeight = (post) => {
       const info = prefs.get("tileInfo");
       if (info === "always") return (platform.isTouch() ? 44 : 20) + 8 + (post?.text ? 38 : 0);
-      return info !== "never" && (platform.isTouch() || innerWidth < 768) ? 44 : 0;
+      return info !== "never" && (!hoverUI() || innerWidth < 768) ? 44 : 0;
     };
     return { make, ctx, aspectOf, infoHeight };
   });
