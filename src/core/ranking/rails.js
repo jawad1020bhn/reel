@@ -17,7 +17,7 @@ XR.define("core.ranking.rails", ["core.query.engine", "core.util"], function (en
   "use strict";
 
   const LIMIT = 24;
-  const COUNT = 13;          // shelves per page (anchor included when it exists)
+  const COUNT = 22;          // shelves per page (anchor included when it exists)
   const PER_POST = 3;        // a post may sit on at most this many shelves per page
   const WEEK = 7 * 864e5;
 
