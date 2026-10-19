@@ -415,6 +415,62 @@
           <ul class="audit__findings" id="auditFindings"></ul>
         </div>
       </section>
+
+      <section class="audit reddit" aria-labelledby="redditTitle">
+        <div class="audit__heading">
+          <div>
+            <h3 class="m3e-label-large audit__title" id="redditTitle">Reddit saved · NSFW only</h3>
+            <p class="m3e-body-small audit__intro" id="redditIntro">Captures only the posts Reddit tags NSFW from your saved list. Open your saved page on old.reddit.com first.</p>
+          </div>
+        </div>
+
+        <dl class="stats" id="redditStats">
+          <div class="stat m3e-state">
+            <dt class="m3e-label-small stat__label">Saved</dt>
+            <dd class="m3e-title-large m3e-title-large--emphasized m3e-tabular stat__value" id="rdSaved">0</dd>
+          </div>
+          <div class="stat m3e-state">
+            <dt class="m3e-label-small stat__label">Pages</dt>
+            <dd class="m3e-title-large m3e-title-large--emphasized m3e-tabular stat__value" id="rdPages">0</dd>
+          </div>
+          <div class="stat m3e-state">
+            <dt class="m3e-label-small stat__label">Rows</dt>
+            <dd class="m3e-title-large m3e-title-large--emphasized m3e-tabular stat__value" id="rdRows">0</dd>
+          </div>
+          <div class="stat m3e-state">
+            <dt class="m3e-label-small stat__label">SFW skipped</dt>
+            <dd class="m3e-title-large m3e-title-large--emphasized m3e-tabular stat__value" id="rdSkipped">0</dd>
+          </div>
+        </dl>
+
+        <div class="status status--inline" id="rdCard" data-status="idle">
+          <span class="status__dot" aria-hidden="true"></span>
+          <p class="m3e-body-small unfollow__status" id="rdStatus" aria-live="polite">Idle. Nothing captured from Reddit yet.</p>
+        </div>
+
+        <div class="controls">
+          <button type="button" class="m3e-button m3e-button--tonal m3e-button--s m3e-button--block m3e-state" id="rdStartBtn" disabled>
+            <span id="rdStartLabel">Start capture</span>
+          </button>
+          <div class="controls__row" role="group" aria-label="Reddit capture controls">
+            <button type="button" class="m3e-button m3e-button--tonal m3e-button--s m3e-state" id="rdPauseBtn" disabled>
+              <span>Pause</span>
+            </button>
+            <button type="button" class="m3e-button m3e-button--tonal m3e-button--s m3e-state" id="rdStopBtn" disabled>
+              <span>Stop</span>
+            </button>
+            <button type="button" class="m3e-button m3e-button--text m3e-button--s m3e-state" id="rdResetBtn" disabled>
+              <span>Reset</span>
+            </button>
+          </div>
+        </div>
+
+        <button type="button" class="m3e-button m3e-button--filled m3e-button--m m3e-button--block m3e-state" id="rdExport" disabled
+          title="JSON of every NSFW-tagged saved post captured from Reddit">
+          <span>Export NSFW JSON</span>
+        </button>
+        <p class="m3e-body-small export__note" id="rdHint">Only over-18 posts are kept. Media is stored as links, not files.</p>
+      </section>
     </section>
   </div>
 
@@ -462,5 +518,7 @@
 <script src="store.js"></script>
 <script src="audit.js"></script>
 <script src="popup.js"></script>
+<script src="reddit-saved.js"></script>
+<script src="reddit-panel.js"></script>
 </body>
 </html>

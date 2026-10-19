@@ -119,6 +119,32 @@ reset forgets this engine's records only and does not put bookmarks back.
   or change its private API. No live account was cleared as part of automated
   testing; test carefully with your own intentionally disposable bookmarks.
 
+## Reddit saved posts (NSFW only)
+
+The **Export** tab has a second section, **Reddit saved · NSFW only**. It captures the signed-in account's own saved posts that Reddit tags over-18, and exports them as `reddit-nsfw-saved.json`.
+
+1. Log in to `old.reddit.com` and turn on **Show NSFW content** in your preferences. Reddit hides NSFW rows otherwise.
+2. Open `https://old.reddit.com/user/<your-name>/saved` in the active tab, reload it once after installing the extension, then open the popup on **Export** and select **Start capture**.
+3. The run reads the rendered rows, then follows the page's **next** links with same-origin requests, using your browser session. It never calls the Reddit API.
+
+What is kept: posts only (`t3_`), and only rows marked NSFW (the `over18` class or `data-nsfw="true"`). SFW posts are counted but not stored, and comments are skipped. Each record has `id`, `title`, `subreddit`, `author`, `permalink`, `url`, `domain`, `score`, `comments`, `created_at`, `thumbnail` and `media`. Media is `{kind, url}` for `i.redd.it` (image), `v.redd.it` (video) and galleries (the post permalink). Nothing is downloaded.
+
+Export shape: `{ export_version: 1, exported_at, source: "reddit-saved-nsfw", account, count, scan: {pages, rows, nsfw_kept, sfw_skipped, comments_skipped}, posts: [...] }`.
+
+Behaviour:
+- Pages are paced 2.5–5 s apart, with a longer 8–20 s break every 8–14 pages. A 429 or 5xx response is retried with jittered backoff (30 s doubling, capped at 5 min). A login or age-check redirect stops the run with a message.
+- Pause and Stop keep the position, and Start resumes from the next unprocessed page. Reset clears every captured post; it is refused while a run is live.
+- Posts are stored in 256-item chunks under `redditSavedChunk.NNNNNN`, with `redditSavedMeta` and `redditCaptureState`. A capture belongs to one account. Starting it for a different account requires a Reset first.
+- A Web Lock stops two saved-listing tabs from capturing at once.
+
+Limits and unverified points:
+- The DOM selectors and the NSFW markers were written from old.reddit's markup and checked only against fixtures. They have not been run against a live account. Confirm on your own saved page before relying on the output.
+- Reddit's saved listing stops around 1,000 items. Posts beyond that cap will not appear.
+- Media URLs are links, not files. `i.redd.it` and `preview` URLs are signed or time-limited, and `v.redd.it` audio is a separate DASH track, so links can stop working later.
+- Reddit has said it intends to restrict old.reddit.com to logged-in use and to curb abusive scraping. This section depends on that page continuing to render server-side. Automated access may breach Reddit's terms and can get the account restricted. Use it at your own risk.
+
+Tests for the pure logic are in `tests/reddit-saved.test.mjs`. The DOM and popup paths were checked with a jsdom harness outside the repo.
+
 ## Design system
 
 `m3e/` is a mirrored copy of the dashboard design system (the sync tool is not part of this repo). If you refresh the mirror, re-run the smoke tests — the copy has previously arrived with a broken UMD wrapper in `color.js`, HTML-entity damage in `interactions.js`, and a `tokens.css` block accidentally nested inside `:root`, all of which silently disable parts of the popup.

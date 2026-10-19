@@ -9,7 +9,8 @@
     "downloads"
   ],
   "host_permissions": [
-    "https://x.com/*"
+    "https://x.com/*",
+    "https://old.reddit.com/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -46,6 +47,16 @@
         "unsave.js"
       ],
       "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://old.reddit.com/*"
+      ],
+      "js": [
+        "reddit-saved.js",
+        "reddit-capture.js"
+      ],
+      "run_at": "document_idle"
     }
   ]
 }
