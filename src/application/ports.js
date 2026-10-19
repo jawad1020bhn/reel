@@ -19,8 +19,9 @@
                        avatar(url,px)→url, sources(media,opts)→[{url,type,bitrate}], download(media)→url, canHls()→bool }
    PlayerEnginePort  { attach(videoEl, media, opts)→optional {ready?:Promise<boolean>}, detach(videoEl), canHls()→bool }
    PlatformPort      { copy(text)→Promise<bool>, share(data)→Promise<bool>, download(url,name)→Promise<bool>,
-                       fullscreen(el)→Promise, exitFullscreen(), isFullscreen()→bool, isTouch()→bool, reducedMotion()→bool,
-                       openExternal(url), sha256(text)→Promise<hex>, randomId(bytes)→hex, dpr()→number, isFile()→bool, vibrate(ms) }
+                       isTouch()→bool, isMobileView()→bool, landscapeFullscreen(el,video)→Promise<bool>,
+                       reducedMotion()→bool, openExternal(url), sha256(text)→Promise<hex>,
+                       randomId(bytes)→hex, dpr()→number, isFile()→bool, vibrate(ms) }
    DataSourcesPort   { get(kind)→DataSource|null, all()→DataSource[] }
    DataSource        { id, label, kind:'auto'|'file'|'text'|'url', available()→bool, load(arg?)→Promise<{json?, text?, label}|null> }
 */
@@ -31,7 +32,7 @@ XR.define("app.ports", [], function () {
     router: ["current", "navigate", "back", "onChange", "href"],
     mediaResolver: ["thumb", "poster", "full", "avatar", "sources", "download"],
     playerEngine: ["attach", "detach"],
-    platform: ["copy", "download", "fullscreen", "isTouch", "sha256", "randomId", "dpr", "openExternal"],
+    platform: ["copy", "download", "isTouch", "isMobileView", "landscapeFullscreen", "sha256", "randomId", "dpr", "openExternal"],
     dataSources: ["get", "all"],
   };
   /** Fail fast at boot when a bound implementation misses a method. */

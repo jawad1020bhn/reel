@@ -58,12 +58,12 @@ replacement playback engine. OpenUI's generative-UI runtime was not added.
   real 44px interaction bands. They expose elapsed/total values to assistive
   technology, support keyboard ±5 seconds and Home/End, and retain touch dragging.
 - Watch adds an explicit play/pause control, a **0.5×–2× speed menu**, visible
-  elapsed time and a **Tap for sound** action for muted autoplay. The smallest
-  phone width keeps elapsed time rather than squeezing in both timestamps.
+  elapsed time and a sound toggle on the side rail. There is no separate Tap for sound,
+  fullscreen, or PiP control over the media. The smallest phone width keeps elapsed time
+  rather than squeezing in both timestamps.
 - On touch, double-tap the left/right flanks to seek **−10s/+10s**. Centre
   double-tap still stars; desktop double-tap retains its existing behaviour.
-- Fit/fill, PiP and the queue remain accessible through **Player options** on
-  phones instead of relying on keyboard shortcuts for hidden controls.
+- Fit/fill and the queue remain accessible through **Player options** on phones.
 - Carousel horizontal dragging no longer competes with seeking; vertical
   swiping still changes the feed item. Mixed photo/video albums show playback
   controls only for the video slide.
@@ -149,8 +149,8 @@ styles through the manifest at runtime.
 
 - These are **Chromium** tests with emulated viewports and synthesized touch,
   not physical-device or Safari tests. Verify iOS Safari/Android Chrome safe
-  areas, browser chrome/keyboard, rotation, fullscreen, PiP, HLS and sound on
-  actual devices before calling the overhaul device-validated.
+  areas, browser chrome/keyboard, rotation, HLS and sound on actual devices
+  before calling the overhaul device-validated.
 - The sandbox cannot reach X's image/video CDN. Rendered audits of the real
   library therefore include unavailable-media states. The isolated playback
   tests use a tiny, synthetic local fixture, not mocked media APIs; that proves

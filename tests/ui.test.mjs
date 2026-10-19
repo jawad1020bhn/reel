@@ -15,7 +15,7 @@ const ROOT = resolve(fileURLToPath(new URL("../", import.meta.url)));
 const SHOTS = resolve(ROOT, ".audit/tests");
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 const poster = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360"><rect width="640" height="360" fill="#26394b"/><path d="M0 300L240 100l200 200 120-160 80 160" fill="#3b5663"/><text x="32" y="54" fill="#fff" font-family="sans-serif" font-size="24">XReels test media</text></svg>');
-const media = (kind = "video") => ({ kind, thumb: poster, poster, width: 640, height: 360, duration: kind === "photo" ? 0 : 32, sources: kind === "photo" ? [] : [{ url: "/__fixtures/clip.webm", type: "video/webm" }] });
+const media = (kind = "video", width = 640, height = 360) => ({ kind, thumb: poster, poster, width, height, aspect: width / height, duration: kind === "photo" ? 0 : 32, sources: kind === "photo" ? [] : [{ url: "/__fixtures/clip.webm", type: "video/webm" }] });
 function dataset() {
   const now = Date.now();
   const posts = Array.from({ length: 12 }, (_, i) => ({
@@ -24,6 +24,7 @@ function dataset() {
     author: { username: `test_creator_${i + 1}`, name: `Test Creator ${i + 1}` }, metrics: { likes: 100 + i },
     media: [media(i % 4 === 3 ? "photo" : "video")], flags: {}, hashtags: ["test"],
   }));
+  posts.push({ ...posts[0], id: "portrait", media: [media("video", 360, 640)] });
   posts.push({ ...posts[1], id: "mixed", media: [media("photo"), media(), media("photo")] });
   posts.push({ ...posts[2], id: "broken", media: [{ ...media(), sources: [{ url: "/__fixtures/missing.webm", type: "video/webm" }] }] });
   return { export_version: "xreels-1", posts };
@@ -140,6 +141,10 @@ test("responsive chrome and compact hero at phone, tablet, landscape and desktop
     const page = await pageFor(t, w, h, w < 1000);
     for (const route of ["discover", "library", "settings", "insights", "watch?post=clip-1"]) {
       await open(page, route);
+      if (route.startsWith("watch")) {
+        assert.equal(await page.$(".cell-unmute, .watch-fs, .watch-pip"), null, `${w}px: removed sound prompt, fullscreen and PiP controls`);
+        assert.equal(await page.$eval(".cell.is-active video", (video) => video.disablePictureInPicture), true, `${w}px: browser PiP is disabled`);
+      }
       const result = await page.evaluate(() => {
         const outlet = document.querySelector(".outlet");
         const nav = document.querySelector(".mobile-nav");
@@ -283,7 +288,7 @@ test("bottom navigation, More pages, search and Back work with touch", async (t)
   await page.waitForSelector('.outlet[data-feature="creators"]');
 });
 
-test("native seek, double-tap, play/pause, speed and unmute operate on real video", { timeout: 30000 }, async (t) => {
+test("native seek, double-tap, play/pause, speed and sound controls operate on real video", { timeout: 30000 }, async (t) => {
   const page = await pageFor(t);
   await page.emulateMediaFeatures([{ name: "prefers-reduced-motion", value: "no-preference" }]);
   await open(page, "watch?post=clip-1");
@@ -309,12 +314,25 @@ test("native seek, double-tap, play/pause, speed and unmute operate on real vide
   assert.equal((await state(page)).rate, 1.5);
   await tap(page, ".cell.is-active .cell-play");
   await readyVideo(page);
-  await tap(page, ".cell.is-active .cell-unmute.on");
-  assert.equal((await state(page)).muted, false);
-  await tap(page, ".watch-options");
+  assert.equal(await page.$(".cell.is-active .cell-unmute"), null, "no on-video Tap for sound prompt");
+  await tap(page, ".side-mute");
+  assert.equal((await state(page)).muted, false, "sound stays available from the compact player rail");
+  assert.equal(await page.$(".watch-fs, .watch-pip"), null, "no fullscreen or PiP buttons");
+  await tap(page, ".side-options");
   await page.waitForSelector(".menu.in");
   const labels = await page.$$eval(".menu-label", (els) => els.map((el) => el.textContent));
-  assert.ok(labels.includes("Fit / fill") && labels.includes("Picture-in-picture"), "phone retains player features");
+  assert.ok(labels.includes("Fit / fill") && !labels.includes("Picture-in-picture"), "player options retain fit and omit PiP");
+  await menuItem(page, "Fit / fill");
+  await page.waitForFunction(() => document.fullscreenElement?.classList.contains("watch"));
+});
+
+test("mobile fit does not rotate portrait video to landscape fullscreen", async (t) => {
+  const page = await pageFor(t);
+  await open(page, "watch?post=portrait");
+  await tap(page, ".side-options");
+  await menuItem(page, "Fit / fill");
+  await sleep(100);
+  assert.equal(await page.evaluate(() => !!document.fullscreenElement), false, "portrait media keeps the phone orientation");
 });
 
 test("carousel horizontal drag and feed vertical swipe do not steal each other's axis", async (t) => {
