@@ -13,16 +13,15 @@
        window.XREELS_SITE = { salt, hash, hint };
 
    The browser hashes what the visitor types and compares it with the digest.
-   The unlock is remembered per browser so a reload does not ask again.
+   Nothing is stored: every load of the page asks for the password again.
 
    Honesty note (see DEPLOY.md): a client-side gate stops casual visitors.
    The static files of a deployment — including data/posts.json — are still
    public URLs. For real protection use a server-side gate (Vercel
    Authentication / Deployment Protection / WAF) and keep the export out of
    the deployment. */
-XR.define("app.site", ["app.ports.platform", "app.ports.storage"], function (platform, storage) {
+XR.define("app.site", ["app.ports.platform"], function (platform) {
   "use strict";
-  const KEY = "xreels.site.unlocked.v1";     // per-browser "this browser is unlocked"
 
   const config = () => (typeof window !== "undefined" && window.XREELS_SITE) || {};
   const salt = () => String(config().salt || "");
@@ -60,25 +59,5 @@ XR.define("app.site", ["app.ports.platform", "app.ports.storage"], function (pla
     return same(await digest(password), want);
   }
 
-  /** Has this browser already been let in? */
-  async function isUnlocked() {
-    if (!applies()) return true;
-    try {
-      const stored = await storage.get(KEY);
-      return !!stored && same(String(stored), await expected());
-    } catch { return false; }
-  }
-
-  /** Remember the unlock in this browser (stores the expected digest, nothing else). */
-  async function remember() {
-    if (!applies()) return false;
-    try { await storage.set(KEY, await expected()); return true; } catch { return false; }
-  }
-
-  /** Lock this browser again (e.g. from Settings). */
-  async function forget() {
-    try { await storage.remove(KEY); return true; } catch { return false; }
-  }
-
-  return { config, isEnabled, applies, isLocalFile, hint, title, salt, digest, expected, verify, isUnlocked, remember, forget, KEY };
+  return { config, isEnabled, applies, isLocalFile, hint, title, salt, digest, expected, verify };
 });
