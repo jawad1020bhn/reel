@@ -103,6 +103,12 @@
 
   const el = {
     tabHint:        $("#tabHint"),
+    tablist:        $(".tabs"),
+    tabs:           Array.from(document.querySelectorAll(".tab")),
+    panels:         Array.from(document.querySelectorAll(".panel[data-panel]")),
+    popupBody:      $("#popupBody"),
+    captureDot:     $("#captureDot"),
+    unfollowDot:    $("#unfollowDot"),
     statusCard:     $("#statusCard"),
     statusLabel:    $("#statusLabel"),
     statusDetail:   $("#statusDetail"),
@@ -110,17 +116,15 @@
     primaryBtn:     $("#primaryBtn"),
     primaryLabel:   $("#primaryLabel"),
     primaryIcon:    $("#primaryIcon"),
-    primaryLoader:  $(".m3e-button__loader"),
     pauseBtn:       $("#pauseBtn"),
     stopBtn:        $("#stopBtn"),
     panicBtn:       $("#panicBtn"),
+    captureControls: $("#primaryBtn") ? $("#primaryBtn").closest(".controls") : null,
     exportJson:     $("#exportJson"),
     exportJsonl:    $("#exportJsonl"),
     exportCsv:      $("#exportCsv"),
     exportMd:       $("#exportMd"),
     exportHtml:     $("#exportHtml"),
-    exportMore:     $("#exportMore"),
-    exportOverflowMenu: $("#exportOverflowMenu"),
     exportHint:     $("#exportHint"),
     appHelp:        $("#appHelp"),
     runAudit:       $("#runAudit"),
@@ -130,6 +134,7 @@
     auditFindings:  $("#auditFindings"),
     log:            $("#log"),
     logCount:       $("#logCount"),
+    logPreview:     $("#logPreview"),
     versionBadge:   $("#versionBadge"),
     resetBtn:       $("#resetBtn"),
     themeToggle:    $("#themeToggle"),
@@ -141,6 +146,7 @@
     ufPauseBtn:     $("#ufPauseBtn"),
     ufStopBtn:      $("#ufStopBtn"),
     ufResetBtn:     $("#ufResetBtn"),
+    unfollowCard:   $("#unfollowCard"),
     unfollowStatus: $("#unfollowStatus"),
   };
 
@@ -175,7 +181,6 @@
      popup could not distinguish that from a good run. */
   let mediaCount = 0;
   let videoCount = 0;
-  let exportOverflowOpen = false;
 
   /* ---------------------------------------------------------------------------
      3 · Theme
@@ -201,8 +206,26 @@
     syncThemeToggleLabel();
   }
 
+  /* The icon states the current scheme instead of always showing a sun; the
+     button cycles system → light → dark, so one glyph must answer "which". */
+  const THEME_ICONS = {
+    system:
+      '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">' +
+      '<circle cx="12" cy="12" r="9" />' +
+      '<path d="M12 3a9 9 0 0 0 0 18Z" fill="currentColor" stroke="none" />' +
+      "</svg>",
+    light:
+      '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">' +
+      '<circle cx="12" cy="12" r="4.5" />' +
+      '<path d="M12 2v2M12 20v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2 12h2M20 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4" />' +
+      "</svg>",
+    dark:
+      '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round">' +
+      '<path d="M20.5 13.3A8.5 8.5 0 1 1 10.7 3.5a6.7 6.7 0 0 0 9.8 9.8Z" />' +
+      "</svg>",
+  };
+
   function syncThemeToggleLabel() {
-    const dark = M3ETheme.resolveDark(theme.settings);
     const schemeLabels = { system: "System", light: "Light", dark: "Dark" };
     const currentScheme = theme.settings.scheme || "system";
     el.themeToggle.setAttribute(
@@ -210,7 +233,11 @@
       `Switch color scheme (current: ${schemeLabels[currentScheme]})`
     );
     el.themeToggle.title = `Switch color scheme (current: ${schemeLabels[currentScheme]})`;
+    el.themeToggle.innerHTML = THEME_ICONS[currentScheme] || THEME_ICONS.system;
   }
+
+  theme.subscribe(syncThemeToggleLabel);
+  syncThemeToggleLabel();
 
   el.themeToggle.addEventListener("click", async () => {
     const schemes = ["system", "light", "dark"];
@@ -238,6 +265,12 @@
     el.log.prepend(li);
     while (el.log.children.length > LOG_MAX) el.log.removeChild(el.log.lastElementChild);
     el.logCount.textContent = String(el.log.children.length);
+    /* The collapsed summary carries the latest line, so a quiet run still
+       shows that something happened without opening the log. */
+    if (el.logPreview) {
+      el.logPreview.textContent = message;
+      el.logPreview.title = message;
+    }
   }
 
   /* ---------------------------------------------------------------------------
@@ -299,11 +332,11 @@
   }
 
   function setPrimaryLoading(isLoading) {
+    if (isLoading) el.primaryBtn.hidden = false;
     el.primaryBtn.classList.toggle("m3e-button--loading", isLoading);
     el.primaryBtn.setAttribute("aria-busy", String(isLoading));
     el.primaryBtn.disabled = isLoading || currentState?.status === "capturing";
     el.primaryIcon.style.display = isLoading ? "none" : "";
-    el.primaryLoader.textContent = "";
     if (isLoading) el.primaryLabel.textContent = "Starting…";
     else {
       const paused = currentState?.status === "paused";
@@ -320,6 +353,7 @@
     const paused = status === "paused";
 
     el.statusCard.dataset.status = status;
+    setTabSignal(el.captureDot, running ? "running" : paused ? "paused" : "");
     el.statusLabel.textContent = meta.label;
 
     // Detail line: live progress while capturing, stop reason when done
@@ -380,7 +414,12 @@
     }
 
     // One primary action whose meaning depends on state: start, or resume.
+    // While a run is live there is nothing for it to do, so it leaves the
+    // layout instead of sitting there as a dead 56px slab; Pause/Stop grow
+    // into the space it vacated.
     el.primaryBtn.disabled = running;
+    el.primaryBtn.hidden = running;
+    if (el.captureControls) el.captureControls.dataset.running = String(running);
     el.primaryLabel.textContent = paused ? "Resume capture" : "Start capture";
     el.primaryIcon.innerHTML = paused ? ICON_RESUME : ICON_PLAY;
 
@@ -398,6 +437,7 @@
       el.exportMd.disabled = true;
       el.exportHtml.disabled = true;
       el.runAudit.disabled = true;
+      updateTabHint();
       return;
     }
     el.exportHint.textContent =
@@ -410,6 +450,7 @@
     el.exportMd.disabled = false;
     el.exportHtml.disabled = false;
     el.runAudit.disabled = false;
+    updateTabHint();
   }
 
   /* ---------------------------------------------------------------------------
@@ -466,8 +507,11 @@
     } else if (s.lastStopReason && status !== "idle") {
       text = "Stopped: " + s.lastStopReason;
     }
+    const tone = running && backingOff ? "rate-limited" : status;
     el.unfollowStatus.textContent = text;
-    el.unfollowStatus.dataset.status = running && backingOff ? "rate-limited" : status;
+    el.unfollowStatus.dataset.status = tone;
+    if (el.unfollowCard) el.unfollowCard.dataset.status = tone;
+    setTabSignal(el.unfollowDot, running || navigating ? "running" : paused ? "paused" : "");
 
     const done = (Number(st.unfollowed) || 0) + (Number(st.already) || 0);
     setUfStat(ufStats.queued, st.pending || 0);
@@ -533,28 +577,108 @@
   const isFollowingUrl = (url) => /^https:\/\/x\.com\/[^/]+\/following(?:[/?#]|$)/i.test(String(url || ""));
   const isXUrl = (url) => /^https?:\/\/(?:www\.)?x\.com\//i.test(String(url || ""));
 
+  /* ---------------------------------------------------------------------------
+     6b · Tab navigation
+     Three panels, one visible. Implemented as a real tablist (roving tabindex,
+     arrow/Home/End keys) rather than three show/hide buttons, so the structure
+     survives a screen reader and the keyboard.
+     --------------------------------------------------------------------------- */
+
+  const TAB_IDS = ["capture", "unfollow", "export"];
+  let activeView = "capture";
+  let tabContext = null;
+
+  /** Mark a tab with a live signal: running pulses, paused squares off. */
+  function setTabSignal(dot, state) {
+    if (!dot) return;
+    dot.hidden = !state;
+    dot.dataset.state = state || "";
+    const tab = dot.closest(".tab");
+    if (!tab) return;
+    if (state) {
+      tab.setAttribute(
+        "aria-label",
+        tab.dataset.label + (state === "paused" ? ", paused" : ", running")
+      );
+    } else {
+      tab.removeAttribute("aria-label");
+    }
+  }
+
+  /** Header hint follows the active tab — each surface needs a different tab. */
+  function updateTabHint() {
+    if (!el.tabHint) return;
+    let text = "Checking this tab…";
+    let warn = false;
+
+    if (activeView === "export") {
+      text = captureCount
+        ? captureCount.toLocaleString() + (captureCount === 1 ? " post" : " posts") + " in your local library"
+        : "Local library — nothing captured yet";
+    } else if (tabContext) {
+      if (activeView === "unfollow") {
+        if (tabContext.onFollowing) text = "Ready — Following list";
+        else if (tabContext.onX) text = "Starts from this x.com page";
+        else { text = "Open x.com to unfollow"; warn = true; }
+      } else if (tabContext.onBookmarks) {
+        text = "Ready — bookmarks page";
+      } else if (tabContext.onX) {
+        text = "Open x.com/i/bookmarks to capture";
+        warn = true;
+      } else {
+        text = "Open x.com to capture";
+        warn = true;
+      }
+    }
+
+    el.tabHint.textContent = text;
+    el.tabHint.classList.toggle("is-warn", warn);
+  }
+
+  function selectTab(id, { focus = false } = {}) {
+    if (!TAB_IDS.includes(id)) id = "capture";
+    activeView = id;
+
+    for (const tab of el.tabs) {
+      const selected = tab.dataset.tab === id;
+      tab.setAttribute("aria-selected", String(selected));
+      tab.tabIndex = selected ? 0 : -1;
+      if (selected && focus) tab.focus({ preventScroll: true });
+    }
+    for (const panel of el.panels) panel.hidden = panel.dataset.panel !== id;
+    if (el.popupBody) el.popupBody.scrollTop = 0;
+    updateTabHint();
+  }
+
+  function wireTabs() {
+    for (const tab of el.tabs) {
+      tab.addEventListener("click", () => selectTab(tab.dataset.tab));
+    }
+    if (!el.tablist) return;
+    el.tablist.addEventListener("keydown", (event) => {
+      const index = TAB_IDS.indexOf(activeView);
+      let next = null;
+      if (event.key === "ArrowRight") next = (index + 1) % TAB_IDS.length;
+      else if (event.key === "ArrowLeft") next = (index - 1 + TAB_IDS.length) % TAB_IDS.length;
+      else if (event.key === "Home") next = 0;
+      else if (event.key === "End") next = TAB_IDS.length - 1;
+      if (next === null) return;
+      event.preventDefault();
+      selectTab(TAB_IDS[next], { focus: true });
+    });
+  }
+
   /** Tell the user, up front, which engine this tab can drive. */
   async function renderTabHint() {
     const tab = await activeTab();
-    const onBookmarks = !!(tab && isBookmarksUrl(tab.url));
-    const onFollowing = !!(tab && isFollowingUrl(tab.url));
-    const onX = !!(tab && isXUrl(tab.url));
-
-    if (onBookmarks) {
-      el.tabHint.textContent = "Ready — bookmarks page";
-      el.tabHint.classList.remove("is-warn");
-    } else if (onFollowing) {
-      el.tabHint.textContent = "Ready — Following list";
-      el.tabHint.classList.remove("is-warn");
-    } else if (onX) {
-      el.tabHint.textContent = "x.com open — needs Following list or bookmarks page";
-      el.tabHint.classList.add("is-warn");
-    } else {
-      el.tabHint.textContent = "Open x.com to capture or unfollow";
-      el.tabHint.classList.add("is-warn");
-    }
-    el.primaryBtn.dataset.ready = String(onBookmarks);
-    return onBookmarks;
+    tabContext = {
+      onBookmarks: !!(tab && isBookmarksUrl(tab.url)),
+      onFollowing: !!(tab && isFollowingUrl(tab.url)),
+      onX: !!(tab && isXUrl(tab.url)),
+    };
+    el.primaryBtn.dataset.ready = String(tabContext.onBookmarks);
+    updateTabHint();
+    return tabContext;
   }
 
   async function send(type) {
@@ -996,25 +1120,6 @@
     });
   }
 
-  // Export overflow menu toggle
-  el.exportMore.addEventListener("click", (e) => {
-    e.stopPropagation();
-    exportOverflowOpen = !exportOverflowOpen;
-    el.exportOverflowMenu.hidden = !exportOverflowOpen;
-    el.exportOverflowMenu.toggleAttribute("open", exportOverflowOpen);
-    el.exportMore.setAttribute("aria-expanded", String(exportOverflowOpen));
-  });
-
-  // Close overflow menu on outside click
-  document.addEventListener("click", () => {
-    if (exportOverflowOpen) {
-      exportOverflowOpen = false;
-      el.exportOverflowMenu.hidden = true;
-      el.exportOverflowMenu.removeAttribute("open");
-      el.exportMore.setAttribute("aria-expanded", "false");
-    }
-  });
-
   /* ---------------------------------------------------------------------------
      Unfollow backup export — the undo record the engine maintains locally.
      --------------------------------------------------------------------------- */
@@ -1250,22 +1355,31 @@
      --------------------------------------------------------------------------- */
 
   bindRipple(document.body);
+  wireTabs();
 
   try {
     const manifestVersion = chrome.runtime.getManifest().version;
     el.versionBadge.textContent = `v${manifestVersion} · M3E`;
   } catch {
-    el.versionBadge.textContent = "v1.1.0 · M3E";
+    el.versionBadge.textContent = "v1.3.0 · M3E";
   }
 
-  loadTheme();
-  renderTabHint();
-
-  // Show skeleton loading state while first load completes
-  el.stats.classList.add("skeleton");
-  loadState().then(() => {
+  async function init() {
+    /* Show the skeleton only while the first storage read is in flight. */
+    el.stats.classList.add("skeleton");
+    await Promise.all([loadTheme(), renderTabHint(), loadState()]);
     el.stats.classList.remove("skeleton");
-  });
 
-  log("Popup ready.");
+    /* Open on the surface that matters right now: a live engine first, then
+       the X page the user is actually looking at. */
+    const captureLive = currentState?.status === "capturing" || currentState?.status === "paused";
+    const unfollowLive = ["running", "navigating", "paused"].includes(ufState?.status);
+    if (unfollowLive && !captureLive) selectTab("unfollow");
+    else if (!captureLive && tabContext?.onFollowing && !tabContext?.onBookmarks) selectTab("unfollow");
+    else selectTab("capture");
+
+    log("Popup ready.");
+  }
+
+  init();
 })();

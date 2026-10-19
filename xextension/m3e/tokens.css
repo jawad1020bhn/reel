@@ -108,25 +108,25 @@
   --md-sys-typescale-body-small-size: 0.75rem;         /* 12 */
   --md-sys-typescale-body-small-line-height: 1rem;
   --md-sys-typescale-body-small-tracking: 0.025rem;
-  --md-sys-typescale-body-small-weight: 400.
+  --md-sys-typescale-body-small-weight: 400;
 
   --md-sys-typescale-label-large-font: var(--md-ref-typeface-plain);
   --md-sys-typescale-label-large-size: 0.875rem;       /* 14 */
   --md-sys-typescale-label-large-line-height: 1.25rem;
   --md-sys-typescale-label-large-tracking: 0.00625rem;
-  --md-sys-typescale-label-large-weight: 500.
+  --md-sys-typescale-label-large-weight: 500;
 
   --md-sys-typescale-label-medium-font: var(--md-ref-typeface-plain);
   --md-sys-typescale-label-medium-size: 0.75rem;       /* 12 */
   --md-sys-typescale-label-medium-line-height: 1rem;
   --md-sys-typescale-label-medium-tracking: 0.03125rem;
-  --md-sys-typescale-label-medium-weight: 500.
+  --md-sys-typescale-label-medium-weight: 500;
 
   --md-sys-typescale-label-small-font: var(--md-ref-typeface-plain);
   --md-sys-typescale-label-small-size: 0.6875rem;      /* 11 */
   --md-sys-typescale-label-small-line-height: 1rem;
   --md-sys-typescale-label-small-tracking: 0.03125rem;
-  --md-sys-typescale-label-small-weight: 500.
+  --md-sys-typescale-label-small-weight: 500;
 
   /* ==========================================================================
      SYSTEM · Typescale — EMPHASIZED  (M3 Expressive)
@@ -259,44 +259,31 @@
   --md-sys-z-snackbar: 1100;
   --md-sys-z-immersive: 1200;
 
-  /* ==========================================================================
-     Density — a product-level scalar over the 4dp grid, not an M3 token.
-     Exposed because a bookmark library is a density-sensitive data surface.
-     ========================================================================== */
-  :root,
-  [data-density="comfortable"] {
-    --m3e-density-scale: 1;
-    --m3e-row-gap: var(--md-sys-spacing-4);
-  }
-  [data-density="compact"] {
-    --m3e-density-scale: 0.75;
-    --m3e-row-gap: var(--md-sys-spacing-2);
-  }
-  [data-density="spacious"] {
-    --m3e-density-scale: 1.25;
-    --m3e-row-gap: var(--md-sys-spacing-6);
-  }
+}
 
-  /* ==========================================================================
-     Reduced motion.
-     ========================================================================== */
-  @media (prefers-reduced-motion: reduce) {
-    :root {
-      --md-sys-motion-spring-fast-spatial: 1ms linear;
-      --md-sys-motion-spring-default-spatial: 1ms linear;
-      --md-sys-motion-spring-slow-spatial: 1ms linear;
-      --md-sys-motion-spring-fast-effects: 1ms linear;
-      --md-sys-motion-spring-default-effects: 1ms linear;
-      --md-sys-motion-spring-slow-effects: 1ms linear;
-      --md-sys-motion-duration-fast-spatial: 1ms;
-      --md-sys-motion-duration-default-spatial: 1ms;
-      --md-sys-motion-duration-slow-spatial: 1ms;
-      --md-sys-motion-duration-fast-effects: 1ms;
-      --md-sys-motion-duration-default-effects: 1ms;
-      --md-sys-motion-duration-slow-effects: 1ms;
-    }
-  }
-  [data-motion="reduced"] {
+/* ==========================================================================
+   Density — a product-level scalar over the 4dp grid, not an M3 token.
+   Exposed because a bookmark library is a density-sensitive data surface.
+   ========================================================================== */
+:root,
+[data-density="comfortable"] {
+  --m3e-density-scale: 1;
+  --m3e-row-gap: var(--md-sys-spacing-4);
+}
+[data-density="compact"] {
+  --m3e-density-scale: 0.75;
+  --m3e-row-gap: var(--md-sys-spacing-2);
+}
+[data-density="spacious"] {
+  --m3e-density-scale: 1.25;
+  --m3e-row-gap: var(--md-sys-spacing-6);
+}
+
+/* ==========================================================================
+   Reduced motion.
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  :root {
     --md-sys-motion-spring-fast-spatial: 1ms linear;
     --md-sys-motion-spring-default-spatial: 1ms linear;
     --md-sys-motion-spring-slow-spatial: 1ms linear;
@@ -310,4 +297,18 @@
     --md-sys-motion-duration-default-effects: 1ms;
     --md-sys-motion-duration-slow-effects: 1ms;
   }
+}
+[data-motion="reduced"] {
+  --md-sys-motion-spring-fast-spatial: 1ms linear;
+  --md-sys-motion-spring-default-spatial: 1ms linear;
+  --md-sys-motion-spring-slow-spatial: 1ms linear;
+  --md-sys-motion-spring-fast-effects: 1ms linear;
+  --md-sys-motion-spring-default-effects: 1ms linear;
+  --md-sys-motion-spring-slow-effects: 1ms linear;
+  --md-sys-motion-duration-fast-spatial: 1ms;
+  --md-sys-motion-duration-default-spatial: 1ms;
+  --md-sys-motion-duration-slow-spatial: 1ms;
+  --md-sys-motion-duration-fast-effects: 1ms;
+  --md-sys-motion-duration-default-effects: 1ms;
+  --md-sys-motion-duration-slow-effects: 1ms;
 }
