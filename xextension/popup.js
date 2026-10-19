@@ -33,24 +33,27 @@
 
   const STATUS = {
     idle:             { label: "Idle",          detail: "No capture run yet." },
-    capturing:        { label: "Capturing",     detail: "Scrolling slowly and deliberately — accuracy over speed." },
-    paused:           { label: "Paused",        detail: "Manual scrolling is still captured." },
-    completed:        { label: "Completed",     detail: "All available bookmarks captured." },
-    stopped_by_user:  { label: "Stopped",       detail: "You stopped this run." },
+    capturing:        { label: "Capturing",     detail: "Fast adaptive sweep · waiting on X only at page boundaries." },
+    paused:           { label: "Paused",        detail: "Capture is saved. Resume to continue the full-feed sweep." },
+    completed:        { label: "Completed",     detail: "Reached a quiet end of the bookmark feed." },
+    incomplete:       { label: "Incomplete",    detail: "A safety limit stopped the sweep before the feed end." },
+    stopped_by_user:  { label: "Stopped",       detail: "You stopped this run; saved posts are kept." },
     stopped_by_error: { label: "Stopped",       detail: "The run ended on an error." },
   };
 
   const REASONS = {
-    "end-of-feed": "Reached the end of the feed — every page answered empty.",
-    "incremental-complete": "Incremental pass complete — no new bookmarks.",
-    "max-runtime": "Hit the safety time limit.",
-    "max-batches": "Hit the safety scroll limit — start again to continue from here.",
-    "no-responses-seen": "No timeline responses were intercepted. The page may stream over a transport this tool can't see.",
-    "schema-mismatch": "Responses arrived but no posts could be read — X changed the response shape.",
+    "end-of-feed": "Reached the bottom after repeated quiet checks. Verify the capture below.",
+    "max-runtime": "Hit the two-hour safety limit. Start again to continue scanning from the top.",
+    "max-batches": "Hit the safety pass limit. Start again to continue scanning from the top.",
+    "no-responses-seen": "No bookmark timeline responses were intercepted. Open x.com/i/bookmarks and reload the tab.",
+    "schema-mismatch": "A bookmark timeline arrived, but no posts could be normalized — X may have changed its response shape.",
+    "storage-error": "Could not save the next chunk. Free extension storage or reload, then resume; pending data was retained where possible.",
+    "capture-error": "An unexpected error stopped the run. Already-saved chunks are safe; inspect the activity log and retry.",
     "too-many-errors": "Too many consecutive failures.",
     "rate-limited": "Rate limited by X. Wait a few minutes before retrying.",
-    "auth-error": "Authentication problem — check you're signed in on x.com.",
+    "auth-error": "Authentication problem — check that you are signed in on x.com.",
     "max-backoff-retries": "Max retries reached after rate limits. Try again later.",
+    "panic-stop": "Capture aborted. Pending in-memory posts were discarded; saved chunks remain.",
   };
 
   const LOG_MAX = 50;
@@ -83,7 +86,12 @@
     exportMore:     $("#exportMore"),
     exportOverflowMenu: $("#exportOverflowMenu"),
     exportHint:     $("#exportHint"),
-    openDashboard:  $("#openDashboard"),
+    appHelp:        $("#appHelp"),
+    runAudit:       $("#runAudit"),
+    auditResult:    $("#auditResult"),
+    auditStatus:    $("#auditStatus"),
+    auditMetrics:   $("#auditMetrics"),
+    auditFindings:  $("#auditFindings"),
     log:            $("#log"),
     logCount:       $("#logCount"),
     versionBadge:   $("#versionBadge"),
@@ -102,7 +110,6 @@
 
   const ICON_PLAY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
   const ICON_RESUME = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>';
-  const ICON_LOADER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10" stroke-dasharray="31.4 31.4" stroke-dashoffset="31.4"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="1s" repeatCount="indefinite"/></svg>';
 
   const snackbar = createSnackbar($("#snackbar"));
   const dialog = createOverlay({ element: $("#dialog"), scrim: $("#scrim") });
@@ -184,24 +191,36 @@
      5 · State rendering
      --------------------------------------------------------------------------- */
 
+  const countUpRuns = new WeakMap();
+  const nextCountUpRun = (el) => {
+    const token = (countUpRuns.get(el) || 0) + 1;
+    countUpRuns.set(el, token);
+    return token;
+  };
+
   function setStat(key, value) {
     const slot = stats[key];
     if (!slot || !slot.el) return;
-    const next = String(value);
-    const prev = Number(slot.el.textContent) || 0;
     const nextNum = Number(value) || 0;
+    const prev = Number(slot.el.dataset.countValue) || 0;
+    slot.el.dataset.countValue = String(nextNum);
 
     // Emphasis must be correct on first paint too, so set it before the
     // early-out that skips the animation for unchanged values.
     if (slot.box) slot.box.dataset.nonzero = String(nextNum > 0);
 
-    if (slot.el.textContent === next) return;
+    if (prev === nextNum) {
+      nextCountUpRun(slot.el);
+      if (slot.el.textContent !== nextNum.toLocaleString()) slot.el.textContent = nextNum.toLocaleString();
+      return;
+    }
 
     // Count-up animation for increasing numbers
     if (nextNum > prev && prev >= 0) {
       animateCountUp(slot.el, prev, nextNum);
     } else {
-      slot.el.textContent = next;
+      nextCountUpRun(slot.el);
+      slot.el.textContent = nextNum.toLocaleString();
     }
     // A number that changed should be *seen* to change. Expressive motion,
     // applied at the smallest possible scale.
@@ -209,12 +228,14 @@
   }
 
   function animateCountUp(el, start, end, duration = 500) {
+    const token = nextCountUpRun(el);
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       el.textContent = end.toLocaleString();
       return;
     }
     const startTime = performance.now();
     const step = (now) => {
+      if (countUpRuns.get(el) !== token) return;
       const progress = Math.min((now - startTime) / duration, 1);
       const eased = 1 - Math.pow(1 - progress, 3); // cubic ease-out
       const current = Math.round(start + (end - start) * eased);
@@ -226,13 +247,14 @@
 
   function setPrimaryLoading(isLoading) {
     el.primaryBtn.classList.toggle("m3e-button--loading", isLoading);
-    el.primaryBtn.disabled = isLoading;
-    if (isLoading) {
-      el.primaryLoader.innerHTML = ICON_LOADER;
-      el.primaryIcon.style.display = "none";
-    } else {
-      el.primaryLoader.innerHTML = "";
-      el.primaryIcon.style.display = "";
+    el.primaryBtn.setAttribute("aria-busy", String(isLoading));
+    el.primaryBtn.disabled = isLoading || currentState?.status === "capturing";
+    el.primaryIcon.style.display = isLoading ? "none" : "";
+    el.primaryLoader.textContent = "";
+    if (isLoading) el.primaryLabel.textContent = "Starting…";
+    else {
+      const paused = currentState?.status === "paused";
+      el.primaryLabel.textContent = paused ? "Resume capture" : "Start capture";
     }
   }
 
@@ -249,32 +271,25 @@
 
     // Detail line: live progress while capturing, stop reason when done
     let detail = meta.detail;
-    if (running) {
-      // Live progress: "Scroll batch 12/400 • 2.3k posts • 847 new • 12 videos • 45/min • ~12min left"
-      const scrollBatches = st.scrollBatches || 0;
-      const maxBatches = st.maxScrollBatches || 400;
-      const captured = st.captured || 0;
-      const newItems = st.newItems || 0;
-      const postsPerMin = st.postsPerMin || 0;
-      const etaMinutes = st.etaMinutes;
-      const parts = [];
-      if (scrollBatches > 0) parts.push(`Batch ${scrollBatches}/${maxBatches}`);
-      if (captured > 0) parts.push(`${captured.toLocaleString()} posts`);
-      if (newItems > 0) parts.push(`${newItems.toLocaleString()} new`);
-      if (videoCount > 0) parts.push(`${videoCount.toLocaleString()} videos`);
-      if (postsPerMin > 0) parts.push(`${postsPerMin}/min`);
-      if (etaMinutes != null && etaMinutes > 0) parts.push(`~${etaMinutes}min left`);
-      detail = parts.join(" · ");
-    } else if (paused && s.lastStopReason?.startsWith("backoff-")) {
-      // Rate limit backoff with countdown: "backoff-429 (attempt 3/10, 45s)"
+    if (running && s.lastStopReason?.startsWith("backoff-")) {
       const match = s.lastStopReason.match(/backoff-(\d+)\s+\(attempt\s+(\d+)\/(\d+),\s+(\d+)s\)/);
       if (match) {
         const [, httpStatus, attempt, maxAttempts, seconds] = match;
         detail = `Rate limited (HTTP ${httpStatus}) — retry ${attempt}/${maxAttempts} in ${seconds}s`;
-        el.statusCard.dataset.status = "rate-limited"; // Special styling
-      } else {
-        detail = s.lastStopReason;
-      }
+        el.statusCard.dataset.status = "rate-limited";
+      } else detail = s.lastStopReason;
+    } else if (running) {
+      const scrollBatches = Number(st.scrollBatches) || 0;
+      const captured = Number(st.captured) || 0;
+      const newItems = Number(st.newItems) || 0;
+      const postsPerMin = Number(st.postsPerMin) || 0;
+      const parts = [];
+      if (scrollBatches > 0) parts.push(`Pass ${scrollBatches}`);
+      if (captured > 0) parts.push(`${captured.toLocaleString()} posts`);
+      if (newItems > 0) parts.push(`${newItems.toLocaleString()} new`);
+      if (st.timelineResponses > 0) parts.push(`${Number(st.timelineResponses).toLocaleString()} pages`);
+      if (postsPerMin > 0) parts.push(`${postsPerMin}/min`);
+      detail = parts.join(" · ") || meta.detail;
     } else if (s.lastStopReason && !running) {
       detail = REASONS[s.lastStopReason] || "Stopped: " + s.lastStopReason;
     }
@@ -329,6 +344,7 @@
       el.exportCsv.disabled = true;
       el.exportMd.disabled = true;
       el.exportHtml.disabled = true;
+      el.runAudit.disabled = true;
       return;
     }
     el.exportHint.textContent =
@@ -340,6 +356,7 @@
     el.exportCsv.disabled = false;
     el.exportMd.disabled = false;
     el.exportHtml.disabled = false;
+    el.runAudit.disabled = false;
   }
 
   /* ---------------------------------------------------------------------------
@@ -348,22 +365,16 @@
 
   async function loadState() {
     try {
-      const { xCaptureState = null, xBookmarks = [] } =
-        await chrome.storage.local.get({ xCaptureState: null, xBookmarks: [] });
-      currentState = xCaptureState;
-      captureCount = xBookmarks.length;
-
-      let media = 0, video = 0;
-      for (const b of xBookmarks) {
-        const items = (b && b.media_items) || [];
-        media += items.length;
-        for (const m of items) {
-          if (m && (m.type === "video" || m.type === "animated_gif")) video++;
-        }
-      }
-      mediaCount = media;
-      videoCount = video;
-    } catch {
+      const [data, summary] = await Promise.all([
+        chrome.storage.local.get({ xCaptureState: null }),
+        XBookmarkStore.summary(),
+      ]);
+      currentState = data.xCaptureState || null;
+      captureCount = summary.count;
+      mediaCount = summary.mediaItems;
+      videoCount = summary.videos;
+    } catch (error) {
+      console.warn("[popup] Could not read capture state", error);
       currentState = null;
       captureCount = 0;
       mediaCount = 0;
@@ -382,15 +393,17 @@
     }
   }
 
+  const isBookmarksUrl = (url) => /^https:\/\/x\.com\/i\/bookmarks(?:[/?#]|$)/i.test(String(url || ""));
+
   /** Tell the user, up front, whether this popup can do anything at all. */
   async function renderTabHint() {
     const tab = await activeTab();
-    const ok = tab && tab.url && /^https:\/\/x\.com\//.test(tab.url);
+    const ok = tab && isBookmarksUrl(tab.url);
     if (ok) {
       el.tabHint.textContent = "Ready on x.com";
       el.tabHint.classList.remove("is-warn");
     } else {
-      el.tabHint.textContent = "Open x.com/i/history to capture";
+      el.tabHint.textContent = "Open x.com/i/bookmarks to capture";
       el.tabHint.classList.add("is-warn");
     }
     el.primaryBtn.dataset.ready = String(!!ok);
@@ -399,8 +412,8 @@
 
   async function send(type) {
     const tab = await activeTab();
-    if (!tab || !tab.url || !/^https:\/\/x\.com\//.test(tab.url)) {
-      snackbar.show("Open https://x.com/i/history in the active tab first.", { error: true });
+    if (!tab || !isBookmarksUrl(tab.url)) {
+      snackbar.show("Open https://x.com/i/bookmarks in the active tab first.", { error: true });
       log("No x.com tab active.", "warn");
       return null;
     }
@@ -432,35 +445,24 @@
     });
   }
 
-  wireControl(el.primaryBtn, "start", {
-    ok: (res) => {
-      log(res.resumed ? "Capture resumed." : "Capture started.");
-      setPrimaryLoading(false);
-    },
-    fail: (res) => {
-      setPrimaryLoading(false);
-      if (res.reason === "already-running") log("Capture is already running.", "warn");
-      else log("Couldn't start: " + (res.reason || "unknown"), "error");
-    },
-  });
-
-  // Override primary button click to add loading state
   el.primaryBtn.addEventListener("click", async () => {
+    setPrimaryLoading(true);
     const res = await send("start");
-    if (!res) return;
+    if (!res) {
+      setPrimaryLoading(false);
+      return;
+    }
     if (res.ok) {
       log(res.resumed ? "Capture resumed." : "Capture started.");
     } else if (res.reason === "already-running") {
       log("Capture is already running.", "warn");
     } else {
       log("Couldn't start: " + (res.reason || "unknown"), "error");
+      snackbar.show(res.reason || "Couldn't start capture.", { error: true });
     }
+    await loadState();
     setPrimaryLoading(false);
-    setTimeout(loadState, 500);
-  }, { once: false }); // We handle the click directly now
-
-  // Remove the wireControl for primaryBtn since we handle it manually
-  el.primaryBtn.onclick = null;
+  });
 
   wireControl(el.pauseBtn, "pause", {
     ok: () => log("Paused. Manual scrolling is still captured."),
@@ -503,7 +505,7 @@
   }
 
   async function buildExport(format, incremental = false) {
-    const { xBookmarks = [] } = await chrome.storage.local.get({ xBookmarks: [] });
+    const xBookmarks = await XBookmarkStore.readAll();
     if (!xBookmarks.length) {
       snackbar.show("Nothing captured yet.");
       return null;
@@ -532,7 +534,10 @@
       export_version: 1,
       exported_at: new Date().toISOString(),
       incremental,
-      bookmarks: items
+      count: items.length,
+      source: "x-bookmarks-exporter",
+      verification: XBookmarkAudit.audit(items, incremental ? null : currentState),
+      bookmarks: items,
     };
 
     switch (format) {
@@ -544,8 +549,8 @@
         return buildMarkdown(items);
       case "html":
         return buildHtml(items);
-      default: // json
-        return JSON.stringify(exportMeta, null, 2);
+      default: // Compact JSON avoids wasting time and bandwidth on pretty-print whitespace.
+        return JSON.stringify(exportMeta);
     }
   }
 
@@ -615,6 +620,10 @@
   }
 
   function buildHtml(items) {
+    const safeUrl = (value) => {
+      const url = String(value || "");
+      return /^https?:\/\//i.test(url) ? escapeHtml(url) : "";
+    };
     const css = `
       body { font-family: system-ui, sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
       .post { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
@@ -628,15 +637,27 @@
     `;
     const postsHtml = items.map((b) => {
       const mediaHtml = (b.media_items || []).map((m) => {
-        if (m.type === "photo") return `<img src="${m.url}" alt="${escapeHtml(m.alt || "")}" />`;
-        if (m.type === "video") return `<video src="${m.mp4}" poster="${m.poster}" controls></video>`;
+        const poster = safeUrl(m.poster || m.url);
+        if (m.type === "photo") {
+          const url = safeUrl(m.url || m.poster);
+          return url ? `<img src="${url}" alt="${escapeHtml(m.alt || "")}" loading="lazy" />` : "";
+        }
+        if (m.type === "video") {
+          const src = safeUrl(m.mp4);
+          return src ? `<video src="${src}" poster="${poster}" controls preload="none"></video>` : "";
+        }
         return "";
       }).join("");
-      const linksHtml = (b.urls_expanded || []).map((u) => `<a href="${u}" target="_blank">${u}</a>`).join(" ");
+      const linksHtml = (b.urls_expanded || []).map((value) => {
+        const url = safeUrl(value);
+        return url ? `<a href="${url}" target="_blank" rel="noopener noreferrer">${escapeHtml(value)}</a>` : "";
+      }).join(" ");
+      const avatar = safeUrl(b.author_profile_image_url);
+      const tweetUrl = safeUrl(b.tweet_url || b.canonical_url || b.url);
       return `
         <article class="post">
           <header class="post-header">
-            <img class="avatar" src="${b.author_profile_image_url || ""}" alt="" />
+            ${avatar ? `<img class="avatar" src="${avatar}" alt="" loading="lazy" />` : ""}
             <div>
               <strong>@${escapeHtml(b.author_username || "unknown")}</strong>
               <span class="meta">${escapeHtml(b.author_name || "")} · ${escapeHtml(b.tweet_created_at || "")}</span>
@@ -645,48 +666,70 @@
           <div class="text">${escapeHtml(b.text || "")}</div>
           ${mediaHtml ? `<div class="media">${mediaHtml}</div>` : ""}
           ${linksHtml ? `<div class="links">${linksHtml}</div>` : ""}
-          <footer><a href="${b.tweet_url}" target="_blank">View on X</a></footer>
+          ${tweetUrl ? `<footer><a href="${tweetUrl}" target="_blank" rel="noopener noreferrer">View on X</a></footer>` : ""}
         </article>
       `;
     }).join("");
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>X Bookmarks Export</title><style>${css}</style></head><body>${postsHtml}</body></html>`;
   }
 
+  let exportInProgress = false;
+
   async function runExport(format, filename, incremental = false) {
-    const content = await buildExport(format, incremental);
-    if (content === null) return;
-    const mime = format === "html" ? "text/html" : format === "csv" ? "text/csv" : format === "md" ? "text/markdown" : "application/json";
+    if (exportInProgress) return;
+    exportInProgress = true;
+    const exportButtons = [el.exportJson, el.exportJsonl, el.exportCsv, el.exportMd, el.exportHtml];
+    exportButtons.forEach((button) => { button.disabled = true; });
     try {
-      await chrome.downloads.download({
-        url: `data:${mime};charset=utf-8,` + encodeURIComponent(content),
-        filename,
-        saveAs: true,
-      });
+      const content = await buildExport(format, incremental);
+      if (content === null) return;
+      const mime = format === "html" ? "text/html"
+        : format === "csv" ? "text/csv"
+          : format === "md" ? "text/markdown"
+            : format === "jsonl" ? "application/x-ndjson" : "application/json";
+      const blobUrl = URL.createObjectURL(new Blob([content], { type: `${mime};charset=utf-8` }));
+      try {
+        await chrome.downloads.download({ url: blobUrl, filename, saveAs: true });
+      } catch (downloadError) {
+        // A Blob URL is bounded and fast; the anchor path also supports older
+        // Chromium builds whose downloads API rejects extension-created blobs.
+        const anchor = document.createElement("a");
+        anchor.href = blobUrl;
+        anchor.download = filename;
+        anchor.hidden = true;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        log("Used browser download fallback: " + String(downloadError?.message || downloadError), "warn");
+      }
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 5 * 60 * 1000);
       await setLastExportTime(Date.now());
       snackbar.show("Exported " + filename + (incremental ? " (incremental)" : ""));
       log("Downloaded " + filename + (incremental ? " [incremental]" : "") + ".");
-    } catch (e) {
+    } catch (error) {
       snackbar.show("Export failed.", { error: true });
-      log("Export failed: " + e.message, "error");
+      log("Export failed: " + String(error?.message || error), "error");
+    } finally {
+      exportInProgress = false;
+      renderExportHint();
     }
   }
 
-  // Event listeners for all export formats
-  el.exportJson.addEventListener("click", () => runExport("json", "x-bookmarks.json"));
-  el.exportJsonl.addEventListener("click", () => runExport("jsonl", "x-bookmarks.jsonl"));
-  el.exportCsv.addEventListener("click", () => runExport("csv", "x-bookmarks.csv"));
-  el.exportMd.addEventListener("click", () => runExport("md", "x-bookmarks.md"));
-  el.exportHtml.addEventListener("click", () => runExport("html", "x-bookmarks.html"));
-
-  // Incremental export (Shift+click on any export button)
-  const exportButtons = [el.exportJson, el.exportJsonl, el.exportCsv, el.exportMd, el.exportHtml];
-  for (const btn of exportButtons) {
-    btn.addEventListener("click", (e) => {
-      if (e.shiftKey) {
-        const format = btn.id.replace("export", "").toLowerCase();
-        const ext = format === "json" ? "json" : format;
-        runExport(format, `x-bookmarks-incremental.${ext}`, true);
-      }
+  // Shift-click makes an incremental export; a single click handler prevents
+  // accidentally starting both full and incremental downloads.
+  const exportBindings = [
+    [el.exportJson, "json", "xreels-bookmarks.json"],
+    [el.exportJsonl, "jsonl", "x-bookmarks.jsonl"],
+    [el.exportCsv, "csv", "x-bookmarks.csv"],
+    [el.exportMd, "md", "x-bookmarks.md"],
+    [el.exportHtml, "html", "x-bookmarks.html"],
+  ];
+  for (const [button, format, filename] of exportBindings) {
+    button.addEventListener("click", (event) => {
+      if (event.shiftKey) {
+        const ext = filename.split(".").pop();
+        runExport(format, `xreels-bookmarks-incremental.${ext}`, true);
+      } else runExport(format, filename);
     });
   }
 
@@ -695,7 +738,8 @@
     e.stopPropagation();
     exportOverflowOpen = !exportOverflowOpen;
     el.exportOverflowMenu.hidden = !exportOverflowOpen;
-    el.exportMore.setAttribute("aria-expanded", exportOverflowOpen);
+    el.exportOverflowMenu.toggleAttribute("open", exportOverflowOpen);
+    el.exportMore.setAttribute("aria-expanded", String(exportOverflowOpen));
   });
 
   // Close overflow menu on outside click
@@ -703,43 +747,92 @@
     if (exportOverflowOpen) {
       exportOverflowOpen = false;
       el.exportOverflowMenu.hidden = true;
+      el.exportOverflowMenu.removeAttribute("open");
       el.exportMore.setAttribute("aria-expanded", "false");
     }
   });
 
-  /* Open the library as an extension page, reusing an existing tab rather than
-     stacking a duplicate every time the button is pressed.
+  el.appHelp.addEventListener("click", () => {
+    confirmDialog({
+      title: "Use this export in XReels",
+      body: "Choose XReels JSON to download one app-ready file. In the app, open Import → Upload JSON and select that file. The export includes every captured bookmark, including text-only posts; to display text-only items, enable Settings → Keep text-only posts.",
+      confirmLabel: "Got it",
+      onConfirm: async () => {},
+    });
+  });
 
-     Finding that tab uses `runtime.getContexts`, NOT `tabs.query({url})`.
-     Filtering a tab query by URL requires the "tabs" permission, which Chrome
-     surfaces at install time as "read your browsing history" — an absurd ask
-     for a tool whose entire pitch is that your data stays local, and one this
-     feature does not otherwise need. `getContexts` only ever reports the
-     extension's own pages, so it needs no permission at all. */
-  el.openDashboard.addEventListener("click", async () => {
-    const url = chrome.runtime.getURL("dashboard/index.html");
+  function renderAudit(result) {
+    const description = XBookmarkAudit.describe(result);
+    const captureAudit = result.capture;
+    el.auditResult.hidden = false;
+    el.auditStatus.textContent = description.status;
+    const hasWarnings = result.duplicateIds > 0 || result.invalidIds > 0 ||
+      (captureAudit.available && captureAudit.missingUniqueIds > 0) ||
+      (captureAudit.available && !captureAudit.endReached);
+    el.auditStatus.dataset.tone = hasWarnings ? "warn" : result.capture.available ? "good" : "info";
+    el.auditMetrics.textContent = description.summary;
+    el.auditFindings.replaceChildren();
 
-    try {
-      if (chrome.runtime.getContexts) {
-        const [existing] = await chrome.runtime.getContexts({
-          contextTypes: ["TAB"],
-          documentUrls: [url],
-        });
-        if (existing && existing.tabId != null) {
-          await chrome.tabs.update(existing.tabId, { active: true });
-          if (chrome.windows && existing.windowId != null) {
-            await chrome.windows.update(existing.windowId, { focused: true });
-          }
-          window.close();
-          return;
-        }
-      }
-    } catch (_) {
-      // getContexts is Chrome 116+. On anything older, just open a new tab.
+    const findings = [];
+    if (captureAudit.available) {
+      findings.push({
+        text: `Timeline coverage: ${Number(captureAudit.coveredUniqueIds || 0).toLocaleString()} of ${Number(captureAudit.observedUniqueIds || 0).toLocaleString()} unique IDs observed in X responses are in storage; ${Number(captureAudit.missingUniqueIds || 0).toLocaleString()} unaccounted.`,
+        tone: captureAudit.missingUniqueIds ? "warn" : "good",
+      });
+      findings.push({
+        text: `Feed sweep: ${captureAudit.endReached ? "repeated quiet checks reached the feed end" : "no confirmed feed-end sweep in the latest run"} · ${Number(captureAudit.timelineResponses || 0).toLocaleString()} timeline responses · ${Number(captureAudit.pagesWithTweets || 0).toLocaleString()} pages with posts · ${Number(captureAudit.emptyResponses || 0).toLocaleString()} empty pages.`,
+        tone: captureAudit.endReached ? "good" : "warn",
+      });
+      if (captureAudit.schemaMismatchResponses) findings.push({
+        text: `${Number(captureAudit.schemaMismatchResponses).toLocaleString()} recognized timeline response(s) contained entries the parser could not identify. X may have changed its response shape; update the extension and retry.`,
+        tone: "warn",
+      });
+      if (captureAudit.normalizationFailures) findings.push({
+        text: `${Number(captureAudit.normalizationFailures).toLocaleString()} normalization failure(s) across ${Number(captureAudit.failedUniqueIds || 0).toLocaleString()} unique IDs. ${captureAudit.missingSamples?.length ? "Missing ID sample: " + captureAudit.missingSamples.slice(0, 8).join(", ") : "A later retry may have saved some previously failing posts."}`,
+        tone: "warn",
+      });
+      if (captureAudit.preCaptureDropped) findings.push({
+        text: `${captureAudit.preCaptureDropped} pre-start cached item(s) were evicted; the run starts at the top and re-sweeps the feed.`,
+        tone: "info",
+      });
+      if (captureAudit.repeatedCursors) findings.push({
+        text: `X repeated a bottom cursor ${captureAudit.repeatedCursors} time(s). This can be a retry; verify the feed-end result.`,
+        tone: "info",
+      });
+    } else {
+      findings.push({ text: "No completed capture audit is available yet. Run capture to compare response IDs with saved posts.", tone: "info" });
     }
+    if (result.duplicateIds) findings.push({ text: `The library contains ${result.duplicateIds} duplicate post ID(s).`, tone: "warn" });
+    if (result.invalidIds) findings.push({ text: `${result.invalidIds} row(s) have missing or non-numeric tweet IDs.`, tone: "warn" });
+    if (result.suspiciousGapCount) findings.push({ text: description.gapNote, tone: "info" });
+    if (!findings.length || (!result.duplicateIds && !result.invalidIds && captureAudit.available && captureAudit.missingUniqueIds === 0 && captureAudit.endReached)) {
+      findings.push({ text: "All IDs seen in the captured X timeline responses are accounted for in the library.", tone: "good" });
+    }
+    findings.push({ text: "Limit: X does not publish a reliable total bookmark count here. Snowflake ID gaps are heuristic hints, never proof that a bookmark was skipped.", tone: "info" });
 
-    await chrome.tabs.create({ url });
-    window.close();
+    for (const finding of findings) {
+      const item = document.createElement("li");
+      item.textContent = finding.text;
+      item.dataset.tone = finding.tone;
+      el.auditFindings.appendChild(item);
+    }
+  }
+
+  el.runAudit.addEventListener("click", async () => {
+    el.runAudit.disabled = true;
+    el.runAudit.textContent = "Checking…";
+    try {
+      const posts = await XBookmarkStore.readAll();
+      const result = XBookmarkAudit.audit(posts, currentState);
+      renderAudit(result);
+      log(`Integrity audit: ${result.uniqueIds.toLocaleString()} unique IDs, ${result.duplicateIds} duplicate, ${result.suspiciousGapCount} gap hint(s).`);
+    } catch (error) {
+      snackbar.show("Audit failed.", { error: true });
+      log("Audit failed: " + String(error?.message || error), "error");
+    } finally {
+      el.runAudit.textContent = "Verify";
+      el.runAudit.disabled = captureCount === 0;
+    }
   });
 
   /* ---------------------------------------------------------------------------
@@ -777,11 +870,14 @@
         if (tab && tab.id) {
           try { await chrome.tabs.sendMessage(tab.id, { type: "reset" }); } catch {}
         }
-        await chrome.storage.local.remove(["xBookmarks", "xCaptureState", "xDeadLetters"]);
+        await XBookmarkStore.clear();
+        await chrome.storage.local.remove(["xCaptureState", "xDeadLetters", "xCaptureSession", LAST_EXPORT_KEY]);
         currentState = null;
         captureCount = 0;
         mediaCount = 0;
         videoCount = 0;
+        el.auditResult.hidden = true;
+        el.auditFindings.replaceChildren();
         renderState();
         renderExportHint();
         snackbar.show("Captured data cleared.");
@@ -798,6 +894,7 @@
     chrome.runtime.onMessage.addListener((msg) => {
       if (msg && msg.type === "state") {
         currentState = msg.state;
+        if (currentState?.status === "capturing" && !currentState.audit) el.auditResult.hidden = true;
         renderState();
       }
     });
@@ -806,23 +903,21 @@
       if (area !== "local") return;
       if (changes.xCaptureState) {
         currentState = changes.xCaptureState.newValue || null;
+        if (currentState?.status === "capturing" && !currentState.audit) el.auditResult.hidden = true;
         renderState();
       }
-      if (changes.xBookmarks) {
-        const list = changes.xBookmarks.newValue || [];
-        captureCount = list.length;
-        let media = 0, video = 0;
-        for (const b of list) {
-          const items = (b && b.media_items) || [];
-          media += items.length;
-          for (const m of items) {
-            if (m && (m.type === "video" || m.type === "animated_gif")) video++;
-          }
+      if (changes.xBookmarkMeta) {
+        const summary = XBookmarkStore.summaryFromMeta(changes.xBookmarkMeta.newValue);
+        if (summary) {
+          captureCount = summary.count;
+          mediaCount = summary.mediaItems;
+          videoCount = summary.videos;
+          renderState();
+          renderExportHint();
         }
-        mediaCount = media;
-        videoCount = video;
-        renderState();
-        renderExportHint();
+      } else if (changes.xBookmarks) {
+        // Backward-compatible path while a legacy array is being migrated.
+        loadState();
       }
     });
   } catch {
@@ -839,7 +934,7 @@
     const manifestVersion = chrome.runtime.getManifest().version;
     el.versionBadge.textContent = `v${manifestVersion} · M3E`;
   } catch {
-    el.versionBadge.textContent = "v0.1.0 · M3E";
+    el.versionBadge.textContent = "v1.1.0 · M3E";
   }
 
   loadTheme();
@@ -850,15 +945,6 @@
   loadState().then(() => {
     el.stats.classList.remove("skeleton");
   });
-
-  // Set primary button loading state on start
-  const originalSend = send;
-  window.send = async (type) => {
-    if (type === "start") {
-      setPrimaryLoading(true);
-    }
-    return originalSend(type);
-  };
 
   log("Popup ready.");
 })();

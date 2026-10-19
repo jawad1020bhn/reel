@@ -7,111 +7,112 @@
     return url.includes("/graphql/") || url.includes("/i/api/");
   };
 
-  const isTimelineJson = (text) =>
-    typeof text === "string" &&
-    (text.includes("tweet_results") ||
-      text.includes("TimelineAddEntries") ||
-      text.includes("full_text"));
+  const isBookmarkRoute = (url, body = "") => {
+    try { return /bookmark/i.test(decodeURIComponent(String(url || "") + " " + String(body || ""))); }
+    catch { return /bookmark/i.test(String(url || "") + " " + String(body || "")); }
+  };
+
+  // The response shape is the authority on successful requests; endpoint slugs
+  // vary as X rolls GraphQL operation IDs.
+  const isBookmarkTimelineText = (text) => typeof text === "string" &&
+    /bookmark_(?:timeline|collection)/i.test(text) && /instructions/i.test(text);
 
   const forward = (payload) => {
     try {
       window.postMessage(
         { source: "x-bookmark-exporter", type: "bookmarks-response", payload },
-        "*"
+        "*",
       );
-    } catch {}
+    } catch { /* document may be navigating */ }
   };
 
   const readContentType = (response) => {
     try {
-      return (response.headers && response.headers.get && response.headers.get("content-type")) || "";
+      return response.headers?.get?.("content-type") || "";
     } catch {
       return "";
     }
   };
 
   const originalFetch = window.fetch;
-
-  window.fetch = async (...args) => {
+  window.fetch = function (...args) {
     const input = args[0];
     const init = args[1] || {};
-    const url = typeof input === "string" ? input : input && input.url;
+    const url = typeof input === "string" ? input : input?.url || "";
     const body = typeof init.body === "string" ? init.body : "";
 
-    const response = await originalFetch.apply(this, args);
+    return originalFetch.apply(this, args).then((response) => {
+      if (!isCandidateUrl(url)) return response;
+      const contentType = readContentType(response);
 
-    if (!isCandidateUrl(url)) return response;
-
-    const contentType = readContentType(response);
-
-    if (!response.ok) {
-      forward({ ok: false, status: response.status, contentType });
-      return response;
-    }
-
-    if (contentType && !contentType.includes("json")) {
-      return response;
-    }
-
-    response
-      .clone()
-      .text()
-      .then((text) => {
-        if (isTimelineJson(text)) {
-          try {
-            forward({ ok: true, status: response.status, contentType, json: JSON.parse(text) });
-          } catch {}
+      if (!response.ok) {
+        if (isBookmarkRoute(url, body)) {
+          forward({ ok: false, status: response.status, contentType, url });
         }
-      })
-      .catch(() => {});
+        return response;
+      }
+      if (contentType && !contentType.toLowerCase().includes("json")) return response;
 
-    return response;
+      response.clone().text().then((text) => {
+        if (!isBookmarkTimelineText(text)) return;
+        try {
+          forward({ ok: true, status: response.status, contentType, json: JSON.parse(text) });
+        } catch { /* ignore malformed or partial JSON */ }
+      }).catch(() => {});
+
+      return response;
+    });
   };
 
   const originalOpen = window.XMLHttpRequest.prototype.open;
   window.XMLHttpRequest.prototype.open = function (...args) {
     const url = args[1];
-    if (isCandidateUrl(url)) {
+    const candidate = isCandidateUrl(url);
+    const bookmarkRoute = candidate && isBookmarkRoute(url);
+    if (candidate) {
       this.addEventListener("load", () => {
-        const ct = (this.getResponseHeader && this.getResponseHeader("content-type")) || "";
+        let contentType = "";
+        let text = "";
+        try {
+          contentType = this.getResponseHeader?.("content-type") || "";
+          if (this.responseType && this.responseType !== "text" && this.responseType !== "") return;
+          text = this.responseText;
+        } catch { return; }
+
         if (this.status >= 400) {
-          forward({ ok: false, status: this.status, contentType: ct });
+          if (bookmarkRoute) forward({ ok: false, status: this.status, contentType, url });
           return;
         }
-        if (isTimelineJson(this.responseText)) {
-          try {
-            forward({ ok: true, status: this.status, contentType: ct, json: JSON.parse(this.responseText) });
-          } catch {}
-        }
+        if (!isBookmarkTimelineText(text)) return;
+        try {
+          forward({ ok: true, status: this.status, contentType, json: JSON.parse(text) });
+        } catch { /* ignore malformed or partial JSON */ }
       });
     }
     return originalOpen.apply(this, args);
   };
 
-  // WebSocket fallback: history/bookmarks may stream over WS.
+  // Fallback for X clients that stream timeline payloads over WebSocket.
   try {
-    const OrigWS = window.WebSocket;
-    if (OrigWS && OrigWS.prototype) {
-      const Wrapped = function (...args) {
-        const ws = new OrigWS(...args);
+    const OriginalWebSocket = window.WebSocket;
+    if (OriginalWebSocket?.prototype) {
+      const WrappedWebSocket = function (...args) {
+        const socket = new OriginalWebSocket(...args);
         try {
-          ws.addEventListener("message", (ev) => {
+          socket.addEventListener("message", (event) => {
+            if (typeof event.data !== "string" || !isBookmarkTimelineText(event.data)) return;
             try {
-              const data = typeof ev.data === "string" ? ev.data : null;
-              if (data && isTimelineJson(data)) {
-                forward({ ok: true, status: 200, contentType: "application/json", json: JSON.parse(data) });
-              }
-            } catch {}
+              forward({ ok: true, status: 200, contentType: "application/json", json: JSON.parse(event.data) });
+            } catch { /* ignore non-JSON frames */ }
           });
-        } catch {}
-        return ws;
+        } catch { /* socket may already be closing */ }
+        return socket;
       };
-      Wrapped.prototype = OrigWS.prototype;
-      Wrapped.CONNECTING = OrigWS.CONNECTING;
-      Wrapped.OPEN = OrigWS.OPEN;
-      Wrapped.CLOSING = OrigWS.CLOSING;
-      Wrapped.CLOSED = OrigWS.CLOSED;
-      window.WebSocket = Wrapped;
+      WrappedWebSocket.prototype = OriginalWebSocket.prototype;
+      for (const key of ["CONNECTING", "OPEN", "CLOSING", "CLOSED"]) {
+        WrappedWebSocket[key] = OriginalWebSocket[key];
+      }
+      window.WebSocket = WrappedWebSocket;
     }
-  } catch {}
+  } catch { /* WebSocket may be locked down by the host page */ }
 })();
