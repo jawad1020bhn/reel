@@ -10,7 +10,8 @@
 html.is-site-gated { overflow: hidden; }
 .site-header, .site-footer { display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-shrink: 0; }
 .site-brand { display: flex; align-items: center; gap: 20px; min-width: 0; }
-.site-wordmark { font-family: var(--display); font-size: 32px; letter-spacing: 0.04em; color: var(--accent); overflow-wrap: anywhere; }
+.site-wordmark { font-family: var(--font); font-size: 32px; font-weight: 700; letter-spacing: -0.03em; text-transform: lowercase; color: var(--fg); overflow-wrap: anywhere; }
+.site-wordmark::before { content: ""; display: inline-block; width: 28px; height: 28px; border-radius: 7px; background: var(--accent); margin-right: 10px; vertical-align: -4px; box-shadow: 0 2px 10px rgb(229 9 20 / 0.35); }
 .site-edition, .site-eyebrow, .site-footer { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; color: var(--fg-2); }
 .site-edition { padding-left: 20px; border-left: 1px solid var(--line); white-space: nowrap; }
 .site-header-note { display: inline-flex; align-items: center; gap: 8px; color: var(--fg-2); font-size: 12px; white-space: nowrap; }

@@ -86,7 +86,7 @@ XR.define("ui.icons", [], function () {
     save: "M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2zM17 21v-8H7v8M7 3v5h8",
     hash: "M4 9h16M4 15h16M10 3L8 21M16 3l-2 18",
     drag: "M9 5a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM15 5a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM9 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM15 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM9 21a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM15 21a1 1 0 1 0 0-2 1 1 0 0 0 0 2z",
-    logo: "M4 4l16 16M20 4L4 20",
+    logo: "M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z",
   };
   const NS = "http://www.w3.org/2000/svg";
   function icon(name, size = 20, { filled = false, cls = "" } = {}) {

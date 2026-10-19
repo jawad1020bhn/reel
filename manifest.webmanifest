@@ -1,7 +1,7 @@
 {
-  "name": "XReels",
-  "short_name": "XReels",
-  "description": "A private, local-first cinema for your X bookmarks.",
+  "name": "saves",
+  "short_name": "saves",
+  "description": "A private, local-first cinema for your bookmarks.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

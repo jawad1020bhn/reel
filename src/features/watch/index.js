@@ -334,8 +334,8 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
       try {
         ms.metadata = new MediaMetadata({
           title: post.text ? post.text.slice(0, 90) : S.label,
-          artist: "@" + (post.author?.username || "X"),
-          album: S.label || "XReels",
+          artist: "@" + (post.author?.username || "saves"),
+          album: S.label || "saves",
           artwork: mediaArtwork(post),
         });
       } catch { /* MediaMetadata unavailable */ }

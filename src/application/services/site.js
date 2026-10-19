@@ -31,7 +31,7 @@ XR.define("app.site", ["app.ports.platform"], function (platform) {
   /** Does the gate apply here (configured AND not a local file)? */
   const applies = () => isEnabled() && !isLocalFile();
   const hint = () => String(config().hint || "");
-  const title = () => String(config().title || "XReels");
+  const title = () => String(config().title || "saves");
 
   /** Same digest shape as app.lock: sha256("<salt>:<password>"). */
   async function digest(password) { return platform.sha256(`${salt()}:${String(password ?? "")}`); }

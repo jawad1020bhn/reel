@@ -24,7 +24,7 @@ XR.define("shell.lockGate", ["ui.dom", "ui.icons", "ui.dialog", "app.lock", "app
       el = h("div.lock-gate", { role: "dialog", "aria-modal": "true", "aria-label": "Locked" },
         h("div.lock-card",
           h("div.lock-logo", icons.icon("lock", 28)),
-          h("h1.lock-title", prefs.get("discreet") ? "Locked" : "XReels is locked"),
+          h("h1.lock-title", prefs.get("discreet") ? "Locked" : "saves is locked"),
           msg, dots, pad,
           h("button.btn.btn-ghost.btn-sm.lock-forgot", { onclick: forgot }, "Forgot PIN?")));
       document.body.appendChild(el);
@@ -38,7 +38,7 @@ XR.define("shell.lockGate", ["ui.dom", "ui.icons", "ui.dialog", "app.lock", "app
     }
     function hide() { if (!el) return; el.classList.add("out"); const node = el; el = null; setTimeout(() => node.remove(), 250); document.documentElement.classList.remove("is-locked"); }
     async function forgot() {
-      const ok = await dialog.confirm("A PIN cannot be recovered. The only way back in is to erase this browser's local XReels data (stars, collections, history, imported posts). Your data/posts.js file is not touched.", { title: "Reset local data?", ok: "Erase & unlock", danger: true });
+      const ok = await dialog.confirm("A PIN cannot be recovered. The only way back in is to erase this browser's local saves data (stars, collections, history, imported posts). Your data/posts.js file is not touched.", { title: "Reset local data?", ok: "Erase & unlock", danger: true });
       if (!ok) return;
       await lock.forceReset();
       await activity.resetAll();

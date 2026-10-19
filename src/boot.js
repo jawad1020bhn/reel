@@ -26,7 +26,7 @@
     document.body.innerHTML = "";
     const pre = document.createElement("pre");
     pre.style.cssText = "font:14px/1.5 ui-monospace,Menlo,Consolas,monospace;padding:28px;color:#f3f3f3;background:#111;min-height:100vh;margin:0;white-space:pre-wrap";
-    pre.textContent = `XReels could not start\n\n${title}\n\n${lines.join("\n")}\n\nFix the file (or restore it from the zip) and reload.`;
+    pre.textContent = `saves could not start\n\n${title}\n\n${lines.join("\n")}\n\nFix the file (or restore it from the zip) and reload.`;
     document.body.appendChild(pre);
   }
   function start() {

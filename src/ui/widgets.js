@@ -52,7 +52,7 @@ XR.define("ui.widgets", ["ui.dom", "ui.icons", "core.i18n"], function (dom, icon
   const avatar = (src, name, px = 40, opts = {}) => src
     ? h("img.avatar", { src, alt: "", width: px, height: px, loading: "lazy", style: { width: px + "px", height: px + "px" }, onerror: (e) => e.target.replaceWith(avatar("", name, px, opts)) })
     : opts.mark
-      ? h("span.avatar.avatar-fallback.avatar-mark", { style: { width: px + "px", height: px + "px" }, "aria-hidden": "true" }, h("span.avatar-mark-x", "X"))
+      ? h("span.avatar.avatar-fallback.avatar-mark", { style: { width: px + "px", height: px + "px" }, "aria-hidden": "true" }, h("span.avatar-mark-x", "s"))
       : h("span.avatar.avatar-fallback", { style: { width: px + "px", height: px + "px", fontSize: Math.round(px / 2.4) + "px" } }, (name || "?")[0].toUpperCase());
 
   return { chip, segmented, toggle, select, numberInput, row, section, empty, spinner, stat, kbd, pageHead, pageBar, btn, iconBtn, avatar };

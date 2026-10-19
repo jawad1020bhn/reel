@@ -4,7 +4,7 @@
 XR.define("shell.theme", ["app.prefs", "app.ports.platform", "core.i18n"], function (prefs, platform, i18n) {
   "use strict";
   const root = document.documentElement;
-  const APP_TITLE = "XReels";
+  const APP_TITLE = "saves";
   let mq = null;
 
   function resolvedTheme() {
@@ -40,7 +40,7 @@ XR.define("shell.theme", ["app.prefs", "app.ports.platform", "core.i18n"], funct
     const link = document.querySelector('link[rel="icon"]');
     if (link) link.href = discreet ? ICON_NEUTRAL : ICON_APP;
   }
-  const ICON_APP = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#101012"/><path d="M22 18l26 28M48 18L22 46" stroke="#e50914" stroke-width="8" stroke-linecap="round"/></svg>');
+  const ICON_APP = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#101012"/><path d="M20 14 H44 V46 L32 37 L20 46 Z" fill="#e50914"/></svg>');
   const ICON_NEUTRAL = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#e5e7eb"/><path d="M18 22h28M18 32h28M18 42h18" stroke="#6b7280" stroke-width="5" stroke-linecap="round"/></svg>');
 
   function start() {

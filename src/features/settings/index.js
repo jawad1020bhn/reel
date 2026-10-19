@@ -132,10 +132,10 @@ XR.define("features.settings", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog",
         W.row("Local media folder", "Optional: a folder next to index.html holding <postId>_<n>.mp4/.jpg; played before the CDN", h("input.input", { value: P("localMediaDir"), placeholder: "media", onchange: (e) => prefs.set({ localMediaDir: e.target.value.trim() }) })),
         W.row("Media availability", "Check which posts still load from X. Dead ones are marked and can be hidden in one go.", healthControl(dead)),
         W.row("Your activity", `${c.seen} seen · ${c.starred} starred · ${c.hidden} hidden · ${c.collections} collections · ${c.progress} in progress`, h("div.row-btns",
-          W.btn("Export", { icon: "download", title: "Save stars, collections, history as JSON", onClick: () => platform.download(JSON.stringify(activity.exportState(), null, 1), `xreels-activity-${new Date().toISOString().slice(0, 10)}.json`) }),
+          W.btn("Export", { icon: "download", title: "Save stars, collections, history as JSON", onClick: () => platform.download(JSON.stringify(activity.exportState(), null, 1), `saves-activity-${new Date().toISOString().slice(0, 10)}.json`) }),
           W.btn("Restore", { icon: "upload", onClick: restoreActivity }))),
         W.row("Export library", "The normalised posts as JSON (re-importable) or as a ready data/posts.js", h("div.row-btns",
-          W.btn("JSON", { icon: "download", onClick: () => platform.download(importer.exportPosts(catalog.posts), "posts.xreels.json") }),
+          W.btn("JSON", { icon: "download", onClick: () => platform.download(importer.exportPosts(catalog.posts), "posts.saves.json") }),
           W.btn("posts.js", { icon: "download", onClick: () => platform.download(importer.exportPosts(catalog.posts, { asScript: true }), "posts.js") }))),
         W.row("Storage", est, h("div.row-btns",
           W.btn("Reset preferences", { onClick: async () => { if (await dialog.confirm("Reset all preferences to defaults?")) { prefs.reset(); render(); } } }),
@@ -189,7 +189,7 @@ XR.define("features.settings", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog",
       const list = keys.list().filter((k) => k.desc);
       const groups = {};
       for (const k of list) (groups[k.scope] ||= []).push(k);
-      return W.section("About & shortcuts", "XReels — a local-first viewer for your X bookmarks. Open-source, no server, no tracking.",
+      return W.section("About & shortcuts", "saves — a local-first viewer for your bookmarks. Open-source, no server, no tracking.",
         h("div.shortcut-cols", Object.entries(groups).map(([scope, items]) => h("div.shortcut-group", h("h3", scope === "global" ? "Everywhere" : scope[0].toUpperCase() + scope.slice(1)), items.map((k) => h("div.shortcut", W.kbd(k.combo.replace("mod", platform.isTouch() ? "ctrl" : navigator.platform?.includes("Mac") ? "⌘" : "ctrl").replace("arrow", "")), h("span", k.desc)))))),
         h("p.muted.small", "Watch gestures: swipe or wheel to move · tap to pause · double-tap to star · hold for 2× · drag sideways to seek."));
     }

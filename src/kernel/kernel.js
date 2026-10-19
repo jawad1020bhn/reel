@@ -1,5 +1,5 @@
 /* =============================================================================
-   XReels kernel — a 90-line module system + dependency container.
+   saves kernel — a 90-line module system + dependency container.
 
    Why this exists: the app must run from a double-clicked index.html. On
    file:// Chrome refuses ES-module imports, so every file is a classic

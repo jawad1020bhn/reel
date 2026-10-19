@@ -1,8 +1,8 @@
 {
-  "name": "xreels",
+  "name": "saves",
   "version": "1.1.0",
   "private": true,
-  "description": "Local-first viewer for your X bookmarks with media \u2014 open index.html, no server needed.",
+  "description": "Local-first viewer for your bookmarks with media — open index.html, no server needed.",
   "license": "MIT",
   "scripts": {
     "lint": "node tools/lint-deps.mjs && node tools/lint-mobile.mjs",

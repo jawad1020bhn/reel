@@ -10,8 +10,8 @@ XR.define("features.import", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog", "
       dom.clear(host);
       const src = catalog.source;
       const page = h("div.import",
-        (catalog.size ? W.pageBar : W.pageHead)(catalog.size ? "Import posts" : "Welcome to XReels",
-          catalog.size ? `Currently showing ${src.count} posts from ${src.label}` : "Your X bookmarks, as a private video & photo feed.",
+        (catalog.size ? W.pageBar : W.pageHead)(catalog.size ? "Import posts" : "Welcome to saves",
+          catalog.size ? `Currently showing ${src.count} posts from ${src.label}` : "Your bookmarks, as a private video & photo feed.",
           catalog.size ? W.btn("Manage libraries", { icon: "database", onClick: () => nav.go("settings") }) : null),
         h("div.import-grid",
           card("upload", "Upload a file", "Drop it anywhere in the app, or pick it.", h("div.stack",
@@ -20,13 +20,13 @@ XR.define("features.import", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog", "
               h("span.dropzone-title", "Drop your export here"),
               h("span.dropzone-sub", ".json or .js — or click to choose a file"),
               h("input", { id: "xr-file", type: "file", accept: ".json,.js,.txt,application/json,text/javascript", style: { display: "none" }, onchange: (e) => { const f = e.target.files[0]; if (f) analyzeFile(f); } })),
-            h("p.muted.small", "Accepts xdash, twitter-web-exporter, X bookmark extensions, X API v2 and XReels exports. ",
+            h("p.muted.small", "Accepts xdash, twitter-web-exporter, bookmark extensions, X API v2 and saves exports. ",
               h("button.link.link-btn", { onclick: showFormats }, "See accepted formats")))),
           card("paste", "Paste JSON", "Copy the export's content and paste it here.", (() => {
             const ta = h("textarea.input.import-paste", { placeholder: '{"export_version":1,"bookmarks":[…]}  or  window.XREELS_DATA = {…};', rows: 6, spellcheck: false });
             return h("div.stack", ta, h("div.row-btns", W.btn("Analyse", { icon: "search", kind: "primary", onClick: () => { if (ta.value.trim()) analyzeText(ta.value, "Pasted JSON"); } }), W.btn("Paste from clipboard", { icon: "paste", onClick: async () => { try { ta.value = await navigator.clipboard.readText(); analyzeText(ta.value, "Clipboard"); } catch { actions.toast("Clipboard not available — paste manually (Ctrl+V)", "error"); } } })));
           })()),
-          card("database", "Put the file in the project", "The zero-click way: XReels reads data/posts.js every time it opens.", h("div.stack",
+          card("database", "Put the file in the project", "The zero-click way: saves reads data/posts.js every time it opens.", h("div.stack",
             h("ol.steps",
               h("li", "Open ", h("code", "data/posts.template.js"), " for the exact format."),
               h("li", "Save your export as ", h("code", "data/posts.js"), " starting with ", h("code", "window.XREELS_DATA = "), " and ending with ", h("code", ";")),
@@ -52,12 +52,12 @@ XR.define("features.import", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog", "
       dialog.open({
         title: "Accepted formats", size: "md",
         body: h("div.fmt-sheet",
-          h("p.muted", "XReels detects the shape of the file for you. If detection fails, the first lines are usually enough to add an adapter."),
+          h("p.muted", "saves detects the shape of the file for you. If detection fails, the first lines are usually enough to add an adapter."),
           row("xdash", "POSTS.json from the xdash exporter", "bookmarks[]"),
           row("twitter-web-exporter", "The bookmarks JSON this extension saves", "tweets[] · data[]"),
           row("X bookmark extensions", "Chrome exports that dump tweet-like objects", "any array"),
           row("X API v2", "Raw /2/tweets payloads with includes", "data[] · includes"),
-          row("XReels", "A library exported from Settings → Export library", "posts[]"),
+          row("saves", "A library exported from Settings → Export library", "posts[]"),
           h("p.muted.small", "Minimum needed per post: an id, a URL (or author + id) and media when there is any. Text-only posts are kept out of the feed unless you enable them in Settings.")),
         actions: [{ label: "Got it", kind: "primary" }],
       });
@@ -86,7 +86,7 @@ XR.define("features.import", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog", "
         { value: "merge", label: "Merge", title: "Keep posts missing from the file, add the new ones" },
         { value: "new", label: "New library", title: "Store it as a separate library you can switch to" }], mode, (v) => { mode = v; nameInput.style.display = v === "new" ? "" : "none"; goneRow.style.display = v === "replace" && d.missing ? "" : "none"; }) : null;
       nameInput.style.display = mode === "new" ? "" : "none";
-      const goneRow = h("label.check", keepGone, h("span", t("Keep the {n} posts that disappeared as a collection “Gone from X bookmarks”", { n: d.missing || 0 })));
+      const goneRow = h("label.check", keepGone, h("span", t("Keep the {n} posts that disappeared as a collection “Gone from bookmarks”", { n: d.missing || 0 })));
       goneRow.style.display = mode === "replace" && d.missing ? "" : "none";
       const diffCard = hasLib && !d.empty ? h("div.diff-card",
         h("div.diff-head", icons.icon("sliders", 16), h("b", t("What changed")), h("span.muted.small", ` · ${t("compared with")} ${catalog.source.label}`)),
@@ -108,7 +108,7 @@ XR.define("features.import", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog", "
               const gonePosts = goneIds ? catalog.postsByIds(goneIds) : [];
               await importer.commit(an, { mode, name: mode === "new" ? nameInput.value.trim() || an.label : undefined });
               if (goneIds) {
-                const c = activity.createCollection(t("Gone from X bookmarks"));
+                const c = activity.createCollection(t("Gone from bookmarks"));
                 activity.addToCollection(c.id, goneIds);
                 if (gonePosts.length) actions.toast(t("{n} posts kept in the collection", { n: gonePosts.length }), "success");
               }

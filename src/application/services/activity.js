@@ -148,7 +148,7 @@ XR.define("app.activity", ["app.ports.storage", "core.events", "core.domain.even
   }
   const exportState = () => JSON.parse(JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), ...data }));
   function importState(obj, { merge = true } = {}) {
-    if (!obj || typeof obj !== "object") throw new Error("Not an XReels backup");
+    if (!obj || typeof obj !== "object") throw new Error("Not a saves backup");
     const incoming = { ...EMPTY(), ...obj };
     if (!merge) data = incoming;
     else {
