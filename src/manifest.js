@@ -31,6 +31,7 @@ window.XREELS_MANIFEST = {
     { id: "viewer", title: "Viewer", icon: "maximize", route: null, nav: false, order: 900, scripts: ["src/features/viewer/index.js"], styles: ["styles/features/viewer.css"] },
   ],
   scripts: [
+    "data/deleted-posts.js",
     "site.config.js",                 /* optional: the password of a deployed build */
     "src/kernel/kernel.js",
     "src/core/events.js",
@@ -86,6 +87,7 @@ window.XREELS_MANIFEST = {
     "src/ui/widgets.js",
     "src/ui/charts.js",
     "src/ui/keys.js",
+    "src/ui/pull-to-shuffle.js",
     "src/ui/preview.js",
     "src/ui/tile.js",
     "src/ui/masonry.js",

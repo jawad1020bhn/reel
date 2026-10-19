@@ -22,3 +22,7 @@ Thumbs.db
 .impeccable/live/
 .impeccable/cache/
 .claude/skills/impeccable/scripts/bin/
+
+# deployment secrets (configure these in the hosting dashboard)
+.env
+.env.*

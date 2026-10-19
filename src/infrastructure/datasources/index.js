@@ -88,6 +88,33 @@ XR.define("infra.datasources", [], function () {
     },
   };
 
+  /* The shared ledger is authoritative, not a browser-local hidden flag.
+     Static/file copies use the ledger shipped with the deployment. When a
+     configured API is unreachable we fail closed rather than show stale posts. */
+  async function deletionRequest(options) {
+    const res = await fetch("api/library", { cache: "no-store", credentials: "same-origin", signal: AbortSignal.timeout(options ? 65000 : 20000), ...options });
+    if (!options && (res.status === 404 || res.status === 405 || (res.ok && !res.headers.get("content-type")?.includes("application/json")))) return null;
+    let body;
+    try { body = await res.json(); } catch { throw new Error("The library server returned an invalid response. Reload and try again."); }
+    if (!res.ok) throw new Error(body.error || "The library server is unavailable. Try again.");
+    if (!Array.isArray(body.deletedIds) || body.deletedIds.some((id) => typeof id !== "string")) throw new Error("The shared deletion list is invalid. Reload and try again.");
+    return body;
+  }
+  async function deletionState() {
+    const shipped = Array.isArray(window.XREELS_DELETED_IDS) ? window.XREELS_DELETED_IDS : [];
+    if (isFile()) return { enabled: false, deletedIds: shipped };
+    let state;
+    try { state = await deletionRequest(); }
+    catch (err) { throw new Error("Could not check shared deletions. " + err.message); }
+    return { enabled: !!state?.enabled, deletedIds: [...new Set([...shipped, ...(state?.deletedIds || [])])] };
+  }
+  async function deletePost(id, password) {
+    if (isFile()) throw new Error("Permanent deletion requires the hosted app. See DEPLOY.md.");
+    const result = await deletionRequest({ method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, password }) });
+    if (!result?.deleted || result.id !== id || !result.deletedIds.includes(id)) throw new Error("The server did not confirm deletion. Nothing was removed locally.");
+    return result;
+  }
+
   const list = [auto, file, text, url];
-  return { get: (kind) => list.find((s) => s.kind === kind || s.id === kind) || null, all: () => list.slice(), GLOBALS, clearGlobals: () => { for (const g of GLOBALS) try { delete window[g]; } catch { /* non-configurable */ } } };
+  return { get: (kind) => list.find((s) => s.kind === kind || s.id === kind) || null, all: () => list.slice(), GLOBALS, deletionState, deletePost, clearGlobals: () => { for (const g of GLOBALS) try { delete window[g]; } catch { /* non-configurable */ } } };
 });

@@ -1,6 +1,6 @@
 # X Bookmarks Exporter
 
-A local Chrome/Chromium MV3 extension that captures the signed-in account's **Bookmarks** timeline and exports an XReels-compatible JSON file — plus a paced **Unfollow everyone** engine that clears the account's Following list without acting like a bot.
+A local Chrome/Chromium MV3 extension that captures the signed-in account's **Bookmarks** timeline and exports an XReels-compatible JSON file — plus paced **Unfollow everyone** and **Unsave all bookmarks** engines with local backups and saved checkpoints.
 
 ## Install and use
 
@@ -12,7 +12,7 @@ A local Chrome/Chromium MV3 extension that captures the signed-in account's **Bo
 
 ## Popup layout
 
-The popup is a fixed 384 × 600 frame with three tabs — **Capture**, **Unfollow**, **Export** — under a header that always states what the current tab can do. Only the middle region scrolls; the activity log and footer stay put.
+The popup now requests a taller **420 × 720** frame with four tabs — **Capture**, **Unfollow**, **Unsave**, **Export** — under a context-aware header. Chrome may cap native popups at 600px (or less on a small display); the middle region scrolls at either height, so long checklists and recovery instructions remain reachable while the header, tabs, activity log and footer stay put. Arrow/Home/End keys navigate the tabs.
 
 - The tab you land on follows the page you opened the popup from (a Following page opens Unfollow, a bookmarks page opens Capture), or a run that is already live.
 - A pulsing dot on a tab shows a run continuing while you are looking at another tab; a square dot means it is paused.
@@ -43,7 +43,81 @@ Popup → **Unfollow everyone** → confirm. From any x.com tab the engine opens
 - **Backpressure**: HTTP 429 and 5xx ride exponential full-jitter backoff (6 s → 5 min, 10 retries); 401/403 stop the run; 5 consecutive transport failures trip the breaker. Rate limits don't count toward the breaker — X saying "slow down" is not a defect.
 - **Sessions and safety valves**: queue + done-set + counters persist every 30 s, so closing the tab loses nothing and an orphaned run auto-resumes only when its owner is gone (per-tab `sessionStorage` heartbeat prevents double-runs). Each Start gets a 3-hour/2,500-attempt budget and then pauses with a *resumable* checkpoint — thousands of back-to-back unfollows in one sitting is exactly what looks inhuman.
 - **Backup**: every targeted account is appended to a local JSON backup (`xUnfollowBackup`) with discovery timestamp and outcome. The popup's **Backup** button exports it for review or re-following. **Reset unfollow data** clears engine records only.
-- Capture and unfollow refuse to run at the same time — one engine per profile.
+- Capture, unfollow and unsave share a browser-owned Web Lock, preventing simultaneous runs across x.com tabs in the same browser profile. Pausing/stopping releases the lease; tab close/crash releases it automatically. No racing read-then-write storage flag is used as the lock.
+
+## Unsave all bookmarks (removes bookmarks from X)
+
+After updating, **reload the extension in `chrome://extensions` and refresh your
+X tab** so the new MAIN-world bridge and content scripts are installed.
+
+1. Capture/export first if you want an independent archive.
+2. Open the signed-in account's main **`https://x.com/i/bookmarks`** page (not a
+   bookmark folder), then choose **Unsave → Unsave all bookmarks**.
+3. Read and confirm the destructive-action dialog. Cancel sends no Start command.
+4. Keep the X tab open. Closing only the popup does not interrupt the engine.
+   **Pause** or **Stop** waits for the single in-flight request and saves the
+   remaining queue. Start/Resume requires confirmation again.
+5. **Backup JSON** downloads `x-unsave-backup.json`, containing the locally
+   backed-up post records, raw tweet data when supplied by X, links, timestamps
+   and confirmed outcomes. It is not an automatic undo or a media-file download.
+
+This changes your actual X bookmarks on every device; it does **not** delete the
+posts, captured exports, XReels data files, or any Following relationships.
+Re-bookmarking must be done manually. Export the backup before **Reset data**:
+reset forgets this engine's records only and does not put bookmarks back.
+
+### Discovery and execution
+
+- The bridge observes X's own **Bookmarks/BookmarksAll** request and reuses its
+  live variables and feature flags, rather than guessing API feature settings or
+  clicking unstable DOM selectors. It reads exact top-level bookmark tweet IDs;
+  quotes, recommendation modules, folder responses and unrelated timelines never
+  become removal targets. Deleted/tombstoned entries retain their exact ID.
+- It learns the rolling **DeleteBookmark** operation ID from live traffic or X's
+  own loaded bundles. IDs are cached separately from UnfollowUser. A stale
+  operation is forgotten and re-derived, not counted as a successful removal.
+  If discovery is unavailable, remove one bookmark manually on X and Resume to
+  calibrate the operation; there is no guessed bulk-delete or REST fallback.
+- Every target's full backup record and backup index are saved **before** it is
+  eligible for execution. Large raw backups are separate per-post records
+  (`xUnsavePost.<account>.<tweet>`), not a giant array rewritten after each action.
+  A storage failure stops the engine before any unbacked target is removed.
+- One request is in flight at a time. Only HTTP 200 with the explicit
+  `data.tweet_bookmark_delete: "Done"` payload counts as removed. Empty success
+  objects, HTML, errors and unknown schemas retain the target and stop safely.
+- Removing bookmarks shrinks the feed and can invalidate pagination. The engine
+  re-reads the live **head** after each drained batch instead of trusting old DOM
+  scroll positions. If X returns already-processed head entries it may traverse
+  the observed bottom cursor, then returns to a fresh head check. Repeated stale
+  or unfamiliar pages pause for review, never masquerading as completion.
+- Completion requires **two separate empty live-head responses**, with no
+  unknown entries or pagination cursor. This confirms only the feed X served;
+  X can withhold historical, locked or otherwise unavailable bookmarks. Reload
+  X after completion to refresh the site's own cached display.
+
+### Pacing, recovery and account scope
+
+- Uses the same unit-tested `XPacing` warm-up, jittered delays, irregular waves,
+  rolling governor (~26/min ceiling), exponential backoff and retry budget as
+  Unfollow. 429 responses also honor Retry-After/rate-reset headers. Authentication
+  failures stop; consecutive transport failures trip the breaker.
+- Each invocation pauses at 2,500 attempts or 3 hours. Queue + done IDs + counters
+  are saved after mutations and on pause/stop, with a serialized 15-second
+  heartbeat. Resume resets the invocation budget but preserves completed IDs.
+- The readable X `twid` account cookie scopes both the isolated engine and the
+  bridge. Unknown identity, account switches, expired (7-day) sessions, and folder
+  routes are refused rather than acting on a different account. Return to the
+  original account to resume, or export/reset the old backup before a new one.
+- A running checkpoint can auto-resume after reload only in its **own** tab and
+  account (sessionStorage ownership). Paused/stopped runs never auto-resume.
+  Another tab requires an explicit Start; if an old run still shows Running after
+  its tab was closed, press Stop to reconcile its status, then Resume.
+- Pause/Stop does not reverse a request already sent to X. A timed-out request's
+  result may be uncertain; reload the bookmarks page before resuming. The bridge
+  bounds network requests and does not launch a second overlapping mutation.
+- Pacing is conservative, not a promise of account safety. X may impose limits
+  or change its private API. No live account was cleared as part of automated
+  testing; test carefully with your own intentionally disposable bookmarks.
 
 ## Design system
 
@@ -57,4 +131,18 @@ From the repository root:
 node --test xextension/tests/*.test.mjs
 ```
 
-Covered: bookmark timeline extraction, Following-list parsing (recommendation exclusion, dedupe, tri-state flags), the pacing/governor/backoff/outcome-classification engine, and chunked store integrity.
+Covered: bookmark capture and conservative removal parsing; Following-list parsing;
+pacing/governor/backoff; operation discovery and cache isolation; bridge single-flight
+requests; browser-owned exclusivity; backup-before-delete; pause/stop/resume; rate
+limits; account/route guards; session budgets; and chunked-store integrity.
+
+Popup browser tests (synthetic Chrome APIs; **no real X requests or mutations**):
+
+```sh
+npm ci
+IMPECCABLE_BROWSER=/path/to/chrome node --test xextension/tests/popup.browser.mjs
+```
+
+These check the 720px preferred and 600px capped frames, scrolling, four-tab
+keyboard navigation, confirmation/cancellation, live counters, pause/stop, and
+scoped accessibility in light/dark mode. Screenshots stay under `.audit/extension/`.

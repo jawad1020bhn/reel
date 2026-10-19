@@ -70,6 +70,7 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
       syncMediaSession();
       S.offs = [
         unbindGestures,
+        events.bus.on(EV.POST_DELETED, ({ id }) => { if (S.ids.includes(id)) { feed.clear(); nav.go("library"); } }),
         events.bus.on(EV.ACTIVITY_CHANGED, () => { if (S.infoOpen) renderInfo(); }),
         events.bus.on(EV.PLAYBACK_CHANGED, ({ muted }) => dom.replace(side.querySelector(".side-mute"), icons.icon(muted ? "mute" : "volume", 26), h("span.side-label", muted ? "Muted" : "Sound"))),
         events.bus.on(EV.PREFS_CHANGED, ({ patch }) => { if ("fit" in patch) { S.fitOverride = null; S.cells.forEach((c) => c.fit(fitMode())); } }),

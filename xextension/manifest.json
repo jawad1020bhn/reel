@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "X Bookmarks Exporter",
-  "version": "1.3.0",
-  "description": "Fast, verified capture of your X bookmarks — plus a paced, human-like unfollow engine.",
+  "version": "1.4.0",
+  "description": "Verified bookmark capture, paced unfollowing, and resumable unsave-all with local backups.",
   "permissions": [
     "storage",
     "unlimitedStorage",
@@ -35,12 +35,15 @@
         "https://x.com/*"
       ],
       "js": [
+        "engine-lock.js",
         "timeline.js",
+        "bookmarks.js",
         "following.js",
         "pacing.js",
         "store.js",
         "content.js",
-        "unfollow.js"
+        "unfollow.js",
+        "unsave.js"
       ],
       "run_at": "document_start"
     }

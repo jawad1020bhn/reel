@@ -5,6 +5,8 @@ XR.define("core.domain.events", [], function () {
   return Object.freeze({
     /** {source, count, label} — the catalog was (re)loaded from a dataset. */
     DATASET_CHANGED: "dataset:changed",
+    /** {id} — a post was permanently removed from the shared data file. */
+    POST_DELETED: "post:deleted",
     /** {phase, message, progress?} — long running import/index work. */
     DATASET_PROGRESS: "dataset:progress",
     /** {error} — a dataset could not be read. */

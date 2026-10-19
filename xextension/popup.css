@@ -1,6 +1,6 @@
 /* =============================================================================
    Extension popup · Layout
-   Built on m3e. A popup is a constrained surface: 384 × 600, one scrolling
+   Built on m3e. A popup is a constrained surface: 420 × 720 (capped by the browser), one scrolling
    content region, one job per tab. The frame (header, tabs, activity, footer)
    never moves; only the panel between them scrolls.
    ============================================================================= */
@@ -18,8 +18,8 @@
    Shell
    ============================================================================= */
 :root {
-  --popup-width: 384px;
-  --popup-height: 600px;
+  --popup-width: 420px;
+  --popup-height: 720px;
   --popup-pad: 16px;
 }
 
@@ -87,14 +87,14 @@ body {
 
 /* =============================================================================
    Tabs
-   A segmented row rather than full-width tabs: three labels at 14px need the
-   whole 352px, and a single filled pill reads faster than an underline at this
+   A segmented row rather than full-width tabs: four concise labels use the
+   available width, and a single filled pill reads faster than an underline at this
    size. Arrow keys move selection; the panel is controlled by aria-controls.
    ============================================================================= */
 .tabs {
   flex: none;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 2px;
   padding: 4px;
   border-radius: var(--md-sys-shape-corner-full);
@@ -105,10 +105,10 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  height: 36px;
+  gap: 4px;
+  height: 40px;
   min-width: 0;
-  padding-inline: 8px;
+  padding-inline: 4px;
   border: 0;
   border-radius: var(--md-sys-shape-corner-full);
   background: transparent;
@@ -761,3 +761,19 @@ body {
 [data-motion="reduced"] .m3e-button--loading::after { animation: none; }
 [data-motion="reduced"] .log__chevron,
 [data-motion="reduced"] .disclosure > summary::after { transition: none; }
+
+/* The fourth, destructive workflow keeps the established M3E language. The
+   taller preferred frame still has ONE scroll region when Chrome caps it. */
+.unsave-notice {
+  padding: 14px 16px;
+  border-radius: var(--md-sys-shape-corner-large);
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+}
+.unsave-notice p { margin: 6px 0 0; line-height: 1.5; }
+.unsave-checklist { margin: 10px 0 0; padding-inline-start: 20px; color: var(--md-sys-color-on-surface-variant); }
+.unsave-checklist li { padding-inline-start: 3px; margin-block: 8px; line-height: 1.5; }
+.stat--us-done[data-nonzero="true"] .stat__value { color: var(--md-sys-color-primary); }
+.stat--us-queued[data-nonzero="true"] .stat__value { color: var(--md-sys-color-tertiary); }
+.stat--us-failed[data-nonzero="true"] { background: var(--md-sys-color-error-container); color: var(--md-sys-color-on-error-container); }
+.unsave__status { margin: 0; line-height: 1.4; }

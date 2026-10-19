@@ -75,6 +75,7 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.postMenu",
       S.offs = [
         events.bus.on(EV.ACTIVITY_CHANGED, () => { refreshRail(); for (const t of S.tiles) t.update(); }),
         events.bus.on(EV.ROUTE_CHANGED, () => close(false)),
+        events.bus.on(EV.POST_DELETED, ({ id }) => { if (S.ids.includes(id)) close(false); }),
         events.bus.on(EV.PLAYBACK_CHANGED, () => syncPlaybackState()),
       ];
       render();

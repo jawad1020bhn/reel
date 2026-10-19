@@ -1,8 +1,8 @@
 /* features.discover — the home screen: a cinematic billboard (spotlight post as a
    full-bleed hero with double vignette, Bebas title treatment, pill CTAs), editorial
    rails (incl. the ranked Top-10 row with giant gradient numerals) and a quiet footer. */
-XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "ui.tiles", "ui.postMenu", "ui.keys", "app.ports.platform", "app.catalog", "app.activity", "app.actions", "app.prefs", "app.media", "app.nav", "core.query.engine", "core.events", "core.domain.events", "core.util", "core.i18n"],
-  function (dom, icons, W, railUI, tiles, postMenu, keys, platform, catalog, activity, actions, prefs, media, nav, engine, events, EV, util, i18n) {
+XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "ui.tiles", "ui.postMenu", "ui.keys", "ui.pullToShuffle", "app.ports.platform", "app.catalog", "app.activity", "app.actions", "app.prefs", "app.media", "app.nav", "core.query.engine", "core.events", "core.domain.events", "core.util", "core.i18n"],
+  function (dom, icons, W, railUI, tiles, postMenu, keys, pullToShuffle, platform, catalog, activity, actions, prefs, media, nav, engine, events, EV, util, i18n) {
     "use strict";
     const t = i18n.t;
     const h = dom.h;
@@ -274,34 +274,6 @@ XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "
           h("p.foot-copy", "saves © 2026")));
     }
 
-    /* ------------------------------------------------------ pull to shuffle -- */
-    /** Touch: drag the page down from the very top past the threshold to reshuffle.
-        The outlet has overscroll-behavior: contain, so this never fights the browser. */
-    function pullToShuffle(scroller) {
-      const THRESHOLD = 72, MAX = 110;
-      let startY = 0, pulling = false, armed = false, dy = 0;
-      const pill = h("div.discover-pull", { "aria-hidden": "true" }, icons.icon("shuffle", 18), h("span", t("Release to shuffle")));
-      const reset = () => { pulling = false; armed = false; dy = 0; pill.classList.remove("is-armed", "is-pulling"); pill.style.removeProperty("--pull"); };
-      const onStart = (e) => { if (!host || scroller.scrollTop > 0 || e.touches.length !== 1) return; startY = e.touches[0].clientY; pulling = true; dy = 0; };
-      const onMove = (e) => {
-        if (!pulling) return;
-        dy = e.touches[0].clientY - startY;
-        if (dy <= 0 || scroller.scrollTop > 0) { if (dy <= 0) reset(); return; }
-        if (!pill.isConnected) document.body.appendChild(pill);
-        const eased = Math.min(MAX, dy * 0.55);
-        pill.style.setProperty("--pull", eased + "px");
-        pill.classList.add("is-pulling");
-        const nowArmed = eased >= THRESHOLD * 0.55;
-        if (nowArmed !== armed) { armed = nowArmed; pill.classList.toggle("is-armed", armed); if (armed) platform.vibrate?.(8); }
-      };
-      const onEnd = () => { const fire = armed; reset(); if (fire) shuffle(); };
-      scroller.addEventListener("touchstart", onStart, { passive: true });
-      scroller.addEventListener("touchmove", onMove, { passive: true });
-      scroller.addEventListener("touchend", onEnd, { passive: true });
-      scroller.addEventListener("touchcancel", reset, { passive: true });
-      return () => { scroller.removeEventListener("touchstart", onStart); scroller.removeEventListener("touchmove", onMove); scroller.removeEventListener("touchend", onEnd); scroller.removeEventListener("touchcancel", reset); pill.remove(); };
-    }
-
     function scheduleRefresh() { clearTimeout(refreshTimer); refreshTimer = setTimeout(() => { if (host) { for (const r of rails) r.each((t2) => t2.update && t2.update()); } }, 150); }
 
     return {
@@ -312,7 +284,7 @@ XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "
         keys.bind("discover", "r", () => shuffle(), { desc: "Shuffle Discover" });
         keys.push("discover");
         offs = [
-          pullToShuffle(outlet),
+          pullToShuffle.attach(outlet, shuffle),
           events.bus.on(EV.ACTIVITY_CHANGED, ({ kind }) => { if (kind === "bulk" || kind === "hide") render(); else scheduleRefresh(); }),
           events.bus.on(EV.DATASET_CHANGED, render),
           events.bus.on(EV.PREFS_CHANGED, ({ patch }) => { if (["tileShape", "tileInfo", "blur", "seenDim", "shortMaxSeconds", "hideSensitive"].some((k) => k in patch)) render(); }),

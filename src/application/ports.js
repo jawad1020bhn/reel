@@ -22,7 +22,8 @@
                        isTouch()→bool, isMobileView()→bool, landscapeFullscreen(el,video)→Promise<bool>,
                        reducedMotion()→bool, openExternal(url), sha256(text)→Promise<hex>,
                        randomId(bytes)→hex, dpr()→number, isFile()→bool, vibrate(ms) }
-   DataSourcesPort   { get(kind)→DataSource|null, all()→DataSource[] }
+   DataSourcesPort   { get(kind)→DataSource|null, all()→DataSource[],
+                       deletionState()→Promise<{enabled, deletedIds}>, deletePost(id,password)→Promise<{deleted,id,deletedIds}> }
    DataSource        { id, label, kind:'auto'|'file'|'text'|'url', available()→bool, load(arg?)→Promise<{json?, text?, label}|null> }
 */
 XR.define("app.ports", [], function () {

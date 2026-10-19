@@ -1,7 +1,7 @@
 /* ui.postMenu — the context menu for a post (tiles, viewer, watch) and the
    collection picker dialog that answers EV.COLLECTION_PICK. */
-XR.define("ui.postMenu", ["ui.menu", "ui.dialog", "ui.dom", "app.actions", "app.activity", "app.catalog", "core.events", "core.domain.events"],
-  function (menu, dialog, dom, actions, activity, catalog, events, EV) {
+XR.define("ui.postMenu", ["ui.menu", "ui.dialog", "ui.dom", "app.actions", "app.activity", "app.catalog", "app.importer", "core.events", "core.domain.events"],
+  function (menu, dialog, dom, actions, activity, catalog, importer, events, EV) {
     "use strict";
 
     function items(post, opts = {}) {
@@ -25,10 +25,29 @@ XR.define("ui.postMenu", ["ui.menu", "ui.dialog", "ui.dom", "app.actions", "app.
         post.media.length ? { label: post.media.length > 1 ? "Open media file (1st)" : "Open media file", icon: "download", run: () => actions.download(post, opts.mediaIndex || 0) } : null,
         { sep: true },
         { label: hidden ? "Unhide" : "Hide from library", icon: "eyeOff", danger: !hidden, run: () => actions.hide(post) },
+        { label: "Delete from library", icon: "trash", danger: true, run: () => deletePermanently(post) },
         ...(opts.extra || []),
       ];
     }
     const open = (post, anchor, opts = {}) => menu.open(anchor, items(post, opts), { title: opts.title ?? `@${post.author.username}` });
+
+    const pendingDeletes = new Set();
+    async function deletePermanently(post) {
+      if (pendingDeletes.has(post.id)) return;
+      pendingDeletes.add(post.id);
+      try {
+        await importer.deletionReady();
+        const password = await dialog.prompt(
+          "Remove this post from the shared data file and every browser? This cannot be undone in the app. Enter the deletion password to confirm.",
+          { title: "Delete from library?", placeholder: "Deletion password", type: "password", ok: "Delete permanently", danger: true });
+        if (password === null) return;
+        if (!password) { actions.toast("Deletion cancelled — no password entered."); return; }
+        actions.toast("Deleting from the data file…", "info", { timeout: 2400 });
+        await importer.deletePost(post.id, password);
+        actions.toast("Deleted from the shared library", "success");
+      } catch (err) { actions.toast(err.message || "Could not delete this post. Try again.", "error", { timeout: 8000 }); }
+      finally { pendingDeletes.delete(post.id); }
+    }
 
     /* collection picker */
     async function pick(ids) {

@@ -46,6 +46,10 @@ before(async () => {
         res.setHeader("Content-Type", "application/javascript");
         return res.end("window.XREELS_SITE = {};");
       }
+      if (pathname === "/data/deleted-posts.js") {
+        res.setHeader("Content-Type", "application/javascript");
+        return res.end("window.XREELS_DELETED_IDS = [];");
+      }
       // Never serve the real private library through the test server.
       if (pathname.startsWith("/data/")) { res.statusCode = 404; return res.end(); }
       const path = resolve(ROOT, pathname === "/__fixtures/clip.webm" ? "tests/fixtures/clip.webm" : "." + decodeURIComponent(pathname === "/" ? "/index.html" : pathname));
@@ -619,4 +623,74 @@ test('mobile More sheet reports state, traps keyboard focus and returns it on Es
   });
   assert.ok(marker.delta < 2);
   assert.equal(marker.duration, '0s', 'reduced motion disables marker travel');
+});
+
+// Synthetic shared server state: every page/context gets the same deletion ledger,
+// while /data/posts.js deliberately remains the OLD export to test resurrection.
+async function mockSharedLibrary(page, shared) {
+  await page.setRequestInterception(true);
+  page.on("request", async (req) => {
+    if (!new URL(req.url()).pathname.endsWith("/api/library")) return req.continue();
+    let status = 200, body;
+    if (req.method() === "DELETE") {
+      const input = JSON.parse(req.postData());
+      if (input.password !== "test-delete-password") { status = 401; body = { error: "Incorrect deletion password." }; }
+      else { shared.add(input.id); body = { deleted: true, id: input.id, deletedIds: [...shared] }; }
+    } else body = { enabled: true, deletedIds: [...shared] };
+    await req.respond({ status, contentType: "application/json", body: JSON.stringify(body) });
+  });
+}
+async function openDeletePrompt(page) {
+  await page.$eval('.tile[data-id="clip-1"] .tile-more', (el) => el.click());
+  await page.waitForSelector(".menu-item");
+  await page.evaluate(() => [...document.querySelectorAll(".menu-item")].find((el) => el.textContent.trim() === "Delete from library").click());
+  await page.waitForSelector('.dialog input[type="password"]', { visible: true });
+  await page.waitForFunction(() => getComputedStyle(document.querySelector(".dialog-backdrop")).opacity === "1");
+}
+
+test("Delete from library confirms, persists across fresh browsers and filters stale exports", async (t) => {
+  const shared = new Set();
+  const page = await pageFor(t);
+  await mockSharedLibrary(page, shared);
+  await open(page, "library?sort=saved");
+  await openDeletePrompt(page);
+  assert.match(await page.$eval(".dialog-body", (el) => el.textContent), /shared data file and every browser/);
+  assert.equal(await page.$eval('.dialog input', (el) => el.getAttribute("aria-label")), "Deletion password");
+  await page.screenshot({ path: resolve(SHOTS, "delete-confirm-mobile.png") });
+  await page.evaluate(axe.source);
+  const a11y = await page.evaluate(() => window.axe.run(".dialog", { runOnly: { type: "rule", values: ["button-name", "label", "color-contrast"] } }));
+  assert.deepEqual(a11y.violations.map((v) => v.id), []);
+  await page.type('.dialog input[type="password"]', "test-delete-password");
+  await page.click(".dialog-foot .btn-danger");
+  await page.waitForFunction(() => !XR.resolve("app.catalog").post("clip-1"));
+  assert.ok(shared.has("clip-1"));
+  assert.equal(await page.$('.tile[data-id="clip-1"]'), null);
+  await page.waitForFunction(() => !document.querySelector(".dialog-backdrop"));
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForSelector(".lib-grid");
+  assert.equal(await page.evaluate(() => !!XR.resolve("app.catalog").post("clip-1")), false, "cached old export cannot resurrect it");
+  const fresh = await pageFor(t, 1440, 900, false);
+  await mockSharedLibrary(fresh, shared);
+  await open(fresh, "library?sort=saved");
+  assert.equal(await fresh.evaluate(() => !!XR.resolve("app.catalog").post("clip-1")), false, "another browser sees shared deletion");
+  await page.close(); await fresh.close();
+});
+
+test("cancelling deletion and incorrect passwords leave the post untouched", async (t) => {
+  const shared = new Set(), page = await pageFor(t, 1440, 900, false);
+  await mockSharedLibrary(page, shared);
+  await open(page, "library?sort=saved");
+  await openDeletePrompt(page);
+  await page.screenshot({ path: resolve(SHOTS, "delete-confirm-desktop.png") });
+  await page.click(".dialog-foot .btn-ghost");
+  await page.waitForFunction(() => !document.documentElement.classList.contains("has-dialog"));
+  await sleep(180);
+  assert.equal(shared.size, 0);
+  await openDeletePrompt(page);
+  await page.type('.dialog input[type="password"]', "wrong-password");
+  await page.click(".dialog-foot .btn-danger");
+  await page.waitForFunction(() => [...document.querySelectorAll(".toast-error")].some((el) => el.textContent.includes("Incorrect deletion password")));
+  assert.ok(await page.evaluate(() => !!XR.resolve("app.catalog").post("clip-1")));
+  assert.equal(shared.size, 0);
+  await page.close();
 });
