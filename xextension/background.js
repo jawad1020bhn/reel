@@ -37,8 +37,10 @@ async function badgeColors() {
 }
 
 async function refreshBadge() {
-  const { xBookmarks = [] } = await chrome.storage.local.get({ xBookmarks: [] });
-  const count = xBookmarks.length;
+  const { xBookmarkMeta = null, xBookmarks = [] } = await chrome.storage.local.get({ xBookmarkMeta: null, xBookmarks: [] });
+  const count = Number.isFinite(Number(xBookmarkMeta?.total))
+    ? Math.max(0, Number(xBookmarkMeta.total))
+    : Array.isArray(xBookmarks) ? xBookmarks.length : 0;
 
   // Badges truncate around four glyphs, so large libraries get "12k"/"12.3k"
   // rather than a clipped, meaningless number.
@@ -74,7 +76,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 // Keep the badge honest even when the change came from somewhere else
 // (a reset from the popup, another window, or a sync).
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === "local" && (changes.xBookmarks || changes[THEME_KEY])) refreshBadge();
+  if (area === "local" && (changes.xBookmarkMeta || changes.xBookmarks || changes[THEME_KEY])) refreshBadge();
 });
 
 chrome.runtime.onStartup.addListener(refreshBadge);

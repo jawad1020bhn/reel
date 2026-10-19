@@ -1,49 +1,31 @@
-const STORAGE_KEY = "xBookmarks";
 const STATE_KEY = "xCaptureState";
 const DEAD_KEY = "xDeadLetters";
-const SESSION_KEY = "xCaptureSession";  // For session persistence across tab refresh
-const NORMALIZER_VERSION = "2026-08-16.3";
+const SESSION_KEY = "xCaptureSession";
+const NORMALIZER_VERSION = "2026-10-19.1";
 const SOURCE_TYPE = "graphql-bookmarks";
+const pendingBeforeCapture = new Map();
+const PENDING_CACHE_LIMIT = 5000;
+const pendingBeforeCaptureStats = { timelineResponses: 0, pagesWithTweets: 0, emptyResponses: 0, schemaMismatchResponses: 0, observedOccurrences: 0, duplicateOccurrences: 0, dropped: 0 };
 
 const config = {
-  /* Deliberately slow. The run's job is COMPLETENESS, not speed: every pause
-     is time X gets to answer the previous page before the next one is asked
-     for, and a scrape that outruns the network is a scrape with holes in it.
-     Delays are randomised inside the band so the cadence never looks — or
-     behaves — like a metronome. */
-  minScrollDelay: 4500,
-  maxScrollDelay: 9000,
-  /* Pause between the small viewport-sized steps that walk each batch down
-     to the bottom of the rendered page (see scrollToBottomSlowly). */
-  scrollStepDelay: 900,
-  /* Safety cap only, not a target. 40 batches used to end a big library run
-     mid-feed (~800 bookmarks); 400 clears any realistic library and the
-     end-of-feed detector is what actually finishes a run. */
-  maxScrollBatches: 400,
-  /* How many consecutive quiet scrolls prove the feed truly ended. Raised
-     from 5: a slow connection can serve nothing for three or four scrolls
-     and still have more feed, and stopping early there skips the tail. */
-  emptyScrollStop: 8,
-  /* Pages of already-known bookmarks before an incremental pass declares
-     itself complete. Raised from 3: X does not return bookmarks in a strict
-     order, so a new item can hide several pages behind known ones. */
-  knownOnlyPagesStop: 6,
-  /* The slower cadence needs a bigger time budget or the clock becomes the
-     thing that truncates the run. */
-  maxRuntimeMs: 60 * 60 * 1000,
-  batchSize: 100,
+  // Adaptive fast-lane scrolling: short RAF-friendly steps through rendered
+  // content, then a slower approach around the pagination sentinel.
+  fastStepDelayMs: 42,
+  nearBottomStepDelayMs: 95,
+  fastStepViewports: 1.2,
+  nearBottomStepViewports: 0.58,
+  responseWaitMs: 1450,
+  maxScrollStepsPerPass: 800,
+  maxPassDurationMs: 20000,
+  maxScrollBatches: 5000,
+  emptyScrollStop: 4,
+  maxRuntimeMs: 2 * 60 * 60 * 1000,
+  batchSize: 200,
   maxConsecutiveErrors: 3,
-  /* Exponential backoff for rate limits (429) and server errors (5xx).
-     Base delay doubles each retry, capped at maxBackoffMs. Jitter added. */
   backoffBaseMs: 5000,
   maxBackoffMs: 5 * 60 * 1000,
   maxBackoffRetries: 10,
-/* Periodic buffer flush to prevent memory buildup on long runs.
-     Flush every flushIntervalBatches regardless of batchSize threshold. */
-  flushIntervalBatches: 20,
-  /* Similarity threshold for cross-run duplicate detection (edited tweets).
-     0.85 = 85% similar text considered same tweet. Lower = more aggressive. */
-  similarityThreshold: 0.85
+  sessionPersistMs: 30000,
 };
 
 /**
@@ -207,84 +189,36 @@ const config = {
 
 let capture = null;
 let queue = Promise.resolve();
+let stateWriteQueue = Promise.resolve();
 
-const sleep = (ms) =>
-  new Promise((resolve) => {
-    const start = Date.now();
-    const iv = setInterval(() => {
-      if (!capture || capture.stop || capture.pause || Date.now() - start >= ms) {
-        clearInterval(iv);
-        resolve();
-      }
-    }, 250);
+function wakeRun(run) {
+  if (!run?.waiters) return;
+  for (const wake of [...run.waiters]) wake();
+}
+
+function waitRun(run, ms) {
+  if (!run || run.stop || run.pause || ms <= 0) return Promise.resolve();
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      run.waiters?.delete(finish);
+      resolve();
+    };
+    const timer = setTimeout(finish, ms);
+    if (!run.waiters) run.waiters = new Set();
+    run.waiters.add(finish);
   });
+}
 
 const enqueue = (fn) => {
-  queue = queue.then(fn);
+  queue = queue.then(fn).catch((error) => {
+    console.error("[x-bookmarks] response queue failed", error);
+  });
   return queue;
 };
-
-/* Jaro-Winkler similarity for fuzzy duplicate detection (edited tweets).
-   Returns 0-1 where 1 = identical. Optimized for short strings (tweets). */
-function jaroWinkler(s1, s2) {
-  if (s1 === s2) return 1;
-  if (!s1 || !s2) return 0;
-
-  const len1 = s1.length, len2 = s2.length;
-  const matchWindow = Math.floor(Math.max(len1, len2) / 2) - 1;
-  const s1Matches = new Array(len1).fill(false);
-  const s2Matches = new Array(len2).fill(false);
-
-  let matches = 0;
-  for (let i = 0; i < len1; i++) {
-    const start = Math.max(0, i - matchWindow);
-    const end = Math.min(i + matchWindow + 1, len2);
-    for (let j = start; j < end; j++) {
-      if (!s2Matches[j] && s1[i] === s2[j]) {
-        s1Matches[i] = s2Matches[j] = true;
-        matches++;
-        break;
-      }
-    }
-  }
-  if (matches === 0) return 0;
-
-  let k = 0, transpositions = 0;
-  for (let i = 0; i < len1; i++) {
-    if (!s1Matches[i]) continue;
-    while (!s2Matches[k]) k++;
-    if (s1[i] !== s2[k]) transpositions++;
-    k++;
-  }
-
-  const jaro = (matches / len1 + matches / len2 + (matches - transpositions / 2) / matches) / 3;
-
-  // Winkler prefix bonus (up to 4 chars)
-  let prefix = 0;
-  for (let i = 0; i < Math.min(4, len1, len2); i++) {
-    if (s1[i] === s2[i]) prefix++;
-    else break;
-  }
-  return jaro + 0.1 * prefix * (1 - jaro);
-}
-
-/* Normalize text for similarity comparison: lowercase, remove URLs, mentions, hashtags. */
-function normalizeForSimilarity(text) {
-  return String(text || "")
-    .toLowerCase()
-    .replace(/https?:\/\/\S+/g, "")      // URLs
-    .replace(/@\w+/g, "")                // mentions
-    .replace(/#\w+/g, "")                // hashtags
-    .replace(/\s+/g, " ")                // collapse whitespace
-    .trim();
-};
-
-async function getStored() {
-  const d = await chrome.storage.local.get(STORAGE_KEY);
-  return Array.isArray(d[STORAGE_KEY]) ? d[STORAGE_KEY] : [];
-}
-
-const setStored = (list) => chrome.storage.local.set({ [STORAGE_KEY]: list });
 
 async function getState() {
   const d = await chrome.storage.local.get(STATE_KEY);
@@ -305,26 +239,42 @@ async function getState() {
         errors: 0,
         rateLimits: 0,
         authErrors: 0,
-        responses: 0
-      }
+        responses: 0,
+        timelineResponses: 0,
+        pagesWithTweets: 0,
+        scrollBatches: 0,
+        postsPerMin: 0,
+        maxScrollBatches: config.maxScrollBatches,
+        mediaItems: 0,
+        videos: 0
+      },
+      audit: null
     }
   );
 }
 
-async function setState(patch) {
-  const s = await getState();
-  const next = {
-    ...s,
-    ...patch,
-    stats: { ...s.stats, ...(patch.stats || {}) },
-    updatedAt: new Date().toISOString()
-  };
-  await chrome.storage.local.set({ [STATE_KEY]: next });
-  chrome.runtime.sendMessage({ type: "state", state: next }).catch(() => {});
-  return next;
+function setState(patch) {
+  const write = stateWriteQueue.then(async () => {
+    const s = await getState();
+    const resolved = typeof patch === "function" ? patch(s) : patch;
+    const next = {
+      ...s,
+      ...resolved,
+      stats: { ...(s.stats || {}), ...(resolved?.stats || {}) },
+      updatedAt: new Date().toISOString(),
+    };
+    await chrome.storage.local.set({ [STATE_KEY]: next });
+    chrome.runtime.sendMessage({ type: "state", state: next }).catch(() => {});
+    return next;
+  });
+  stateWriteQueue = write.catch((error) => {
+    console.warn("[x-bookmarks] state write failed", error);
+  });
+  return write;
 }
 
-/* Session persistence: save/restore capture run across tab refresh/navigation */
+/* Session persistence: durable chunks are already flushed independently; the
+   session only needs the in-flight batch and traversal/audit counters. */
 async function saveSession(run) {
   if (!run) {
     await chrome.storage.local.remove(SESSION_KEY);
@@ -334,189 +284,141 @@ async function saveSession(run) {
     startedAt: run.startedAt,
     scrollBatches: run.scrollBatches,
     stableEmpty: run.stableEmpty,
-    knownOnlyPages: run.knownOnlyPages,
-    seenResponses: run.seenResponses,
+    timelineResponses: run.timelineResponses,
+    pagesWithTweets: run.pagesWithTweets,
+    emptyResponses: run.emptyResponses,
+    schemaMismatchResponses: run.schemaMismatchResponses,
     seenTweets: run.seenTweets,
+    normalizationFailures: run.normalizationFailures,
+    preCaptureDropped: run.preCaptureDropped,
+    observedOccurrences: run.observedOccurrences,
+    observedIds: [...run.observedIds],
+    failedIds: [...run.failedIds],
+    duplicateOccurrences: run.duplicateOccurrences,
+    cursorValues: [...run.cursorValues],
+    cursorAdvances: run.cursorAdvances,
+    repeatedCursors: run.repeatedCursors,
+    bottomCursorSeen: run.bottomCursorSeen,
+    lastBottomCursor: run.lastBottomCursor,
     lastTweetId: run.lastTweetId,
+    newTotal: run.newTotal,
+    duplicateTotal: run.duplicateTotal,
+    failedTotal: run.failedTotal,
     buffer: Array.from(run.buffer.entries()),
     breaker: run.breaker,
     reason: run.reason,
     backoff: run.backoff,
     paused: run.pause,
     stopped: run.stop,
-    savedAt: Date.now()
+    savedAt: Date.now(),
   };
   await chrome.storage.local.set({ [SESSION_KEY]: session });
 }
 
 async function loadSession() {
-  const d = await chrome.storage.local.get(SESSION_KEY);
-  return d[SESSION_KEY] || null;
+  const data = await chrome.storage.local.get(SESSION_KEY);
+  return data[SESSION_KEY] || null;
 }
 
 async function clearSession() {
   await chrome.storage.local.remove(SESSION_KEY);
 }
 
-/* Resume a capture run from persisted session */
+function createRun(store, saved = {}) {
+  return {
+    store,
+    stop: false,
+    pause: false,
+    panic: false,
+    startedAt: saved.startedAt || Date.now(),
+    scrollBatches: Number(saved.scrollBatches) || 0,
+    stableEmpty: Number(saved.stableEmpty) || 0,
+    timelineResponses: Number(saved.timelineResponses) || 0,
+    pagesWithTweets: Number(saved.pagesWithTweets) || 0,
+    emptyResponses: Number(saved.emptyResponses) || 0,
+    schemaMismatchResponses: Number(saved.schemaMismatchResponses) || 0,
+    seenTweets: Number(saved.seenTweets) || 0,
+    normalizationFailures: Number(saved.normalizationFailures) || 0,
+    observedOccurrences: Number(saved.observedOccurrences) || 0,
+    observedIds: new Set(saved.observedIds || []),
+    failedIds: new Set(saved.failedIds || []),
+    duplicateOccurrences: Number(saved.duplicateOccurrences) || 0,
+    cursorValues: new Set(saved.cursorValues || []),
+    cursorAdvances: Number(saved.cursorAdvances) || 0,
+    repeatedCursors: Number(saved.repeatedCursors) || 0,
+    bottomCursorSeen: !!saved.bottomCursorSeen,
+    lastBottomCursor: saved.lastBottomCursor || "",
+    lastTweetId: saved.lastTweetId || null,
+    newTotal: Number(saved.newTotal) || 0,
+    duplicateTotal: Number(saved.duplicateTotal) || 0,
+    failedTotal: Number(saved.failedTotal) || 0,
+    buffer: new Map(saved.buffer || []),
+    breaker: saved.breaker || { consecutiveErrors: 0, tripped: false, reason: null },
+    reason: saved.reason || null,
+    backoff: saved.backoff || { retries: 0, until: 0 },
+    activityVersion: 0,
+    waiters: new Set(),
+    lastFlushAt: Date.now(),
+    postsPerMin: 0,
+    preCaptureDropped: Number(saved.preCaptureDropped) || 0,
+    primeAtTop: false,
+    loopPromise: null,
+  };
+}
+
+function launchCaptureLoop(run) {
+  if (run.loopPromise) return run.loopPromise;
+  const persistTimer = setInterval(() => {
+    if (capture !== run || run.stop || run.pause) return;
+    saveSession(run).catch((error) => console.warn("[x-bookmarks] session save failed", error));
+  }, config.sessionPersistMs);
+
+  run.loopPromise = runCaptureLoop(run)
+    .catch(async (error) => {
+      console.error("[x-bookmarks] capture loop failed", error);
+      run.reason = run.reason || "capture-error";
+      run.breaker.tripped = true;
+      run.breaker.reason = run.breaker.reason || run.reason;
+      try {
+        await queue;
+        if (!run.panic) await flushBuffer(run);
+      } catch { /* keep the recoverable in-flight batch in the session */ }
+      try { await setState({ status: "stopped_by_error", lastStopReason: run.reason }); }
+      catch { /* local state may be unavailable too; retain the session if possible */ }
+      if (capture === run) capture = null;
+      saveSession(run).catch(() => {});
+    })
+    .finally(() => {
+      clearInterval(persistTimer);
+      run.loopPromise = null;
+    });
+  return run.loopPromise;
+}
+
 async function resumeFromSession(session) {
   if (!session) return null;
-
-  /* Validate session isn't stale (older than maxRuntimeMs) */
-  if (Date.now() - session.savedAt > config.maxRuntimeMs) {
+  if (Date.now() - Number(session.savedAt || 0) > config.maxRuntimeMs) {
     await clearSession();
     return null;
   }
-
-  const run = {
-    stop: session.stopped || false,
-    pause: session.paused || false,
-    startedAt: session.startedAt,
-    scrollBatches: session.scrollBatches || 0,
-    stableEmpty: session.stableEmpty || 0,
-    knownOnlyPages: session.knownOnlyPages || 0,
-    seenResponses: session.seenResponses || 0,
-    seenTweets: session.seenTweets || 0,
-    lastTweetId: session.lastTweetId || null,
-    buffer: new Map(session.buffer || []),
-    breaker: session.breaker || { consecutiveErrors: 0, tripped: false, reason: null },
-    reason: session.reason || null,
-    backoff: session.backoff || { retries: 0, until: 0 }
-  };
-
+  const store = await XBookmarkStore.open();
+  const run = createRun(store, session);
+  // Storage failures are recoverable: after the user frees space or reloads,
+  // retry the in-flight batch instead of restoring a permanently tripped breaker.
+  if (["storage-error", "capture-error"].includes(run.reason) || ["storage-error", "capture-error"].includes(run.breaker.reason)) {
+    run.reason = null;
+    run.breaker.tripped = false;
+    run.breaker.reason = null;
+  }
+  // Commit an in-flight batch immediately on resume instead of rescanning for
+  // a while with recovery data still only in the session record.
+  await flushBuffer(run);
+  // Reaching this path means the user pressed Start/Resume in the popup.
+  run.pause = false;
   capture = run;
-  await setState({ status: run.pause ? "paused" : "capturing", lastStopReason: null });
-  runCaptureLoop(run).catch(() => {});
-
-  /* Persist session periodically */
-  const persistInterval = setInterval(async () => {
-    if (!capture || capture.stop) {
-      clearInterval(persistInterval);
-      await clearSession();
-    } else {
-      await saveSession(capture);
-    }
-  }, 30000); // Every 30 seconds
-
+  await setState({ status: "capturing", lastStopReason: null, audit: null });
+  launchCaptureLoop(run);
   return { ok: true, resumed: true };
-}
-
-function extractTweets(json) {
-  const found = [];
-  const stack = [json];
-
-  // Explicitly handle both bookmark_timeline_v2 and bookmark_timeline response paths
-  // X switches between these; we try both to be resilient
-  const instructions =
-    (json.data?.bookmark_timeline_v2?.timeline?.instructions) ||
-    (json.data?.bookmark_timeline?.timeline?.instructions) ||
-    (json.data?.bookmark_collection_timeline?.timeline?.instructions) ||
-    [];
-
-  for (const instruction of instructions) {
-    if (instruction.type === "TimelineAddEntries" && Array.isArray(instruction.entries)) {
-      for (const entry of instruction.entries) {
-        if (entry.entryId?.startsWith("tweet-")) {
-          const itemContent = entry.content?.itemContent;
-          if (itemContent?.tweet_results?.result) {
-            const tweet = unwrapTweetResult(itemContent.tweet_results.result);
-            if (tweet) found.push(tweet);
-          }
-        }
-        // Also check TimelineTimelineModule entries (conversation threads)
-        if (Array.isArray(entry.content?.items)) {
-          for (const item of entry.content.items) {
-            const moduleItemContent = item.item?.itemContent;
-            if (moduleItemContent?.tweet_results?.result) {
-              const tweet = unwrapTweetResult(moduleItemContent.tweet_results.result);
-              if (tweet) found.push(tweet);
-            }
-          }
-        }
-      }
-    }
-  }
-
-  // If we found tweets via explicit path, return them (avoids deep traversal false positives)
-  if (found.length) return found;
-
-  // Fallback: deep traversal for other response shapes
-  while (stack.length) {
-    const node = stack.pop();
-    if (!node || typeof node !== "object") continue;
-
-    if (Array.isArray(node)) {
-      for (const item of node) stack.push(item);
-      continue;
-    }
-
-    // Handle bookmark timeline structure: data.bookmark_timeline_v2.timeline.instructions[].entries[]
-    if (node.entries && Array.isArray(node.entries)) {
-      for (const entry of node.entries) {
-        if (entry.entryId && typeof entry.entryId === "string" && entry.entryId.startsWith("tweet-")) {
-          const itemContent = entry.content?.itemContent;
-          if (itemContent && itemContent.tweet_results) {
-            const result = itemContent.tweet_results.result;
-            const tweet = unwrapTweetResult(result);
-            if (tweet) found.push(tweet);
-          }
-        }
-        // Also check TimelineTimelineModule entries
-        if (entry.content?.items && Array.isArray(entry.content.items)) {
-          for (const item of entry.content.items) {
-            const moduleItemContent = item.item?.itemContent;
-            if (moduleItemContent && moduleItemContent.tweet_results) {
-              const result = moduleItemContent.tweet_results.result;
-              const tweet = unwrapTweetResult(result);
-              if (tweet) found.push(tweet);
-            }
-          }
-        }
-      }
-      continue;
-    }
-
-    // Original deep traversal for other response shapes
-    if (node.content && node.content.itemContent && node.content.itemContent.tweet_results) {
-      const result = node.content.itemContent.tweet_results.result;
-      const tweet = unwrapTweetResult(result);
-      if (tweet) {
-        found.push(tweet);
-        continue;
-      }
-    }
-
-    if (node.__typename === "Tweet" && node.rest_id) {
-      found.push(node);
-      continue;
-    }
-
-    // Handle TweetWithVisibilityResults at root level
-    if (node.__typename === "TweetWithVisibilityResults" && node.tweet && node.tweet.rest_id) {
-      found.push(node.tweet);
-      continue;
-    }
-
-    for (const value of Object.values(node)) stack.push(value);
-  }
-
-  return found;
-}
-
-function unwrapTweetResult(result) {
-  if (!result || typeof result !== "object") return null;
-
-  // Handle TweetWithVisibilityResults wrapper
-  if (result.__typename === "TweetWithVisibilityResults" && result.tweet) {
-    return result.tweet;
-  }
-
-  // Regular Tweet
-  if (result.__typename === "Tweet" && result.rest_id) {
-    return result;
-  }
-
-  return null;
 }
 
 function resolveUser(userResult) {
@@ -687,7 +589,7 @@ function normalizeTweet(tweet) {
   const views = tweet.views && typeof tweet.views.count === "number" ? tweet.views.count : 0;
 
   const base = {
-    tweet_id: tweetId,
+    tweet_id: String(tweetId || ""),
     state: "available",
     text: fullText,
     type,
@@ -730,7 +632,17 @@ function normalizeTweet(tweet) {
     normalizer_version: NORMALIZER_VERSION,
     captured_at: now,
     source_type: SOURCE_TYPE,
-    raw: tweet
+    // Keep only the legacy metadata XReels reads from `raw`; retaining the full
+    // GraphQL tweet duplicates every video variant and can bloat exports 5–10×.
+    raw: {
+      legacy: {
+        created_at: l.created_at || null,
+        lang: l.lang || null,
+        possibly_sensitive: !!l.possibly_sensitive,
+        bookmark_count: Number(l.bookmark_count) || 0
+      },
+      views: { count: views }
+    }
   };
 
   // Unavailable / deleted tweets: keep identity, no content.
@@ -753,14 +665,21 @@ function validateItem(n) {
 }
 
 async function addDeadLetter(raw, error) {
-  const d = await chrome.storage.local.get(DEAD_KEY);
-  const list = Array.isArray(d[DEAD_KEY]) ? d[DEAD_KEY] : [];
+  const data = await chrome.storage.local.get(DEAD_KEY);
+  const list = Array.isArray(data[DEAD_KEY]) ? data[DEAD_KEY] : [];
+  const legacy = raw?.legacy || {};
   list.push({
-    tweet_id: raw && raw.rest_id,
+    tweet_id: String(raw?.rest_id || "") || null,
     error: String((error && error.message) || error),
-    raw,
+    raw: raw ? {
+      typename: raw.__typename || null,
+      rest_id: raw.rest_id || null,
+      created_at: legacy.created_at || null,
+      lang: legacy.lang || null,
+      text_length: String(legacy.full_text || legacy.text || "").length,
+    } : null,
     at: new Date().toISOString(),
-    normalizer_version: NORMALIZER_VERSION
+    normalizer_version: NORMALIZER_VERSION,
   });
   if (list.length > 500) list.splice(0, list.length - 500);
   await chrome.storage.local.set({ [DEAD_KEY]: list });
@@ -778,12 +697,13 @@ async function bumpError(reason, status) {
   /* A response that wasn't usable JSON is also an "empty" response for the
      end-of-feed heuristics and the diagnostics panel. */
   if (reason === "bad-response" || reason === "non-json") inc.emptyResponses = 1;
-  const s = await getState();
-  const stats = {};
-  for (const [k, v] of Object.entries(inc)) {
-    stats[k] = (Number(s.stats && s.stats[k]) || 0) + v;
-  }
-  await setState({ stats });
+  await setState((state) => {
+    const stats = {};
+    for (const [key, value] of Object.entries(inc)) {
+      stats[key] = (Number(state.stats?.[key]) || 0) + value;
+    }
+    return { stats };
+  });
 
   /* For rate limits and server errors, apply exponential backoff instead of
      stopping immediately. Auth errors still stop the run. */
@@ -795,6 +715,7 @@ async function bumpError(reason, status) {
     capture.breaker.tripped = true;
     capture.breaker.reason = reason;
     capture.stop = true;
+    wakeRun(capture);
     await setState({ status: "stopped_by_error", lastStopReason: reason });
     return;
   }
@@ -803,176 +724,226 @@ async function bumpError(reason, status) {
     capture.breaker.tripped = true;
     capture.breaker.reason = "too-many-errors";
     capture.stop = true;
+    wakeRun(capture);
     await setState({ status: "stopped_by_error", lastStopReason: "too-many-errors" });
   }
 }
 
-async function flushBuffer() {
-  if (!capture || !capture.buffer.size) return;
-  const stored = await getStored();
-  const map = new Map(stored.map((b) => [b.tweet_id, b]));
-
-  for (const [id, item] of capture.buffer) {
-    const existing = map.get(id);
+function projectedStoreStats(run) {
+  let count = run.store.total;
+  let mediaItems = run.store.mediaItems;
+  let videos = run.store.videos;
+  for (const [id, item] of run.buffer) {
+    const existing = run.store.get(id);
+    const media = Array.isArray(item.media_items) ? item.media_items : [];
+    const itemVideos = media.reduce((n, mediaItem) => n + (mediaItem && (mediaItem.type === "video" || mediaItem.type === "animated_gif") ? 1 : 0), 0);
     if (existing) {
-      // Update live fields, preserve user-owned / first-seen / identity fields.
-      existing.last_seen_at = item.last_seen_at;
-      existing.like_count_at_capture = item.like_count_at_capture;
-      existing.retweet_count_at_capture = item.retweet_count_at_capture;
-      existing.reply_count_at_capture = item.reply_count_at_capture;
-      existing.view_count_at_capture = item.view_count_at_capture;
+      const oldMedia = Array.isArray(existing.media_items) ? existing.media_items : [];
+      const oldVideos = oldMedia.reduce((n, mediaItem) => n + (mediaItem && (mediaItem.type === "video" || mediaItem.type === "animated_gif") ? 1 : 0), 0);
+      mediaItems += media.length - oldMedia.length;
+      videos += itemVideos - oldVideos;
     } else {
-      item.capture_order = map.size + 1;
-      map.set(id, item);
+      count++;
+      mediaItems += media.length;
+      videos += itemVideos;
     }
   }
+  return { count, mediaItems, videos };
+}
 
-  const list = Array.from(map.values());
-  await setStored(list);
+async function flushBuffer(run = capture) {
+  if (!run || run.panic || (!run.buffer.size && !run.store.needsFlush)) return;
+  try {
+    for (const item of run.buffer.values()) run.store.upsert(item);
+    await run.store.flush();
+    run.buffer.clear();
+    run.lastFlushAt = Date.now();
+    const stats = projectedStoreStats(run);
+    await setState({
+      lastTweetId: run.lastTweetId || null,
+      stats: {
+        captured: run.store.total,
+        mediaItems: run.store.mediaItems,
+        videos: run.store.videos,
+        newItems: run.newTotal,
+        duplicates: run.duplicateTotal,
+        failed: run.failedTotal,
+      },
+    });
+    return stats;
+  } catch (error) {
+    run.reason = "storage-error";
+    run.breaker.tripped = true;
+    run.breaker.reason = "storage-error";
+    run.stop = true;
+    wakeRun(run);
+    saveSession(run).catch(() => {});
+    await setState({ status: "stopped_by_error", lastStopReason: "storage-error" });
+    throw error;
+  }
+}
 
-  const lastTweetId =
-    capture.lastTweetId ||
-    (list[list.length - 1] && list[list.length - 1].tweet_id) ||
-    null;
+async function waitForBackoff(run) {
+  while (!run.stop && !run.pause && run.backoff.until && Date.now() < run.backoff.until) {
+    const remaining = run.backoff.until - Date.now();
+    await waitRun(run, Math.min(remaining, 1000));
+  }
+  if (!run.stop && !run.pause && run.backoff.until) {
+    run.backoff.until = 0;
+    await setState({ status: "capturing", lastStopReason: null });
+  }
+}
 
-  capture.buffer.clear();
-  await setState({ lastTweetId, stats: { captured: list.length } });
+function recordCursors(run, page) {
+  for (const cursor of page.cursors || []) {
+    if (!/bottom/i.test(cursor.type)) continue;
+    run.bottomCursorSeen = true;
+    const value = String(cursor.value || "");
+    if (!value) continue;
+    if (run.cursorValues.has(value)) run.repeatedCursors++;
+    else {
+      if (run.lastBottomCursor && run.lastBottomCursor !== value) run.cursorAdvances++;
+      run.cursorValues.add(value);
+    }
+    run.lastBottomCursor = value;
+  }
+}
+
+async function cacheBeforeCapture(page) {
+  pendingBeforeCaptureStats.timelineResponses++;
+  if (page.tweets.length) pendingBeforeCaptureStats.pagesWithTweets++;
+  else pendingBeforeCaptureStats.emptyResponses++;
+  if (page.entryCount > 0 && !page.tweets.length && !page.cursors.length) {
+    pendingBeforeCaptureStats.schemaMismatchResponses++;
+  }
+  pendingBeforeCaptureStats.observedOccurrences += page.tweets.length;
+  for (const tweet of page.tweets) {
+    const id = String(tweet?.rest_id || "");
+    if (!id) continue;
+    if (pendingBeforeCapture.has(id)) {
+      pendingBeforeCaptureStats.duplicateOccurrences++;
+      pendingBeforeCapture.delete(id);
+    }
+    // Defer normalization until the user starts capture. This keeps the
+    // pre-capture page hook light and retains malformed entries for auditing.
+    pendingBeforeCapture.set(id, tweet);
+  }
+  while (pendingBeforeCapture.size > PENDING_CACHE_LIMIT) {
+    const oldest = pendingBeforeCapture.keys().next().value;
+    pendingBeforeCapture.delete(oldest);
+    pendingBeforeCaptureStats.dropped++;
+  }
 }
 
 async function handleResponse(payload) {
-  if (!capture) return;
-
-  /* Respect backoff window: if we're in a backoff period, pause capture
-     and wait until it expires before continuing. */
-  if (capture.backoff.until && Date.now() < capture.backoff.until) {
-    const waitMs = capture.backoff.until - Date.now();
-    await setState({
-      status: "paused",
-      lastStopReason: `rate-limited-backoff (retry in ${Math.ceil(waitMs / 1000)}s)`
-    });
-    await sleep(waitMs);
-    await setState({ status: "capturing", lastStopReason: null });
-  }
-
-  if (!payload || payload.ok === false) {
-    const status = payload && payload.status;
-    let reason = null;
-    if (status === 429) reason = "rate-limited";
-    else if (status === 401 || status === 403) reason = "auth-error";
-    else if (status >= 500) reason = "server-error";
-
+  if (!payload) return;
+  if (payload.ok === false) {
+    if (!capture) return;
+    const status = Number(payload.status) || 0;
+    const reason = status === 429 ? "rate-limited"
+      : status === 401 || status === 403 ? "auth-error"
+        : status >= 500 ? "server-error" : "bad-response";
     await bumpError(reason, status);
     return;
   }
 
-  /* Successful response resets backoff */
-  if (capture.backoff.retries > 0) {
-    capture.backoff.retries = 0;
-    capture.backoff.until = 0;
-  }
-
-  const contentType = payload.contentType || "";
   const json = payload.json;
-
-  if (typeof json !== "object" || json === null) {
-    await bumpError("bad-response");
+  if (!json || typeof json !== "object") {
+    if (capture) await bumpError("bad-response");
     return;
   }
-
+  const contentType = String(payload.contentType || "").toLowerCase();
   if (contentType && !contentType.includes("json")) {
-    await bumpError("non-json");
+    if (capture) await bumpError("non-json");
     return;
   }
 
-  capture.seenResponses = (capture.seenResponses || 0) + 1;
-
-  const tweets = extractTweets(json);
-  if (!tweets.length) {
-    await setState({ stats: { emptyResponses: 1 } });
-    capture.breaker.consecutiveErrors = 0;
+  const page = XBookmarkTimeline.extractPage(json);
+  if (!page.recognized) return; // Never ingest unrelated GraphQL recommendations.
+  const run = capture;
+  if (!run) {
+    await cacheBeforeCapture(page);
     return;
   }
 
-  capture.seenTweets = (capture.seenTweets || 0) + 1;
-  capture.breaker.consecutiveErrors = 0;
+  run.timelineResponses++;
+  if (page.entryCount > 0 && !page.tweets.length && !page.cursors.length) {
+    run.schemaMismatchResponses++;
+  }
+  run.activityVersion++;
+  run.lastActivityAt = Date.now();
+  run.seenTweets += page.tweets.length;
+  if (page.tweets.length) run.pagesWithTweets++;
+  recordCursors(run, page);
+  wakeRun(run);
+  run.breaker.consecutiveErrors = 0;
+  if (run.backoff.until && Date.now() < run.backoff.until) await waitForBackoff(run);
 
-  const stored = await getStored();
-  const storedIds = new Set(stored.map((b) => b.tweet_id));
-  let newCount = 0;
-  let dupCount = 0;
-  let failCount = 0;
+  let newOnPage = 0, failedOnPage = 0;
+  for (const tweet of page.tweets) {
+    const id = String(tweet?.rest_id || "");
+    if (id) {
+      run.observedOccurrences++;
+      if (run.observedIds.has(id)) run.duplicateOccurrences++;
+      else run.observedIds.add(id);
+    }
 
-  for (const tweet of tweets) {
     let normalized;
     try {
       normalized = normalizeTweet(tweet);
-    } catch (e) {
-      await addDeadLetter(tweet, e);
-      failCount++;
+    } catch (error) {
+      if (id) run.failedIds.add(id);
+      try { await addDeadLetter(tweet, error); }
+      catch (saveError) { console.warn("[x-bookmarks] dead-letter save failed", saveError); }
+      failedOnPage++;
       continue;
     }
 
     const validation = validateItem(normalized);
     if (!validation.valid) {
-      await addDeadLetter(tweet, new Error(validation.errors.join("; ")));
-      failCount++;
+      if (id) run.failedIds.add(id);
+      try { await addDeadLetter(tweet, new Error(validation.errors.join("; "))); }
+      catch (saveError) { console.warn("[x-bookmarks] dead-letter save failed", saveError); }
+      failedOnPage++;
       continue;
     }
 
-    if (storedIds.has(normalized.tweet_id) || capture.buffer.has(normalized.tweet_id)) {
-      capture.buffer.set(normalized.tweet_id, normalized);
-      dupCount++;
-      continue;
+    const alreadyBuffered = run.buffer.has(normalized.tweet_id);
+    const alreadyStored = run.store.has(normalized.tweet_id);
+    if (alreadyBuffered || alreadyStored) {
+      run.duplicateTotal++;
+    } else {
+      newOnPage++;
+      run.newTotal++;
     }
-
-    /* Cross-run fuzzy duplicate detection: check if this tweet is an edited
-       version of an already-captured tweet (same author, similar text). */
-    const normText = normalizeForSimilarity(normalized.text);
-    let isFuzzyDup = false;
-    for (const existing of stored) {
-      if (existing.author_id === normalized.author_id && existing.text) {
-        const existingNorm = normalizeForSimilarity(existing.text);
-        const sim = jaroWinkler(normText, existingNorm);
-        if (sim >= config.similarityThreshold) {
-          /* Update the existing tweet with new content (edited version) */
-          existing.text = normalized.text;
-          existing.last_seen_at = normalized.last_seen_at;
-          existing.like_count_at_capture = normalized.like_count_at_capture;
-          existing.retweet_count_at_capture = normalized.retweet_count_at_capture;
-          existing.reply_count_at_capture = normalized.reply_count_at_capture;
-          existing.view_count_at_capture = normalized.view_count_at_capture;
-          existing.has_media = normalized.has_media;
-          existing.media_types = normalized.media_types;
-          existing.media_items = normalized.media_items;
-          existing.urls_expanded = normalized.urls_expanded;
-          isFuzzyDup = true;
-          break;
-        }
-      }
-    }
-    if (isFuzzyDup) {
-      dupCount++;
-      continue;
-    }
-
-    capture.buffer.set(normalized.tweet_id, normalized);
-    newCount++;
+    run.failedIds.delete(normalized.tweet_id);
+    run.buffer.set(normalized.tweet_id, normalized);
+    run.lastTweetId = normalized.tweet_id;
   }
 
-  if (newCount) {
-    capture.stableEmpty = 0;
-    capture.knownOnlyPages = 0;
-    capture.lastTweetId = tweets[0].rest_id;
-  } else if (tweets.length) {
-    capture.knownOnlyPages++;
-  }
+  if (newOnPage) run.stableEmpty = 0;
+  if (!page.tweets.length) run.emptyResponses++;
+  run.failedTotal += failedOnPage;
+  if (failedOnPage) run.normalizationFailures += failedOnPage;
 
+  const projected = projectedStoreStats(run);
   await setState({
-    stats: { newItems: newCount, duplicates: dupCount, failed: failCount, captured: stored.length + capture.buffer.size }
+    stats: {
+      responses: run.timelineResponses,
+      timelineResponses: run.timelineResponses,
+      pagesWithTweets: run.pagesWithTweets,
+      captured: projected.count,
+      mediaItems: projected.mediaItems,
+      videos: projected.videos,
+      newItems: run.newTotal,
+      duplicates: run.duplicateTotal,
+      failed: run.failedTotal,
+      emptyResponses: run.emptyResponses,
+    },
   });
 
-  if (capture.buffer.size >= config.batchSize) {
-    await flushBuffer();
+  if (run.buffer.size >= config.batchSize || Date.now() - run.lastFlushAt > 5000) {
+    await flushBuffer(run);
   }
 }
 
@@ -993,6 +964,7 @@ async function applyBackoff(status) {
     capture.breaker.tripped = true;
     capture.breaker.reason = "max-backoff-retries";
     capture.stop = true;
+    wakeRun(capture);
     await setState({ status: "stopped_by_error", lastStopReason: "max-backoff-retries" });
     return 0;
   }
@@ -1005,149 +977,246 @@ async function applyBackoff(status) {
   capture.backoff.until = Date.now() + delay;
 
   await setState({
-    status: "paused",
-    lastStopReason: `backoff-${status} (attempt ${capture.backoff.retries}/${maxRetries}, ${Math.ceil(delay / 1000)}s)`
+    status: "capturing",
+    lastStopReason: `backoff-${status} (attempt ${capture.backoff.retries}/${maxRetries}, ${Math.ceil(delay / 1000)}s)`,
   });
 
-  await sleep(delay);
-
-  await setState({ status: "capturing", lastStopReason: null });
+  await waitForBackoff(capture);
   return delay;
 }
 
-/**
- * Walk to the bottom of the rendered page in viewport-sized steps rather
- * than teleporting there in one jump.
- *
- * Why: X's timeline is virtualised. A single `scrollTo(scrollHeight)` skips
- * past everything between here and the bottom faster than the list can
- * mount it, which can leave the pagination trigger unfired and — worse —
- * lets one giant leap stand in for the many small movements the feed
- * actually paginates on. Stepping through the whole distance is slower on
- * purpose: every intermediate viewport gets its chance to render and to
- * request the next page, so nothing between the top and the bottom is
- * skipped over.
- */
-async function scrollToBottomSlowly(run) {
-  let guard = 0;
-  // The page grows underneath us as responses land, so re-read the target
-  // every step instead of computing it once.
-  while (!run.stop && !run.pause && guard++ < 80) {
-    const bottom = document.body.scrollHeight - window.innerHeight;
-    if (window.scrollY >= bottom - 4) break;
-    window.scrollBy(0, Math.max(240, Math.round(window.innerHeight * 0.75)));
-    await sleep(config.scrollStepDelay);
+function scrollMetrics() {
+  const root = document.scrollingElement || document.documentElement || document.body;
+  const height = Math.max(
+    Number(root?.scrollHeight) || 0,
+    Number(document.body?.scrollHeight) || 0,
+    Number(document.documentElement?.scrollHeight) || 0,
+  );
+  const viewport = Math.max(1, Number(window.innerHeight) || Number(document.documentElement?.clientHeight) || 800);
+  const y = Math.max(Number(window.scrollY) || 0, Number(root?.scrollTop) || 0);
+  return { height, viewport, y, bottom: Math.max(0, height - viewport) };
+}
+
+async function scrollToBottomAdaptive(run) {
+  const started = Date.now();
+  let steps = 0;
+  while (!run.stop && !run.pause && !run.breaker.tripped &&
+    steps < config.maxScrollStepsPerPass && Date.now() - started < config.maxPassDurationMs) {
+    if (run.backoff.until && Date.now() < run.backoff.until) {
+      await waitForBackoff(run);
+      continue;
+    }
+    const { viewport, y, bottom } = scrollMetrics();
+    const remaining = bottom - y;
+    if (remaining <= 5) break;
+
+    // Cruise quickly through mounted rows; brake near the infinite-scroll
+    // trigger so X has time to mount the next page and issue its cursor query.
+    const nearBottom = remaining <= viewport * 2.25;
+    const multiplier = nearBottom ? config.nearBottomStepViewports : config.fastStepViewports;
+    const step = Math.min(remaining, Math.max(300, Math.round(viewport * multiplier)));
+    window.scrollTo(0, y + step);
+    steps++;
+    await waitRun(run, nearBottom ? config.nearBottomStepDelayMs : config.fastStepDelayMs);
   }
-  // Land exactly at the end so the "load more" sentinel is definitely on
-  // screen while the long between-batch pause runs.
-  window.scrollTo(0, document.body.scrollHeight);
+
+  const { y, bottom } = scrollMetrics();
+  // Do not force-jump to the bottom when the safety time/step budget expires:
+  // that can bypass X's intermediate pagination triggers. The outer loop will
+  // continue the adaptive sweep from this position on its next pass.
+  return { steps, reachedBottom: bottom - y <= 5 };
+}
+
+function captureAudit(run) {
+  const missingIds = [];
+  for (const id of run.observedIds) {
+    if (!run.store.has(id)) missingIds.push(id);
+  }
+  const missingCount = missingIds.length;
+  return {
+    version: 1,
+    verifiedAt: new Date().toISOString(),
+    timelineResponses: run.timelineResponses,
+    pagesWithTweets: run.pagesWithTweets,
+    emptyResponses: run.emptyResponses,
+    schemaMismatchResponses: run.schemaMismatchResponses,
+    observedOccurrences: run.observedOccurrences,
+    observedUniqueIds: run.observedIds.size,
+    coveredUniqueIds: Math.max(0, run.observedIds.size - missingCount),
+    missingUniqueIds: missingCount,
+    missingIds: missingIds.slice(0, 100),
+    normalizationFailures: run.normalizationFailures,
+    failedUniqueIds: run.failedIds.size,
+    duplicateOccurrences: run.duplicateOccurrences,
+    cursorAdvances: run.cursorAdvances,
+    repeatedCursors: run.repeatedCursors,
+    bottomCursorSeen: run.bottomCursorSeen,
+    preCaptureDropped: run.preCaptureDropped || 0,
+    endReached: run.reason === "end-of-feed",
+    endReason: run.reason || (run.breaker.tripped ? run.breaker.reason : run.stop ? "stopped-by-user" : null),
+  };
 }
 
 async function runCaptureLoop(run) {
-  let previousTotal = (await getStored()).length;
-  let previousHeight = 0;
-  /* Capture rate tracking */
-  let lastRateUpdate = run.startedAt;
-  let lastCapturedCount = previousTotal;
+  let lastRateCount = run.newTotal;
+  let lastRateAt = Date.now();
+
+  if (run.primeAtTop && !run.stop && !run.pause) {
+    window.scrollTo(0, 0);
+    await waitRun(run, 120);
+    run.primeAtTop = false;
+  }
 
   while (!run.stop && !run.pause && !run.breaker.tripped) {
-    const elapsed = Date.now() - run.startedAt;
-    if (elapsed > config.maxRuntimeMs) { run.reason = "max-runtime"; break; }
-    if (run.scrollBatches >= config.maxScrollBatches) { run.reason = "max-batches"; break; }
-    if (run.stableEmpty >= config.emptyScrollStop) { run.reason = "end-of-feed"; break; }
-    if (run.knownOnlyPages >= config.knownOnlyPagesStop) { run.reason = "incremental-complete"; break; }
+    if (Date.now() - run.startedAt > config.maxRuntimeMs) {
+      run.reason = "max-runtime";
+      break;
+    }
+    if (run.scrollBatches >= config.maxScrollBatches) {
+      run.reason = "max-batches";
+      break;
+    }
+    if (run.backoff.until && Date.now() < run.backoff.until) {
+      await waitForBackoff(run);
+      continue;
+    }
 
-    await scrollToBottomSlowly(run);
-    const delay = config.minScrollDelay + Math.random() * (config.maxScrollDelay - config.minScrollDelay);
-    await sleep(delay);
+    const activityBefore = run.activityVersion;
+    const newItemsBefore = run.newTotal;
+    const cursorAdvancesBefore = run.cursorAdvances;
+    const heightBefore = scrollMetrics().height;
+    const scrollResult = await scrollToBottomAdaptive(run);
+    if (run.stop || run.pause || run.breaker.tripped) break;
     run.scrollBatches++;
 
-    /* Periodic buffer flush to prevent memory buildup on long runs.
-       Flush every flushIntervalBatches regardless of batchSize threshold. */
-    if (run.scrollBatches % config.flushIntervalBatches === 0 && run.buffer.size > 0) {
-      await flushBuffer();
-    }
-
-    /* "Empty" must mean the feed genuinely gave nothing — measured on TWO
-       channels, not one. The item count alone misses the incremental case
-       where a page of already-known bookmarks arrives (total unchanged, feed
-       very much alive), which used to tick the end-of-feed counter while
-       there was plenty of page left. Page growth catches that: if the
-       document got taller, content loaded, and the run is not at the end. */
-    const total = (await getStored()).length + run.buffer.size;
-    const height = document.body.scrollHeight;
-    if (total > previousTotal || height > previousHeight) {
+    if (!scrollResult.reachedBottom) {
+      // A very tall feed may outlast one pass's time/step budget. Keep sweeping
+      // from the current position; only a true bottom visit counts as a quiet
+      // end-of-feed check.
       run.stableEmpty = 0;
-      previousTotal = Math.max(previousTotal, total);
-      previousHeight = Math.max(previousHeight, height);
-    } else {
-      run.stableEmpty++;
+      await queue;
+      const projected = projectedStoreStats(run);
+      await setState({
+        stats: {
+          captured: projected.count,
+          mediaItems: projected.mediaItems,
+          videos: projected.videos,
+          timelineResponses: run.timelineResponses,
+          pagesWithTweets: run.pagesWithTweets,
+          scrollBatches: run.scrollBatches,
+          maxScrollBatches: config.maxScrollBatches,
+          newItems: run.newTotal,
+          duplicates: run.duplicateTotal,
+          failed: run.failedTotal,
+        },
+      });
+      continue;
     }
 
-    /* Calculate capture rate (posts/min) */
+    // Wait only at the pagination boundary. Fast scrolls through already
+    // rendered rows do not incur a per-row sleep; the response/DOM signal wakes
+    // this wait immediately when X has delivered the next page.
+    await waitRun(run, config.responseWaitMs);
+    const heightAfter = scrollMetrics().height;
+    const significantGrowth = heightAfter - heightBefore > scrollMetrics().viewport * 1.25;
+    const responseMadeProgress = run.activityVersion > activityBefore &&
+      (run.newTotal > newItemsBefore || run.cursorAdvances > cursorAdvancesBefore);
+    const progressed = responseMadeProgress || significantGrowth;
+    if (progressed) run.stableEmpty = 0;
+    else run.stableEmpty++;
+
+    if (run.buffer.size && Date.now() - run.lastFlushAt >= 2500) {
+      await flushBuffer(run);
+    }
+
     const now = Date.now();
-    const timeSinceLastRate = (now - lastRateUpdate) / 60000; // minutes
-    if (timeSinceLastRate >= 0.5) { // Update every 30 seconds
-      const capturedSinceLastRate = total - lastCapturedCount;
-      const postsPerMin = timeSinceLastRate > 0 ? Math.round(capturedSinceLastRate / timeSinceLastRate) : 0;
-      lastRateUpdate = now;
-      lastCapturedCount = total;
-      run.postsPerMin = postsPerMin;
+    if (now - lastRateAt >= 5000) {
+      const minutes = Math.max((now - run.startedAt) / 60000, 1 / 60);
+      run.postsPerMin = Math.round(run.newTotal / minutes);
+      lastRateAt = now;
+      lastRateCount = run.newTotal;
+    } else if (run.newTotal > lastRateCount) {
+      const minutes = Math.max((now - lastRateAt) / 60000, 1 / 60);
+      run.postsPerMin = Math.round((run.newTotal - lastRateCount) / minutes);
     }
 
-    let etaMinutes = null;
-    if (run.postsPerMin && run.postsPerMin > 0 && run.scrollBatches > 0) {
-      const batchesLeft = Math.max(0, config.maxScrollBatches - run.scrollBatches);
-      const avgPostsPerBatch = total / run.scrollBatches;
-      const estimatedRemainingPosts = batchesLeft * avgPostsPerBatch;
-      const remainingMinutes = estimatedRemainingPosts / run.postsPerMin;
-      const avgBatchDelayMinutes = (config.minScrollDelay + config.maxScrollDelay) / 2 / 60000;
-      etaMinutes = Math.round(remainingMinutes + batchesLeft * avgBatchDelayMinutes);
-    }
-
-    // Broadcast state every scroll batch for instant UI updates
-    const stored = await getStored();
+    const projected = projectedStoreStats(run);
     await setState({
       stats: {
         emptyScrolls: run.stableEmpty,
-        captured: stored.length + run.buffer.size,
+        captured: projected.count,
+        mediaItems: projected.mediaItems,
+        videos: projected.videos,
+        timelineResponses: run.timelineResponses,
+        pagesWithTweets: run.pagesWithTweets,
         postsPerMin: run.postsPerMin || 0,
         scrollBatches: run.scrollBatches,
         maxScrollBatches: config.maxScrollBatches,
-        etaMinutes
-      }
+        newItems: run.newTotal,
+        duplicates: run.duplicateTotal,
+        failed: run.failedTotal,
+      },
     });
+
+    if (run.stableEmpty >= config.emptyScrollStop) {
+      run.reason = !run.timelineResponses ? "no-responses-seen"
+        : !run.observedIds.size && run.schemaMismatchResponses ? "schema-mismatch"
+          : "end-of-feed";
+      break;
+    }
   }
 
-  await flushBuffer();
+  // Finish any in-flight API response before finalizing. On Panic, handlers
+  // will see the run flag and the pending buffer is discarded without a flush.
+  await queue;
+  if (!run.panic) await flushBuffer(run);
+  else run.buffer.clear();
 
   let status;
   if (run.pause) status = "paused";
   else if (run.breaker.tripped) status = "stopped_by_error";
-  else if (run.stop) status = "stopped_by_user";
+  else if (run.stop || run.panic) status = "stopped_by_user";
+  else if (run.reason === "end-of-feed") status = "completed";
+  else if (["no-responses-seen", "schema-mismatch"].includes(run.reason)) status = "stopped_by_error";
+  else if (run.reason) status = "incomplete";
   else status = "completed";
 
-  if (!run.pause && !run.breaker.tripped && !run.stop && !run.reason) {
-    const total = (await getStored()).length;
-    if (total === 0) {
-      if (!run.seenResponses) {
-        run.reason = "no-responses-seen";
-        status = "stopped_by_error";
-      } else if (!run.seenTweets) {
-        run.reason = "schema-mismatch";
-        status = "stopped_by_error";
-      }
-    }
+  if (!run.pause && !run.panic && !run.breaker.tripped && !run.stop && !run.timelineResponses) {
+    run.reason = "no-responses-seen";
+    status = "stopped_by_error";
+  } else if (!run.pause && !run.panic && !run.breaker.tripped && !run.stop &&
+    !run.observedIds.size && run.schemaMismatchResponses) {
+    run.reason = "schema-mismatch";
+    status = "stopped_by_error";
   }
 
-  const stopReason = run.reason || (run.breaker.tripped ? run.breaker.reason : null);
-  await setState({ status, lastStopReason: stopReason });
+  const audit = captureAudit(run);
+  const stopReason = run.reason || (run.breaker.tripped ? run.breaker.reason : run.panic ? "panic-stop" : null);
+  await setState({
+    status,
+    lastStopReason: stopReason,
+    lastTweetId: run.lastTweetId || null,
+    audit,
+    stats: {
+      captured: run.store.total,
+      mediaItems: run.store.mediaItems,
+      videos: run.store.videos,
+      timelineResponses: run.timelineResponses,
+      pagesWithTweets: run.pagesWithTweets,
+      scrollBatches: run.scrollBatches,
+      emptyScrolls: run.stableEmpty,
+      postsPerMin: run.postsPerMin || 0,
+      newItems: run.newTotal,
+      duplicates: run.duplicateTotal,
+      failed: run.failedTotal,
+    },
+  });
 
   if (status === "paused") {
     capture = run;
-    await saveSession(capture);
+    await saveSession(run);
   } else {
-    capture = null;
+    if (capture === run) capture = null;
     await clearSession();
   }
 }
@@ -1155,98 +1224,191 @@ async function runCaptureLoop(run) {
 async function startCapture() {
   if (capture) {
     if (capture.pause) {
-      capture.pause = false;
-      setState({ status: "capturing", lastStopReason: null });
-      runCaptureLoop(capture).catch(() => {});
+      const run = capture;
+      if (run.loopPromise) await run.loopPromise;
+      if (capture !== run) return { ok: false, reason: "capture-ended" };
+      run.pause = false;
+      await setState({ status: "capturing", lastStopReason: null });
+      wakeRun(run);
+      launchCaptureLoop(run);
       return { ok: true, resumed: true };
     }
     return { ok: false, reason: "already-running" };
   }
 
-  /* Check for persisted session from tab refresh/navigation */
   const session = await loadSession();
   if (session) {
-    return await resumeFromSession(session);
+    const resumed = await resumeFromSession(session);
+    if (resumed) return resumed;
   }
 
-  const run = {
-    stop: false,
-    pause: false,
-    startedAt: Date.now(),
-    scrollBatches: 0,
-    stableEmpty: 0,
-    knownOnlyPages: 0,
-    seenResponses: 0,
-    seenTweets: 0,
-    lastTweetId: null,
-    buffer: new Map(),
-    breaker: { consecutiveErrors: 0, tripped: false, reason: null },
-    reason: null,
-    /* Exponential backoff state for 429/5xx */
-    backoff: { retries: 0, until: 0 }
-  };
+  const store = await XBookmarkStore.open();
+  // Drain any pre-start response cache before switching new responses into the
+  // live run, so the first timeline page cannot fall into a gap between modes.
+  await queue;
+  const run = createRun(store);
+  run.primeAtTop = true;
+  run.preCaptureDropped = pendingBeforeCaptureStats.dropped;
+  run.timelineResponses = pendingBeforeCaptureStats.timelineResponses;
+  run.emptyResponses = pendingBeforeCaptureStats.emptyResponses;
+  run.schemaMismatchResponses = pendingBeforeCaptureStats.schemaMismatchResponses;
+  run.observedOccurrences = pendingBeforeCaptureStats.observedOccurrences;
+  run.duplicateOccurrences = pendingBeforeCaptureStats.duplicateOccurrences;
+  run.seenTweets = pendingBeforeCaptureStats.observedOccurrences;
+  run.pagesWithTweets = pendingBeforeCaptureStats.pagesWithTweets;
+  // Switch responses into the live run before any asynchronous normalization or
+  // dead-letter write, so a response arriving during setup cannot be lost.
   capture = run;
 
-  await setState({ status: "capturing", startedAt: new Date().toISOString(), lastStopReason: null });
-  runCaptureLoop(run).catch(() => {});
+  for (const [id, rawTweet] of pendingBeforeCapture) {
+    run.observedIds.add(id);
+    let item;
+    try {
+      item = normalizeTweet(rawTweet);
+      const validation = validateItem(item);
+      if (!validation.valid) throw new Error(validation.errors.join("; "));
+    } catch (error) {
+      run.failedIds.add(id);
+      run.failedTotal++;
+      run.normalizationFailures++;
+      try { await addDeadLetter(rawTweet, error); }
+      catch (saveError) { console.warn("[x-bookmarks] dead-letter save failed", saveError); }
+      continue;
+    }
+    run.buffer.set(id, item);
+    if (store.has(id)) run.duplicateTotal++;
+    else run.newTotal++;
+  }
+  pendingBeforeCapture.clear();
+  pendingBeforeCaptureStats.timelineResponses = 0;
+  pendingBeforeCaptureStats.emptyResponses = 0;
+  pendingBeforeCaptureStats.schemaMismatchResponses = 0;
+  pendingBeforeCaptureStats.observedOccurrences = 0;
+  pendingBeforeCaptureStats.duplicateOccurrences = 0;
+  pendingBeforeCaptureStats.pagesWithTweets = 0;
+  pendingBeforeCaptureStats.dropped = 0;
+
+  // Drain events that arrived during setup; later events continue through the
+  // live queue and are covered by the sweep's response/activity counters.
+  await queue;
+  const projected = projectedStoreStats(run);
+  await setState({
+    status: "capturing",
+    startedAt: new Date().toISOString(),
+    lastStopReason: null,
+    audit: null,
+    stats: {
+      captured: projected.count,
+      mediaItems: projected.mediaItems,
+      videos: projected.videos,
+      newItems: run.newTotal,
+      duplicates: run.duplicateTotal,
+      failed: 0,
+      emptyScrolls: 0,
+      emptyResponses: 0,
+      errors: 0,
+      rateLimits: 0,
+      authErrors: 0,
+      responses: run.timelineResponses,
+      timelineResponses: run.timelineResponses,
+      pagesWithTweets: run.pagesWithTweets,
+      scrollBatches: 0,
+      maxScrollBatches: config.maxScrollBatches,
+      postsPerMin: 0,
+    },
+  });
+  launchCaptureLoop(run);
   return { ok: true };
 }
 
 async function pauseCapture() {
-  if (capture && !capture.pause && !capture.stop) {
-    capture.pause = true;
-    await saveSession(capture);
-    return { ok: true };
-  }
-  return { ok: false, reason: "not-capturing" };
+  if (!capture || capture.pause || capture.stop) return { ok: false, reason: "not-capturing" };
+  const run = capture;
+  run.pause = true;
+  wakeRun(run);
+  if (!run.loopPromise) launchCaptureLoop(run);
+  await run.loopPromise;
+  return { ok: true };
 }
 
 async function stopCapture() {
   if (!capture) return { ok: false, reason: "idle" };
-  capture.stop = true;
-  await clearSession();
+  const run = capture;
+  run.stop = true;
+  run.pause = false;
+  wakeRun(run);
+  if (!run.loopPromise) launchCaptureLoop(run);
+  await run.loopPromise;
+  return { ok: true };
+}
+
+async function panicCapture() {
+  if (!capture) return { ok: false, reason: "idle" };
+  const run = capture;
+  run.panic = true;
+  run.stop = true;
+  run.pause = false;
+  run.buffer.clear();
+  wakeRun(run);
+  if (!run.loopPromise) launchCaptureLoop(run);
+  await run.loopPromise;
   return { ok: true };
 }
 
 async function resetAll() {
-  await chrome.storage.local.remove([STORAGE_KEY, STATE_KEY, DEAD_KEY, SESSION_KEY]);
+  if (capture) {
+    const run = capture;
+    run.panic = true;
+    run.stop = true;
+    run.pause = false;
+    run.buffer.clear();
+    wakeRun(run);
+    if (!run.loopPromise) launchCaptureLoop(run);
+    await run.loopPromise;
+  }
   capture = null;
+  pendingBeforeCapture.clear();
+  pendingBeforeCaptureStats.timelineResponses = 0;
+  pendingBeforeCaptureStats.emptyResponses = 0;
+  pendingBeforeCaptureStats.schemaMismatchResponses = 0;
+  pendingBeforeCaptureStats.observedOccurrences = 0;
+  pendingBeforeCaptureStats.duplicateOccurrences = 0;
+  pendingBeforeCaptureStats.pagesWithTweets = 0;
+  pendingBeforeCaptureStats.dropped = 0;
+  await XBookmarkStore.clear();
+  await chrome.storage.local.remove([STATE_KEY, DEAD_KEY, SESSION_KEY]);
   return { ok: true };
 }
 
 window.addEventListener("message", (event) => {
-  if (event.source !== window) return;
-  if (event.origin !== location.origin) return;
+  if (event.source !== window || event.origin !== location.origin) return;
   const data = event.data;
-  if (!data || data.source !== "x-bookmark-exporter") return;
+  if (!data || data.source !== "x-bookmark-exporter" || data.type !== "bookmarks-response") return;
 
-  if (data.type === "bookmarks-response") {
-    enqueue(async () => {
-      await setState({ stats: { responses: 1 } });
-      await handleResponse(data.payload);
-    }).catch(() => {});
+  const payload = data.payload;
+  if (payload?.ok !== false && !XBookmarkTimeline.findTimeline(payload?.json)) return;
+  if (capture) {
+    capture.incomingResponses = (capture.incomingResponses || 0) + 1;
+    wakeRun(capture);
   }
+  enqueue(() => handleResponse(payload));
 });
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-  switch (msg.type) {
-    case "start":
-      startCapture().then(sendResponse);
-      return true;
-    case "pause":
-      pauseCapture().then(sendResponse);
-      return true;
-    case "stop":
-      stopCapture().then(sendResponse);
-      return true;
-    case "panic":
-      stopCapture().then(sendResponse);
-      return true;
-    case "get-state":
-      getState().then(sendResponse);
-      return true;
-    case "reset":
-      resetAll().then(sendResponse);
-      return true;
+  const reply = (promise) => {
+    promise.then(sendResponse).catch((error) => {
+      console.error("[x-bookmarks] command failed", error);
+      sendResponse({ ok: false, reason: String(error?.message || error) });
+    });
+    return true;
+  };
+  switch (msg?.type) {
+    case "start": return reply(startCapture());
+    case "pause": return reply(pauseCapture());
+    case "stop": return reply(stopCapture());
+    case "panic": return reply(panicCapture());
+    case "get-state": return reply(getState());
+    case "reset": return reply(resetAll());
+    default: return false;
   }
 });
