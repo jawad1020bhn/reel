@@ -20,6 +20,8 @@ XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.po
     const KEY_AUTO = "xreels.dataset.auto.v1";       // cache of the normalised data/posts.js
     const KEY_INDEX = "xreels.datasets.v1";          // libraries index
     const keyFor = (id) => `xreels.dataset.${id}.v1`;
+    const deletedIds = new Set();
+    const withoutDeleted = (posts) => posts.filter((p) => !deletedIds.has(String(p.id)));
     const WORKER_MIN = 3000;                         // posts; below this the main thread is fine
 
     const progress = (phase, message, extra = {}) => events.bus.emit(EV.DATASET_PROGRESS, { phase, message, ...extra });
@@ -51,6 +53,9 @@ XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.po
     async function normalizeInput(input, label) {
       const json = registry.parseInput(input);
       const detected = registry.detect(json);
+      // Deleting the last post leaves a valid, intentionally empty library.
+      const rows = Array.isArray(json) ? json : json?.bookmarks ?? json?.posts ?? json?.tweets ?? json?.data ?? json?.items ?? json?.results ?? json?.list;
+      if (!detected && Array.isArray(rows) && rows.length === 0) return { json, result: { posts: [], adapter: "empty", dropped: 0, textOnly: 0 }, detected: null };
       if (!detected) throw new Error("Unrecognised format — see docs/DATA-FORMATS.md for the shapes saves understands.");
       const approx = Array.isArray(json) ? json.length : (json.bookmarks || json.tweets || json.posts || json.data || []).length || 0;
       let result = null;
@@ -87,7 +92,8 @@ XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.po
     }
 
     async function activate(posts, source) {
-      const list = prefs.get("keepTextOnly") ? posts : posts.filter((p) => p.media.length);
+      const allowed = withoutDeleted(posts);
+      const list = prefs.get("keepTextOnly") ? allowed : allowed.filter((p) => p.media.length);
       progress("index", "Building your library index…");
       mark("catalog-index:start");
       await catalog.load(list, source);
@@ -131,7 +137,7 @@ XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.po
       mark("library-cache-read:start");
       const stored = await storage.get(meta.key || keyFor(id)).catch(() => null);
       mark("library-cache-read:end");
-      if (!stored || !Array.isArray(stored.posts) || !stored.posts.length) return null;
+      if (!stored || !Array.isArray(stored.posts)) return null;
       return { posts: stored.posts, source: { id, label: meta.label, fingerprint: stored.fingerprint || "", adapter: stored.adapter, at: stored.at, library: meta } };
     }
 
@@ -141,6 +147,11 @@ XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.po
       mark("dataset-index-read:start");
       await loadIndex();
       mark("dataset-index-read:end");
+      try { await refreshDeletions(); }
+      catch (err) {
+        events.bus.emit(EV.DATASET_ERROR, { error: err });
+        return activate([], { id: "none", label: "No data", error: err.message });
+      }
       const steps = index.active && index.active !== "auto" ? [() => loadLibrary(index.active), loadAuto] : [loadAuto];
       let lastError = null;
       for (const step of steps) {
@@ -187,10 +198,11 @@ XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.po
     async function commit(an, opts = {}) {
       await loadIndex();
       const mode = opts.mode || (opts.merge ? "merge" : "replace");
-      let posts = an.posts;
+      await refreshDeletions();
+      let posts = withoutDeleted(an.posts);
       if (mode === "merge" && catalog.size) {
         const seen = new Set(posts.map((p) => p.id));
-        posts = [...posts, ...catalog.posts.filter((p) => !seen.has(p.id))];
+        posts = [...posts, ...withoutDeleted(catalog.posts).filter((p) => !seen.has(p.id))];
       }
       let id = index.active && index.active !== "auto" ? index.active : "imported";
       if (mode === "new") id = "lib-" + util.uid();
@@ -231,6 +243,44 @@ XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.po
     async function clearCache() { await storage.remove(KEY_AUTO); }
     async function reload() { await clearCache(); sources.clearGlobals?.(); return boot(); }
 
+    /** Refresh once before loading any source (including imported caches). */
+    async function refreshDeletions() {
+      const state = await sources.deletionState?.();
+      for (const id of state?.deletedIds || []) deletedIds.add(id);
+      return !!state?.enabled;
+    }
+    async function deletionReady() {
+      if (!await refreshDeletions()) throw new Error("Permanent deletion needs server setup. Open the hosted app after configuring it as described in DEPLOY.md.");
+    }
+    let deleting = false;
+    async function deletePost(id, password) {
+      if (deleting) throw new Error("Another deletion is in progress. Please wait.");
+      deleting = true;
+      try {
+        const result = await sources.deletePost(String(id), password);
+        // Only apply locally AFTER the server confirms the durable Git commit.
+        for (const deleted of result.deletedIds) deletedIds.add(deleted);
+        const posts = withoutDeleted(catalog.posts), source = { ...catalog.source };
+        await catalog.load(posts, source);
+        events.bus.emit(EV.POST_DELETED, { id: String(id) });
+        // Purge cached copies too. Even if storage fails, the shared ledger
+        // filters them on every subsequent boot, library switch and import.
+        try {
+          const keys = (await storage.keys()).filter((key) => /^xreels\.dataset\..+\.v1$/.test(key));
+          for (const key of keys) {
+            const cached = await storage.get(key);
+            if (Array.isArray(cached?.posts)) await storage.set(key, { ...cached, posts: withoutDeleted(cached.posts) });
+          }
+          await loadIndex();
+          for (const item of index.items) {
+            const cached = await storage.get(item.key || keyFor(item.id));
+            if (Array.isArray(cached?.posts)) item.count = cached.posts.length;
+          }
+          await saveIndex();
+        } catch (err) { console.warn("[importer] deleted post cache cleanup failed", err); }
+      } finally { deleting = false; }
+    }
+
     /** Export helpers (the normalised shape, re-importable). */
     function exportPosts(posts, { asScript = false } = {}) {
       const payload = { export_version: "saves-1", exported_at: new Date().toISOString(), count: posts.length, posts };
@@ -241,6 +291,6 @@ XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.po
     return {
       boot, analyze, commit, importFile, importText, importUrl, diffAgainstCatalog,
       libraries, activeId, switchTo, renameLibrary, removeLibrary, forgetImported, clearCache, reload,
-      exportPosts, fingerprintOf, KEY_AUTO, KEY_INDEX, keyFor,
+      deletionReady, deletePost, exportPosts, fingerprintOf, KEY_AUTO, KEY_INDEX, keyFor,
     };
   });

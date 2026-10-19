@@ -75,9 +75,9 @@ XR.define("ui.dialog", ["ui.dom", "ui.icons", "ui.overlayHistory", "core.i18n"],
     const d = open({ title, size: "sm", body: dom.h("p.dialog-text", i18n.t(message)), actions: [{ label: cancel, kind: "ghost", value: false }, { label: ok, kind: danger ? "danger" : "primary", value: true }] });
     return d.promise.then((r) => !!r);
   }
-  function prompt(message, { title = "", value = "", placeholder = "", ok = "Save", type = "text", hint = "" } = {}) {
-    const input = dom.h("input.input", { type, value, placeholder: i18n.t(placeholder), autofocus: true, onkeydown: (e) => { if (e.key === "Enter") { e.preventDefault(); d.close(input.value); } } });
-    const d = open({ title, size: "sm", body: dom.h("div.stack", message ? dom.h("p.dialog-text", i18n.t(message)) : null, input, hint ? dom.h("p.muted.small", i18n.t(hint)) : null), actions: [{ label: "Cancel", kind: "ghost", value: null }, { label: ok, kind: "primary", run: () => input.value }] });
+  function prompt(message, { title = "", value = "", placeholder = "", ok = "Save", type = "text", hint = "", danger = false } = {}) {
+    const input = dom.h("input.input", { type, value, placeholder: i18n.t(placeholder), "aria-label": i18n.t(placeholder || title), autocomplete: type === "password" ? "current-password" : undefined, autofocus: true, onkeydown: (e) => { if (e.key === "Enter") { e.preventDefault(); d.close(input.value); } } });
+    const d = open({ title, size: "sm", body: dom.h("div.stack", message ? dom.h("p.dialog-text", i18n.t(message)) : null, input, hint ? dom.h("p.muted.small", i18n.t(hint)) : null), actions: [{ label: "Cancel", kind: "ghost", value: null }, { label: ok, kind: danger ? "danger" : "primary", run: () => input.value }] });
     return d.promise.then((r) => (r == null ? null : String(r)));
   }
   /** choose(title, [{id,label,hint,icon,checked}]) → id | null */

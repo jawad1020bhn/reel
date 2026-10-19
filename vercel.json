@@ -13,6 +13,13 @@
     {
       "source": "/site.config.js",
       "headers": [{ "key": "Cache-Control", "value": "no-store" }]
+    },
+    {
+      "source": "/data/deleted-posts.js",
+      "headers": [{ "key": "Cache-Control", "value": "no-store" }]
     }
-  ]
+  ],
+  "functions": {
+    "api/library.js": { "maxDuration": 60 }
+  }
 }

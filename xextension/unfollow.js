@@ -280,7 +280,7 @@ const UF = (() => {
    * Run lifecycle
    * ------------------------------------------------------------------ */
 
-  let run = null;
+  let run = null, unfollowLease = null, unfollowStarting = false;
 
   /* Per-tab ownership heartbeat. sessionStorage survives reloads and
      navigations within THIS tab but is invisible to other tabs — exactly
@@ -770,6 +770,7 @@ const UF = (() => {
     if (target.loopPromise) return target.loopPromise;
     target.loopPromise = runUnfollowLoop(target).finally(() => {
       target.loopPromise = null;
+      unfollowLease?.(); unfollowLease = null;
     });
     return target.loopPromise;
   }
@@ -802,6 +803,8 @@ const UF = (() => {
   }
 
   async function beginRun(target) {
+    if (!unfollowLease) unfollowLease = await XEngineLock.acquire();
+    if (!unfollowLease) throw new Error("engine-busy");
     target.pacer = XPacing.createPacer({ ...config.pacing, rng: Math.random });
     target.governor = XPacing.createGovernor({ rateCeilingPerMin: config.pacing.rateCeilingPerMin });
     touchOwner();
@@ -853,6 +856,18 @@ const UF = (() => {
     launchLoop(target);
   }
 
+  async function startWithLock() {
+    if (unfollowStarting || (run && !run.stop && !run.pause)) return { ok: false, reason: "already-running" };
+    unfollowStarting = true;
+    try {
+      if (!unfollowLease) unfollowLease = await XEngineLock.acquire();
+      if (!unfollowLease) return { ok: false, reason: "engine-busy" };
+      const result = await startUnfollow();
+      if (!result.ok) { unfollowLease(); unfollowLease = null; }
+      return result;
+    } catch (error) { unfollowLease?.(); unfollowLease = null; throw error; }
+    finally { unfollowStarting = false; }
+  }
   async function startUnfollow() {
     /* Only wait for a loop that is already FINALIZING (stop/pause pressed).
        Awaiting a live run would hang the popup's Start until the entire
@@ -983,6 +998,8 @@ const UF = (() => {
    * ------------------------------------------------------------------ */
 
   async function bootstrap() {
+    if (unfollowStarting) return;
+    unfollowStarting = true;
     try {
       const [state, session] = await Promise.all([getState(), loadSession()]);
       if (!session) {
@@ -1017,8 +1034,9 @@ const UF = (() => {
       target.pause = false;
       await beginRun(target);
     } catch (error) {
+      unfollowLease?.(); unfollowLease = null;
       console.warn("[x-unfollow] bootstrap failed", error);
-    }
+    } finally { unfollowStarting = false; }
   }
 
   /* ------------------------------------------------------------------ *
@@ -1050,7 +1068,7 @@ const UF = (() => {
       return true;
     };
     switch (msg?.type) {
-      case "unfollow-start": return reply(startUnfollow());
+      case "unfollow-start": return reply(startWithLock());
       case "unfollow-pause": return reply(pauseUnfollow());
       case "unfollow-stop": return reply(stopUnfollow());
       case "unfollow-reset": return reply(resetUnfollow());
@@ -1064,7 +1082,7 @@ const UF = (() => {
   return {
     config,
     isFollowingRoute,
-    start: startUnfollow,
+    start: startWithLock,
     pause: pauseUnfollow,
     stop: stopUnfollow,
     reset: resetUnfollow,

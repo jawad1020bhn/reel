@@ -1,7 +1,9 @@
 # Deploying XReels (Vercel & friends)
 
 XReels is a **static site**: no build step, no server, no framework. Deploy the
-folder as-is and it runs.
+folder as-is and it runs. **Permanent deletion is the optional exception:** it
+needs the server function and write access described in section 7. Browsing,
+importing and hiding still work without a server.
 
 ---
 
@@ -59,8 +61,9 @@ local, double-clicked copy wants.
 
 **From the dashboard:** import the repository → *Framework Preset: Other* →
 *Build Command: (leave empty)* → *Output Directory: (leave empty / `.`)*.
-`vercel.json` in the repo only adds security headers, it does not change the
-build.
+`vercel.json` adds security headers and configures the optional library function;
+it does not add a frontend build step. Vercel automatically deploys `api/library.js`
+as a Node.js function.
 
 **From the CLI:**
 
@@ -137,3 +140,103 @@ Chrome on Android will then offer *Install app* / *Add to Home screen*, opening
 standalone with the `#141414` theme colour and the red-X icon.
 
 The manifest is inert on `file://`; the app itself still runs there.
+
+
+---
+
+## 7. Permanent “Delete from library” (shared across browsers)
+
+**Hide from library** remains a reversible, per-browser preference. **Delete from
+library** is different: it removes the post's row from the repository's data file,
+and records its ID in `data/deleted-posts.js`. Both changes are published in **one
+atomic Git commit**. Concurrent edits are retried without force-pushing.
+
+A browser cannot rewrite static hosting files, and writing a file inside a Vercel
+function would be temporary. This implementation instead writes to a deliberately
+configured repository and branch via the GitHub API. **It is not enabled merely
+by deploying the frontend.** Until configured, the menu explains the requirement
+and does not pretend to delete or fall back to hiding.
+
+### One-time Vercel setup
+
+In the project's **Settings → Environment Variables**, configure these as
+**server-only secrets/settings** for the appropriate deployment environment:
+
+| Variable | Value |
+|---|---|
+| `LIBRARY_GITHUB_TOKEN` | A fine-grained server-side GitHub token restricted to the library repository, with **Contents: Read and write**. Never put it in frontend code, `site.config.js`, or chat. |
+| `LIBRARY_GITHUB_REPOSITORY` | Repository containing the live dataset, in `owner/repository` form. |
+| `LIBRARY_GITHUB_BRANCH` | Exact branch that owns the live dataset. Set explicitly; no implicit default. It must permit the function's commits. |
+| `LIBRARY_DELETE_PASSWORD` | A separate strong deletion password, **at least 16 characters**. You enter this in the app when confirming deletion; the server verifies it. It is not the browser PIN or the public site-password hash. |
+| `LIBRARY_DATA_PATH` | Optional; defaults to `data/posts.json`. Set `data/posts.js` if that is the actual source. Only these two paths are accepted. |
+
+Then **redeploy**. Use a supported Node.js runtime (Node 22 recommended). Keep
+`api/library.js` and `server/library-store.cjs` in the deployment. Configure
+Vercel's Git integration to redeploy when the selected data branch changes, so
+static copies of the dataset and ledger also catch up. There is no automatic
+change to your repository settings, branch protections or hosting secrets.
+
+Scope production credentials to **Production**, not all previews. The function
+also refuses a preview configured to write to a branch other than that preview's
+`VERCEL_GIT_COMMIT_REF`. For a writable preview, use an isolated test repository/
+branch with synthetic data and matching preview-only settings. Do not test
+permanent deletion against your real dataset unless you intend to remove a post.
+If the branch requires pull requests or rejects direct commits, the operation
+fails safely; supply a suitable permitted data branch/workflow instead.
+
+### What happens when you delete
+
+1. Open a post's **More → Delete from library**.
+2. Read the warning and enter the deletion password. **Cancel** changes nothing.
+3. The server removes every matching top-level row from the configured data file,
+   updates its count, drops the now-stale export verification report, and adds
+   the ID to the shared deletion ledger. It never executes imported JavaScript.
+4. Only after the durable write succeeds does this browser remove the post from
+   the catalog and its cached libraries. An open Viewer closes; Watch returns to
+   Library so the removed post does not keep playing.
+5. On each subsequent load, library switch, or import, browsers read the current
+   shared ledger **before** using static data or caches. This stops a stale
+   deployment or reimported old export from making deleted IDs visible again,
+   even before the redeploy finishes. The API response is never cached. If a
+   configured API cannot be read, the app shows a data error rather than silently
+   displaying an older library. Already-open tabs should reload to see deletions
+   made elsewhere; there is no live push sync.
+
+The public status endpoint returns only `{ enabled, deletedIds }`, never the
+password, token, or full export. DELETE requires a JSON request and the deletion
+password, and rejects cross-origin browser requests. Use HTTPS, a strong password,
+and hosting firewall/rate limits for internet-facing deployments. The existing
+client-side site gate is **not** server authorization.
+
+### Limits and recovery
+
+- Only posts actually present in the **shared configured data file** can be
+  deleted this way. A post existing solely in a private browser import is not in
+  that file; the server reports that and does not falsely claim a shared delete.
+- Other static hosts and `file://` can read the ledger shipped with their copy,
+  but cannot perform shared deletion without hosting the same API. Old offline
+  copies cannot learn future deletions until updated. A download/export is not
+  silently substituted for a server write.
+- Keep `data/deleted-posts.js` when replacing exports or redeploying. It is the
+  shared safeguard against resurrection. Do not replace it with an older empty
+  file. A future export may contain a deleted row on disk, but the app filters
+  its ID again on import; the delete operation itself removes the row on disk.
+- This removes the current library record, **not** the original X post, your X
+  bookmark, remote media files, old Git commits, or previously published static
+  URLs. Git history is not secure erasure. There is no in-app Undo; an owner can
+  deliberately restore from history and edit the ledger outside the app.
+- A failed or uncertain network response never turns into a local hide. Reload
+  to reconcile the ledger, or retry: deleting an already-removed ID is safe.
+
+### Regression checks (synthetic data only)
+
+```bash
+npm ci
+npm run check
+npm run test:unit
+IMPECCABLE_BROWSER=/path/to/chrome npm run test:ui
+```
+
+Server tests simulate the Git API and atomic ref updates; importer tests cover
+cached/imported datasets and reimports. Browser tests use an isolated synthetic
+endpoint and independent browser contexts, and do not mutate your live data.

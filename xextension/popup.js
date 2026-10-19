@@ -91,6 +91,38 @@
     ...UF_REASONS,
   };
 
+  const US_STATUS = {
+    idle: "Idle — no bookmarks removed.", running: "Unsaving bookmarks…", paused: "Paused — progress is saved.",
+    completed: "Complete — two live checks returned an empty bookmark feed.",
+    stopped_by_user: "Stopped — Start resumes your saved queue.", stopped_by_error: "Stopped — progress is saved.",
+  };
+  const US_REASONS = {
+    ...UF_REASONS,
+    "open-bookmarks": "Open x.com/i/bookmarks (not a bookmark folder), then start.",
+    "engine-busy": "Another capture, unfollow or unsave engine is active. Stop it first.",
+    "running-elsewhere": "Another tab owns the active run. Pause or stop it from that tab.",
+    "already-running": "The unsave engine is already active.",
+    "stop-first": "Stop the unsave run before resetting its data.",
+    "verified-empty": "Two live checks returned an empty bookmark feed. Reload X to update its display.",
+    "account-unavailable": "Could not identify the signed-in account. Reload your bookmarks page and retry.",
+    "account-changed": "Account changed. Switch back to resume, or export the backup and reset this engine first.",
+    "session-expired": "This checkpoint is over 7 days old. Export the backup and reset before a new run.",
+    "calibration-needed": "X's DeleteBookmark operation is unavailable. Remove one bookmark manually on X, then resume.",
+    "timeline-unavailable": "Reload the bookmarks page so the engine can observe X's timeline request, then resume.",
+    "verification-needed": "X is returning stale or unrecognized entries. Wait, reload bookmarks, then resume. Completion was not claimed.",
+    "verifying-feed": "Checking the live bookmark feed…",
+    "schema-mismatch": "X changed the bookmark response. Nothing else will be removed until it can be read safely.",
+    "unconfirmed": "X did not confirm the removal. The target is saved; inspect X, then resume.",
+    "bridge-timeout": "The page bridge timed out. Reload bookmarks before resuming; the last outcome may be uncertain.",
+    "bridge-busy": "A request is still in flight. Wait for it to finish, then resume.",
+    "backup-missing": "A target's backup is missing. No removal was attempted; export existing data and investigate storage.",
+    "storage-error": "Could not save a backup/checkpoint. Free storage or reload, then resume. Captured data is untouched.",
+    "run-cap": "Checkpoint reached (2,500 attempts or 3 hours). Take a break, then resume.",
+  };
+  UF_REASONS["engine-busy"] = US_REASONS["engine-busy"];
+  UF_START_REASONS["engine-busy"] = US_REASONS["engine-busy"];
+  REASONS["engine-busy"] = US_REASONS["engine-busy"];
+
   const LOG_MAX = 50;
   const THEME_KEY = "bmPopupTheme";
   const UF_BACKUP_KEY = "xUnfollowBackup";
@@ -109,6 +141,15 @@
     popupBody:      $("#popupBody"),
     captureDot:     $("#captureDot"),
     unfollowDot:    $("#unfollowDot"),
+    unsaveDot: $("#unsaveDot"),
+    unsaveBackup: $("#unsaveBackup"),
+    usStartBtn: $("#usStartBtn"),
+    usStartLabel: $("#usStartLabel"),
+    usPauseBtn: $("#usPauseBtn"),
+    usStopBtn: $("#usStopBtn"),
+    usResetBtn: $("#usResetBtn"),
+    unsaveCard: $("#unsaveCard"),
+    unsaveStatus: $("#unsaveStatus"),
     statusCard:     $("#statusCard"),
     statusLabel:    $("#statusLabel"),
     statusDetail:   $("#statusDetail"),
@@ -150,6 +191,7 @@
     unfollowStatus: $("#unfollowStatus"),
   };
 
+  const usStats = { queued: $("#usQueued"), done: $("#usDone"), failed: $("#usFailed"), rate: $("#usRate") };
   const ufStats = {
     queued: $("#ufQueued"),
     done:   $("#ufDone"),
@@ -175,6 +217,7 @@
   /* Unfollow engine mirror + backup size (for the Backup button gate). */
   let ufState = null;
   let ufBackupCount = 0;
+  let usState = null, usBackupCount = 0;
   /* The dashboard is a media browser, so "how many posts" is no longer the
      number that tells you whether the capture is working. A run that found
      400 posts and zero photos means the media pipeline broke, and the old
@@ -531,22 +574,80 @@
     el.unfollowBackup.disabled = ufBackupCount <= 0;
   }
 
+  function renderUnsave() {
+    const s = usState || {};
+    const status = US_STATUS[s.status] ? s.status : "idle";
+    const st = s.stats || {};
+    const running = status === "running";
+    const navigating = status === "navigating";
+    const paused = status === "paused";
+    const resumable = paused || status === "stopped_by_user" || status === "stopped_by_error";
+    const backingOff = !!(s.lastStopReason && s.lastStopReason.startsWith("backoff-"));
+
+    let text = US_STATUS[status] || US_STATUS.idle;
+    if (running && backingOff) {
+      const match = s.lastStopReason.match(/backoff-(\d+)\s+\(attempt\s+(\d+)\/(\d+),\s+(\d+)s\)/);
+      text = match
+        ? `Rate limited (HTTP ${match[1]}) — retry ${match[2]}/${match[3]} in ${match[4]}s`
+        : s.lastStopReason;
+    } else if (running) {
+      const doneCount = (Number(st.unsaved) || 0) + (Number(st.already) || 0);
+      const parts = [];
+      if (s.lastStopReason && s.lastStopReason.startsWith("wave-break")) parts.push("reading pause");
+      if (st.pending) parts.push(`${Number(st.pending).toLocaleString()} queued`);
+      if (doneCount) parts.push(`${doneCount.toLocaleString()} done`);
+      if (st.perMin) parts.push(`${Number(st.perMin)}/min`);
+      if (st.rateLimits) parts.push(`${Number(st.rateLimits)} limit wait(s)`);
+      text = s.lastStopReason === "verifying-feed" ? US_REASONS["verifying-feed"] : parts.join(" · ") || "Unsaving — warming up…";
+    } else if (s.lastStopReason && US_REASONS[s.lastStopReason]) {
+      text = US_REASONS[s.lastStopReason];
+    } else if (s.lastStopReason && status !== "idle") {
+      text = "Stopped: " + s.lastStopReason;
+    }
+    const tone = running && backingOff ? "rate-limited" : status;
+    el.unsaveStatus.textContent = text;
+    el.unsaveStatus.dataset.status = tone;
+    if (el.unsaveCard) el.unsaveCard.dataset.status = tone;
+    setTabSignal(el.unsaveDot, running || navigating ? "running" : paused ? "paused" : "");
+
+    const done = (Number(st.unsaved) || 0) + (Number(st.already) || 0);
+    setUfStat(usStats.queued, st.pending || 0);
+    setUfStat(usStats.done, done);
+    setUfStat(usStats.failed, st.failed || 0);
+    setUfStat(usStats.rate, st.perMin || 0);
+
+    const busy = running || navigating;
+    el.usStartBtn.disabled = busy;
+    el.usStartBtn.setAttribute("aria-busy", String(busy));
+    el.usStartLabel.textContent = navigating ? "Opening…"
+      : busy ? "Unsaving…"
+        : resumable ? "Resume unsaving"
+          : "Unsave all bookmarks";
+    el.usPauseBtn.disabled = !running;
+    el.usStopBtn.disabled = !busy;
+    el.unsaveBackup.disabled = usBackupCount <= 0;
+  }
+
   /* ---------------------------------------------------------------------------
      6 · Storage + messaging
      --------------------------------------------------------------------------- */
 
   async function loadState() {
     try {
-      const [data, summary, ufData, backupData] = await Promise.all([
+      const [data, summary, ufData, backupData, usData, usBackup] = await Promise.all([
         chrome.storage.local.get({ xCaptureState: null }),
         XBookmarkStore.summary(),
         chrome.storage.local.get({ xUnfollowState: null }),
         chrome.storage.local.get({ [UF_BACKUP_KEY]: null }),
+        chrome.storage.local.get({ xUnsaveState: null }),
+        chrome.storage.local.get({ xUnsaveBackup: null }),
       ]);
       currentState = data.xCaptureState || null;
       captureCount = summary.count;
       mediaCount = summary.mediaItems;
       videoCount = summary.videos;
+      usState = usData.xUnsaveState || null;
+      usBackupCount = usBackup.xUnsaveBackup?.ids?.length || 0;
       ufState = ufData.xUnfollowState || null;
       ufBackupCount = Array.isArray(backupData[UF_BACKUP_KEY]?.entries)
         ? backupData[UF_BACKUP_KEY].entries.length : 0;
@@ -562,6 +663,7 @@
     renderState();
     renderExportHint();
     renderUnfollow();
+    renderUnsave();
   }
 
   async function activeTab() {
@@ -579,12 +681,12 @@
 
   /* ---------------------------------------------------------------------------
      6b · Tab navigation
-     Three panels, one visible. Implemented as a real tablist (roving tabindex,
-     arrow/Home/End keys) rather than three show/hide buttons, so the structure
+     Four panels, one visible. Implemented as a real tablist (roving tabindex,
+     arrow/Home/End keys) rather than four show/hide buttons, so the structure
      survives a screen reader and the keyboard.
      --------------------------------------------------------------------------- */
 
-  const TAB_IDS = ["capture", "unfollow", "export"];
+  const TAB_IDS = ["capture", "unfollow", "unsave", "export"];
   let activeView = "capture";
   let tabContext = null;
 
@@ -616,7 +718,10 @@
         ? captureCount.toLocaleString() + (captureCount === 1 ? " post" : " posts") + " in your local library"
         : "Local library — nothing captured yet";
     } else if (tabContext) {
-      if (activeView === "unfollow") {
+      if (activeView === "unsave") {
+        text = tabContext.onBookmarks ? "Unsave from your X bookmarks" : "Open x.com/i/bookmarks to unsave";
+        warn = !tabContext.onBookmarks;
+      } else if (activeView === "unfollow") {
         if (tabContext.onFollowing) text = "Ready — Following list";
         else if (tabContext.onX) text = "Starts from this x.com page";
         else { text = "Open x.com to unfollow"; warn = true; }
@@ -705,7 +810,7 @@
     const tab = await activeTab();
     if (!tab || !isXUrl(tab.url)) {
       snackbar.show("Open x.com in the active tab first.", { error: true });
-      log("No x.com tab active for unfollow.", "warn");
+      log("No x.com tab active for this engine.", "warn");
       return null;
     }
     try {
@@ -873,6 +978,55 @@
         log("Unfollow data reset.", "warn");
       },
     });
+  });
+
+  // The new destructive operation shares the existing dialog, tabs, live
+  // mirrors and messaging. Cancellation never sends an engine Start.
+  el.usStartBtn.addEventListener("click", () => confirmDialog({
+    title: "Unsave all bookmarks on X?",
+    body: "This removes saved posts from the signed-in X account on every device. It does not delete the posts or your captured local library. Every target is backed up before removal, but there is no automatic undo. Keep the bookmarks tab open. The run uses paced requests and may pause for rate limits or a safety checkpoint.",
+    confirmLabel: "Unsave all bookmarks", destructive: true,
+    onConfirm: async () => {
+      el.usStartBtn.disabled = true; el.usStartBtn.setAttribute("aria-busy", "true");
+      const result = await sendUnfollow("unsave-start");
+      if (result?.ok) log(result.resumed ? "Unsave run resumed." : "Unsave run started — backup before each removal.");
+      else if (result) { snackbar.show(US_REASONS[result.reason] || result.reason, { error: true }); log("Unsave start: " + result.reason, "warn"); }
+      await loadState();
+    },
+  }));
+  for (const [button, command, message] of [[el.usPauseBtn, "unsave-pause", "Unsave paused — progress saved."], [el.usStopBtn, "unsave-stop", "Unsave stopped — progress saved."]]) {
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      const result = await sendUnfollow(command);
+      if (result?.ok) log(message);
+      else if (result) snackbar.show(US_REASONS[result.reason] || result.reason, { error: true });
+      await loadState();
+    });
+  }
+  el.usResetBtn.addEventListener("click", () => confirmDialog({
+    title: "Reset unsave data?", confirmLabel: "Reset unsave data", destructive: true,
+    body: "Deletes this engine's queue, counters and backup. It does not restore removed bookmarks, clear captured posts, or change Unfollow data. Download the backup first if you need it. Stop any active engine before resetting.",
+    onConfirm: async () => {
+      const result = await sendUnfollow("unsave-reset");
+      if (result?.ok) log("Unsave data reset.", "warn");
+      else if (result) snackbar.show(US_REASONS[result.reason] || result.reason, { error: true });
+      await loadState();
+    },
+  }));
+  el.unsaveBackup.addEventListener("click", async () => {
+    try {
+      const { xUnsaveBackup: meta } = await chrome.storage.local.get("xUnsaveBackup");
+      if (!meta?.ids?.length) { snackbar.show("No unsave backup yet."); return; }
+      const keys = meta.ids.map((id) => `xUnsavePost.${meta.accountId}.${id}`);
+      const records = await chrome.storage.local.get(keys);
+      const entries = keys.map((key) => records[key]);
+      if (entries.some((entry) => !entry)) throw new Error("Backup records are missing; refusing a partial export.");
+      const data = { export_version: 1, source: "x-bookmarks-unsave-backup", account_id: meta.accountId, exported_at: new Date().toISOString(), count: entries.length, bookmarks: entries };
+      const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
+      try { await chrome.downloads.download({ url, filename: "x-unsave-backup.json", saveAs: true }); }
+      finally { setTimeout(() => URL.revokeObjectURL(url), 60000); }
+      log("Downloaded x-unsave-backup.json.");
+    } catch (error) { snackbar.show(error.message || "Could not export the unsave backup.", { error: true }); }
   });
 
   /* ---------------------------------------------------------------------------
@@ -1310,6 +1464,7 @@
         if (currentState?.status === "capturing" && !currentState.audit) el.auditResult.hidden = true;
         renderState();
       }
+      if (msg && msg.type === "unsave-state") { usState = msg.state; renderUnsave(); }
       if (msg && msg.type === "unfollow-state") {
         ufState = msg.state;
         renderUnfollow();
@@ -1323,6 +1478,8 @@
         if (currentState?.status === "capturing" && !currentState.audit) el.auditResult.hidden = true;
         renderState();
       }
+      if (changes.xUnsaveState) { usState = changes.xUnsaveState.newValue || null; renderUnsave(); }
+      if (changes.xUnsaveBackup) { usBackupCount = changes.xUnsaveBackup.newValue?.ids?.length || 0; renderUnsave(); }
       if (changes.xUnfollowState) {
         ufState = changes.xUnfollowState.newValue || null;
         renderUnfollow();
@@ -1361,7 +1518,7 @@
     const manifestVersion = chrome.runtime.getManifest().version;
     el.versionBadge.textContent = `v${manifestVersion} · M3E`;
   } catch {
-    el.versionBadge.textContent = "v1.3.0 · M3E";
+    el.versionBadge.textContent = "v1.4.0 · M3E";
   }
 
   async function init() {
@@ -1374,7 +1531,8 @@
        the X page the user is actually looking at. */
     const captureLive = currentState?.status === "capturing" || currentState?.status === "paused";
     const unfollowLive = ["running", "navigating", "paused"].includes(ufState?.status);
-    if (unfollowLive && !captureLive) selectTab("unfollow");
+    if (["running", "paused", "stopped_by_error"].includes(usState?.status) && !captureLive && !unfollowLive) selectTab("unsave");
+    else if (unfollowLive && !captureLive) selectTab("unfollow");
     else if (!captureLive && tabContext?.onFollowing && !tabContext?.onBookmarks) selectTab("unfollow");
     else selectTab("capture");
 

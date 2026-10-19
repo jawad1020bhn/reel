@@ -391,6 +391,7 @@ function launchCaptureLoop(run) {
     .finally(() => {
       clearInterval(persistTimer);
       run.loopPromise = null;
+      captureLease?.(); captureLease = null;
     });
   return run.loopPromise;
 }
@@ -1221,6 +1222,21 @@ async function runCaptureLoop(run) {
   }
 }
 
+let captureLease = null, captureStarting = false;
+async function startCaptureWithLock() {
+  if (captureStarting || (capture && !capture.pause && !capture.stop)) return { ok: false, reason: "already-running" };
+  captureStarting = true;
+  let lease;
+  try {
+    lease = await XEngineLock.acquire();
+    if (!lease) return { ok: false, reason: "engine-busy" };
+    captureLease = lease;
+    const result = await startCapture();
+    if (!result.ok) { lease(); captureLease = null; }
+    return result;
+  } catch (error) { lease?.(); captureLease = null; throw error; }
+  finally { captureStarting = false; }
+}
 async function startCapture() {
   /* The unfollow engine owns the Following route; two engines scrolling and
      issuing requests from one profile would fight each other's pacing. */
@@ -1408,7 +1424,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return true;
   };
   switch (msg?.type) {
-    case "start": return reply(startCapture());
+    case "start": return reply(startCaptureWithLock());
     case "pause": return reply(pauseCapture());
     case "stop": return reply(stopCapture());
     case "panic": return reply(panicCapture());

@@ -1,8 +1,8 @@
 /* features.library — the full archive as a filterable, windowed masonry grid.
    State lives in the URL (#/library?kind=short&state=unseen&q=…) so views are
    shareable between sessions and the back button just works. */
-XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry", "ui.tiles", "ui.menu", "ui.dialog", "ui.keys", "app.catalog", "app.activity", "app.actions", "app.prefs", "app.nav", "app.ports.platform", "core.query.engine", "core.events", "core.domain.events", "core.util"],
-  function (dom, icons, W, masonryUI, tiles, menu, dialog, keys, catalog, activity, actions, prefs, nav, platform, engine, events, EV, util) {
+XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry", "ui.tiles", "ui.menu", "ui.dialog", "ui.keys", "ui.pullToShuffle", "app.catalog", "app.activity", "app.actions", "app.prefs", "app.nav", "app.ports.platform", "core.query.engine", "core.events", "core.domain.events", "core.util"],
+  function (dom, icons, W, masonryUI, tiles, menu, dialog, keys, pullToShuffle, catalog, activity, actions, prefs, nav, platform, engine, events, EV, util) {
     "use strict";
     const h = dom.h;
     const S = { host: null, spec: engine.normalizeSpec({}), result: { items: [], total: 0 }, grid: null, els: {}, offs: [], queryTimer: 0, empty: null, sel: { on: false, set: new Set(), last: -1 } };
@@ -60,6 +60,7 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
       });
       runQuery();
       S.offs = [
+        pullToShuffle.attach(outlet, () => { platform.vibrate?.(10); shuffle(); actions.toast("Library reshuffled"); }),
         events.bus.on(EV.ACTIVITY_CHANGED, onActivity),
         events.bus.on(EV.DATASET_CHANGED, () => runQuery()),
         events.bus.on(EV.PREFS_CHANGED, ({ patch }) => { if (["tileShape", "tileInfo", "blur", "seenDim", "density", "hoverPreview"].some((k) => k in patch)) { S.grid.setItems([]); S.grid = recreateGrid(); runQuery(false); } if ("shortMaxSeconds" in patch || "hideSensitive" in patch) runQuery(false); }),
