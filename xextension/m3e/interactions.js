@@ -198,7 +198,7 @@
 
   function escapeHtml(value) {
     return String(value == null ? "" : value).replace(/[&<>"']/g, (c) =>
-      ({ "&": "&", "<": "<", ">": ">", '"': "\"", "'": "'" }[c])
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])
     );
   }
 

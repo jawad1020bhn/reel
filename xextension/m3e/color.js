@@ -89,11 +89,15 @@
      --------------------------------------------------------------------------- */
   function tonalPalette(hue, chroma) {
     const palette = new Array(101);
+    /* Tones ARE L*: 0 is black, 100 is white, and the role table below picks
+       the tone that matches the theme (40 for light primaries, 80 for dark).
+       Chroma peaks in the mid-tones and falls to zero at both ends, so a
+       palette never produces a neon white or a fully saturated black. */
+    const maxChroma = Math.min(chroma, 48);
     for (let tone = 0; tone <= 100; tone++) {
-      const l = tone <= 52 ? 100 - tone * 1.8 : 47 - (tone - 52) * 0.9;
-      const c = chroma * (tone / 100);
-      const [l2, c2, h] = [l, c, hue];
-      const [l3, a, b_lch] = lchToLab(l2, c2, h);
+      const l = tone;
+      const c = maxChroma * Math.sin((Math.PI * tone) / 100);
+      const [l3, a, b_lch] = lchToLab(l, c, hue);
       const [x, y, z] = labToXyz(l3, a, b_lch);
       const [r, g, b_rgb] = xyzToRgb(x, y, z);
       palette[tone] = rgbToHex(r, g, b_rgb);
@@ -115,11 +119,15 @@
      --------------------------------------------------------------------------- */
   function scheme(seedHex, { dark, variant, contrast } = {}) {
     const { hue, chroma } = seedToHueChroma(seedHex);
-    const primaryPalette = tonalPalette(hue, chroma);
-    const secondaryPalette = tonalPalette(hue, chroma * 0.5);
-    const tertiaryPalette = tonalPalette((hue + 60) % 360, chroma * 0.5);
-    const neutralPalette = tonalPalette(hue, chroma * 0.12);
-    const neutralVariantPalette = tonalPalette(hue, chroma * 0.16);
+    /* A vivid seed can carry ~100 chroma; scale every palette by the same
+       factor so the primary lands at the M3 ceiling without flattening the
+       secondary/tertiary relationship to it. */
+    const chromaScale = Math.min(1, 48 / Math.max(chroma, 1));
+    const primaryPalette = tonalPalette(hue, chroma * chromaScale);
+    const secondaryPalette = tonalPalette(hue, chroma * 0.5 * chromaScale);
+    const tertiaryPalette = tonalPalette((hue + 60) % 360, chroma * 0.5 * chromaScale);
+    const neutralPalette = tonalPalette(hue, chroma * 0.12 * chromaScale);
+    const neutralVariantPalette = tonalPalette(hue, chroma * 0.16 * chromaScale);
     const errorPalette = tonalPalette(25, 84);
 
     const isExpressive = variant === "expressive";
@@ -142,9 +150,12 @@
     roles.onError = dark ? errorPalette[20] : errorPalette[100];
     roles.errorContainer = dark ? errorPalette[30] : errorPalette[90];
     roles.onErrorContainer = dark ? errorPalette[90] : errorPalette[10];
-    roles.background = dark ? neutralPalette[10] : neutralPalette[99];
+    /* Dark surfaces start at tone 6, not 10: the container ladder below needs
+       headroom, and a surface sitting on the same tone as surfaceContainerLow
+       erases every card and tile drawn on it. */
+    roles.background = dark ? neutralPalette[6] : neutralPalette[99];
     roles.onBackground = dark ? neutralPalette[90] : neutralPalette[10];
-    roles.surface = dark ? neutralPalette[10] : neutralPalette[99];
+    roles.surface = dark ? neutralPalette[6] : neutralPalette[99];
     roles.onSurface = dark ? neutralPalette[90] : neutralPalette[10];
     roles.surfaceVariant = dark ? neutralVariantPalette[30] : neutralVariantPalette[90];
     roles.onSurfaceVariant = dark ? neutralVariantPalette[80] : neutralVariantPalette[30];
@@ -167,9 +178,9 @@
     roles.onTertiaryFixed = tertiaryPalette[10];
     roles.tertiaryFixedDim = tertiaryPalette[80];
     roles.onTertiaryFixedVariant = tertiaryPalette[30];
-    roles.surfaceDim = dark ? neutralPalette[10] : neutralPalette[87];
-    roles.surfaceBright = dark ? neutralPalette[90] : neutralPalette[98];
-    roles.surfaceContainerLowest = dark ? neutralPalette[10] : neutralPalette[100];
+    roles.surfaceDim = dark ? neutralPalette[6] : neutralPalette[87];
+    roles.surfaceBright = dark ? neutralPalette[24] : neutralPalette[98];
+    roles.surfaceContainerLowest = dark ? neutralPalette[4] : neutralPalette[100];
     roles.surfaceContainerLow = dark ? neutralPalette[10] : neutralPalette[96];
     roles.surfaceContainer = dark ? neutralPalette[12] : neutralPalette[94];
     roles.surfaceContainerHigh = dark ? neutralPalette[17] : neutralPalette[92];
@@ -179,4 +190,4 @@
   }
 
   return { scheme, DEFAULT_SEED, DEFAULT_VARIANT, parseHex, tonalPalette, seedToHueChroma };
-})();
+});

@@ -10,6 +10,15 @@ A local Chrome/Chromium MV3 extension that captures the signed-in account's **Bo
 4. Open the extension popup and select **Start capture**. Keep the tab open while the adaptive sweep runs. Pause/stop are safe; completed chunks are persisted as it goes.
 5. Select **XReels JSON** to download a full `{ export_version, bookmarks: [...] }` export. In XReels, choose **Import → Upload JSON**. The export contains text-only bookmarks too; enable **Settings → Keep text-only posts** in XReels if they should appear in the media library.
 
+## Popup layout
+
+The popup is a fixed 384 × 600 frame with three tabs — **Capture**, **Unfollow**, **Export** — under a header that always states what the current tab can do. Only the middle region scrolls; the activity log and footer stay put.
+
+- The tab you land on follows the page you opened the popup from (a Following page opens Unfollow, a bookmarks page opens Capture), or a run that is already live.
+- A pulsing dot on a tab shows a run continuing while you are looking at another tab; a square dot means it is paused.
+- The collapsed activity summary carries the latest log line, so a run never looks silent.
+- Long explanations live behind disclosures instead of pushing actions below the fold.
+
 The extension observes the authenticated page's bookmark-timeline responses; it does not ask for an X password, call an external service, or upload the archive. `unlimitedStorage` is used so large local bookmark libraries do not stop at Chromium's small default extension-storage quota.
 
 ## Capture and verification
@@ -35,6 +44,10 @@ Popup → **Unfollow everyone** → confirm. From any x.com tab the engine opens
 - **Sessions and safety valves**: queue + done-set + counters persist every 30 s, so closing the tab loses nothing and an orphaned run auto-resumes only when its owner is gone (per-tab `sessionStorage` heartbeat prevents double-runs). Each Start gets a 3-hour/2,500-attempt budget and then pauses with a *resumable* checkpoint — thousands of back-to-back unfollows in one sitting is exactly what looks inhuman.
 - **Backup**: every targeted account is appended to a local JSON backup (`xUnfollowBackup`) with discovery timestamp and outcome. The popup's **Backup** button exports it for review or re-following. **Reset unfollow data** clears engine records only.
 - Capture and unfollow refuse to run at the same time — one engine per profile.
+
+## Design system
+
+`m3e/` is a mirrored copy of the dashboard design system (the sync tool is not part of this repo). If you refresh the mirror, re-run the smoke tests — the copy has previously arrived with a broken UMD wrapper in `color.js`, HTML-entity damage in `interactions.js`, and a `tokens.css` block accidentally nested inside `:root`, all of which silently disable parts of the popup.
 
 ## Tests
 

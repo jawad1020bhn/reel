@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Capture · X Bookmarks</title>
+<title>X Bookmarks</title>
 <link rel="stylesheet" href="m3e/fonts.css" />
 <link rel="stylesheet" href="m3e/tokens.css" />
 <link rel="stylesheet" href="m3e/components.css" />
@@ -14,312 +14,340 @@
 <div class="popup">
 
   <!-- =======================================================================
-       Header — identity and the single most important fact: are we running?
+       Header — identity and the one fact that changes what this popup can do.
        ======================================================================= -->
   <header class="popup__head">
-    <span class="popup__mark m3e-state" aria-hidden="true">
+    <span class="popup__mark" aria-hidden="true">
       <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
         <path d="M6 2h12a2 2 0 0 1 2 2v17.2a.8.8 0 0 1-1.2.7L12 18l-6.8 3.9A.8.8 0 0 1 4 21.2V4a2 2 0 0 1 2-2Z"/>
       </svg>
     </span>
     <div class="popup__head-text">
-      <h1 class="m3e-title-medium m3e-title-medium--emphasized">Capture</h1>
+      <h1 class="m3e-title-medium m3e-title-medium--emphasized">X Bookmarks</h1>
       <p class="m3e-body-small popup__subtitle" id="tabHint">Checking this tab…</p>
     </div>
-    <button class="m3e-icon-button m3e-icon-button--s m3e-state" id="themeToggle" aria-label="Switch color scheme" title="Switch color scheme (current: system)">
+    <button type="button" class="m3e-icon-button m3e-icon-button--s m3e-state" id="themeToggle" aria-label="Switch color scheme" title="Switch color scheme">
       <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="5" />
-        <line x1="12" y1="1" x2="12" y2="3" />
-        <line x1="12" y1="21" x2="12" y2="23" />
-        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-        <line x1="1" y1="12" x2="3" y2="12" />
-        <line x1="21" y1="12" x2="23" y2="12" />
-        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 3a9 9 0 0 0 0 18Z" fill="currentColor" stroke="none" />
       </svg>
     </button>
   </header>
 
   <!-- =======================================================================
-       Status card — the hero of this surface.
-       Status is carried by THREE redundant channels: a coloured container,
-       an icon, and a word. Never colour alone.
+       Tabs — three jobs, one at a time. The capture/status surface stays the
+       default; a small signal on a tab keeps a run visible from the others.
        ======================================================================= -->
-  <section class="status m3e-state" id="statusCard" data-status="idle" aria-labelledby="statusLabel">
-    <div class="status__row">
-      <span class="status__dot" id="statusDot" aria-hidden="true"></span>
-      <div class="status__text">
-        <p class="m3e-title-medium m3e-title-medium--emphasized status__label" id="statusLabel">Idle</p>
-        <p class="m3e-body-small status__detail" id="statusDetail">No capture run yet.</p>
-      </div>
-    </div>
-
-    <!-- Wavy progress: the M3 Expressive indicator for indeterminate,
-         long-running work. Hidden entirely when not capturing. -->
-    <div class="status__progress" id="progressHost" hidden>
-      <div class="m3e-progress m3e-progress--wavy" role="progressbar"
-        aria-label="Capture in progress" aria-valuetext="Capturing">
-        <svg class="m3e-progress__wave" aria-hidden="true">
-          <defs>
-            <pattern id="m3e-wave" width="32" height="10" patternUnits="userSpaceOnUse">
-              <path d="M-32 5 Q-24 1 -16 5 T0 5 T16 5 T32 5 T48 5 T64 5"
-                fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
-            </pattern>
-          </defs>
-          <rect class="m3e-progress__wave-fill"
-            x="-32" y="0" width="calc(100% + 64px)" height="10" fill="url(#m3e-wave)" />
-        </svg>
-      </div>
-    </div>
-  </section>
-
-  <!-- =======================================================================
-       Live counters
-
-       "Media" replaces the old duplicate count. The dashboard this feeds is a
-       media browser, so the number that tells you the run is working is how
-       many photos and videos came back — a capture that finds 400 posts and
-       zero media has failed in a way a post count cannot show. Duplicates are
-       scraper diagnostics and moved to the activity log.
-       ======================================================================= -->
-  <dl class="stats" id="stats">
-    <div class="stat stat--captured m3e-state">
-      <dt class="m3e-label-small">Posts</dt>
-      <dd class="m3e-headline-small m3e-headline-small--emphasized m3e-tabular" id="statCaptured">0</dd>
-    </div>
-    <div class="stat stat--new m3e-state">
-      <dt class="m3e-label-small">New</dt>
-      <dd class="m3e-headline-small m3e-headline-small--emphasized m3e-tabular" id="statNew">0</dd>
-    </div>
-    <div class="stat stat--media m3e-state">
-      <dt class="m3e-label-small">Media</dt>
-      <dd class="m3e-headline-small m3e-headline-small--emphasized m3e-tabular" id="statMedia">0</dd>
-    </div>
-    <div class="stat stat--failed m3e-state">
-      <dt class="m3e-label-small">Failed</dt>
-      <dd class="m3e-headline-small m3e-headline-small--emphasized m3e-tabular" id="statFailed">0</dd>
-    </div>
-  </dl>
-  <p class="m3e-body-small stats__hint" id="mediaHint">No photos or video yet</p>
-
-  <!-- =======================================================================
-       Transport controls
-       One filled primary action. Everything else is subordinate — the M3 rule
-       of a single filled button per view, applied literally.
-       ======================================================================= -->
-  <div class="controls">
-    <button class="m3e-button m3e-button--filled m3e-button--m m3e-button--block m3e-state" id="primaryBtn">
-      <span id="primaryIcon" class="m3e-button__icon">
-        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-      </span>
-      <span id="primaryLabel">Start capture</span>
-      <span class="m3e-button__loader" aria-hidden="true"></span>
+  <div class="tabs" role="tablist" aria-label="Extension sections">
+    <button type="button" class="tab m3e-state" id="tabCapture" role="tab"
+      aria-selected="true" aria-controls="panelCapture" tabindex="0"
+      data-tab="capture" data-label="Capture">
+      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6 3h12a1 1 0 0 1 1 1v16.5a.5.5 0 0 1-.8.4L12 17l-6.2 3.9a.5.5 0 0 1-.8-.4V4a1 1 0 0 1 1-1Z"/>
+      </svg>
+      <span>Capture</span>
+      <span class="tab__dot" id="captureDot" data-state="" hidden aria-hidden="true"></span>
     </button>
 
-    <div class="m3e-button-group controls__group" role="group" aria-label="Capture controls">
-      <button class="m3e-button m3e-button--tonal m3e-state" id="pauseBtn" disabled>
-        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="6" y="4" width="4" height="16" />
-          <rect x="14" y="4" width="4" height="16" />
-        </svg>
-        <span>Pause</span>
-      </button>
-      <button class="m3e-button m3e-button--tonal m3e-state" id="stopBtn" disabled>
-        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="3" width="18" height="18" rx="2" />
-        </svg>
-        <span>Stop</span>
-      </button>
-    </div>
+    <button type="button" class="tab m3e-state" id="tabUnfollow" role="tab"
+      aria-selected="false" aria-controls="panelUnfollow" tabindex="-1"
+      data-tab="unfollow" data-label="Unfollow">
+      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="9" cy="8" r="4"/>
+        <path d="M2.5 21a6.5 6.5 0 0 1 11.1-4.6"/>
+        <line x1="15.5" y1="19" x2="21.5" y2="19"/>
+      </svg>
+      <span>Unfollow</span>
+      <span class="tab__dot" id="unfollowDot" data-state="" hidden aria-hidden="true"></span>
+    </button>
 
-    <!-- Panic is a destructive escape hatch: abort now, don't flush. It gets
-         the error role and the lowest emphasis so it can never be hit by
-         accident, but it is always one click away while a run is live. -->
-    <button class="m3e-button m3e-button--text m3e-button--xs m3e-state controls__panic"
-      id="panicBtn" disabled>Panic stop — abort without saving</button>
+    <button type="button" class="tab m3e-state" id="tabExport" role="tab"
+      aria-selected="false" aria-controls="panelExport" tabindex="-1"
+      data-tab="export" data-label="Export">
+      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3v12"/>
+        <polyline points="7 10 12 15 17 10"/>
+        <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>
+      </svg>
+      <span>Export</span>
+    </button>
   </div>
 
-  <!-- =======================================================================
-       Unfollow engine — mass-unfollow of the Following list, paced like a
-       person. Discovery rides X's own timeline responses; execution is
-       single-flight through the page bridge with a closed-loop rate governor.
-       ======================================================================= -->
-  <section class="unfollow" aria-labelledby="unfollowLabel">
-    <div class="unfollow__heading">
-      <div class="unfollow__heading-text">
-        <h2 class="m3e-label-medium section-label" id="unfollowLabel">Unfollow everyone</h2>
-        <p class="m3e-body-small unfollow__intro">Sweeps your Following list from X's own responses and unfollows one account at a time — warm-up ramp, jittered gaps, wave breaks, ~26/min ceiling, automatic backoff. Every account goes into a local JSON backup.</p>
-      </div>
-      <button class="m3e-button m3e-button--outlined m3e-button--xs m3e-state unfollow__backup" id="unfollowBackup" disabled title="Download a JSON backup of every account this engine has targeted">Backup</button>
-    </div>
+  <div class="popup__body" id="popupBody">
 
-    <dl class="stats unfollow__stats" id="unfollowStats">
-      <div class="stat stat--uf-queued m3e-state">
-        <dt class="m3e-label-small">Queued</dt>
-        <dd class="m3e-headline-small m3e-headline-small--emphasized m3e-tabular" id="ufQueued">0</dd>
-      </div>
-      <div class="stat stat--uf-done m3e-state">
-        <dt class="m3e-label-small">Done</dt>
-        <dd class="m3e-headline-small m3e-headline-small--emphasized m3e-tabular" id="ufDone">0</dd>
-      </div>
-      <div class="stat stat--uf-failed m3e-state">
-        <dt class="m3e-label-small">Failed</dt>
-        <dd class="m3e-headline-small m3e-headline-small--emphasized m3e-tabular" id="ufFailed">0</dd>
-      </div>
-      <div class="stat stat--uf-rate m3e-state">
-        <dt class="m3e-label-small">Per min</dt>
-        <dd class="m3e-headline-small m3e-headline-small--emphasized m3e-tabular" id="ufRate">0</dd>
-      </div>
-    </dl>
+    <!-- =====================================================================
+         Capture
+         ===================================================================== -->
+    <section class="panel" id="panelCapture" data-panel="capture" role="tabpanel" aria-labelledby="tabCapture">
 
-    <p class="m3e-body-small unfollow__status" id="unfollowStatus" data-status="idle" aria-live="polite">Idle — no unfollow run yet.</p>
+      <!-- Status is carried by three redundant channels: a coloured
+           container, an icon shape, and a word. Never colour alone. -->
+      <section class="status" id="statusCard" data-status="idle" aria-labelledby="statusLabel">
+        <div class="status__row">
+          <span class="status__dot" id="statusDot" aria-hidden="true"></span>
+          <div class="status__text">
+            <p class="m3e-title-medium m3e-title-medium--emphasized status__label" id="statusLabel">Idle</p>
+            <p class="m3e-body-small status__detail" id="statusDetail">No capture run yet.</p>
+          </div>
+        </div>
 
-    <div class="controls unfollow__controls">
-      <button class="m3e-button m3e-button--tonal m3e-button--block m3e-state" id="ufStartBtn">
-        <span id="ufStartLabel">Start unfollow</span>
-        <span class="m3e-button__loader" aria-hidden="true"></span>
-      </button>
-      <div class="m3e-button-group controls__group" role="group" aria-label="Unfollow controls">
-        <button class="m3e-button m3e-button--tonal m3e-state" id="ufPauseBtn" disabled>
-          <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="6" y="4" width="4" height="16" />
-            <rect x="14" y="4" width="4" height="16" />
-          </svg>
-          <span>Pause</span>
-        </button>
-        <button class="m3e-button m3e-button--tonal m3e-state" id="ufStopBtn" disabled>
-          <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="3" width="18" height="18" rx="2" />
-          </svg>
-          <span>Stop</span>
-        </button>
-      </div>
-      <button class="m3e-button m3e-button--text m3e-button--xs m3e-state controls__panic" id="ufResetBtn">Reset unfollow data</button>
-    </div>
-  </section>
-
-  <!-- =======================================================================
-       Export
-       ======================================================================= -->
-  <section class="export" aria-labelledby="exportLabel">
-    <h2 class="m3e-label-medium section-label" id="exportLabel">Export</h2>
-    <div class="export__row">
-      <button class="m3e-button m3e-button--tonal m3e-state export__btn" id="exportJson" title="XReels-compatible JSON export of every captured post">
-        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-          <polyline points="14 2 14 8 20 8" />
-          <line x1="16" y1="13" x2="8" y2="13" />
-          <line x1="16" y1="17" x2="8" y2="17" />
-          <polyline points="10 9 9 9 8 9" />
-        </svg>
-        <span>XReels</span>
-      </button>
-      <button class="m3e-button m3e-button--outlined m3e-state export__btn" id="exportJsonl" title="JSON Lines (streaming)">
-        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-          <polyline points="14 2 14 8 20 8" />
-          <line x1="16" y1="13" x2="8" y2="13" />
-          <line x1="16" y1="17" x2="8" y2="17" />
-          <line x1="10" y1="9" x2="8" y2="9" />
-        </svg>
-        <span>JSONL</span>
-      </button>
-      <button class="m3e-button m3e-button--outlined m3e-state export__btn" id="exportCsv" title="CSV (Excel-friendly)">
-        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="3" width="18" height="18" rx="2" />
-          <line x1="9" y1="3" x2="9" y2="21" />
-          <line x1="15" y1="3" x2="15" y2="21" />
-          <line x1="3" y1="9" x2="21" y2="9" />
-          <line x1="3" y1="15" x2="21" y2="15" />
-        </svg>
-        <span>CSV</span>
-      </button>
-    </div>
-    <div class="export__row">
-      <div class="export__overflow">
-        <button class="m3e-button m3e-button--outlined m3e-state export__btn export__overflow-trigger" id="exportMore" aria-haspopup="true" aria-expanded="false" title="More export formats">
-          <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="1" />
-            <circle cx="12" cy="5" r="1" />
-            <circle cx="12" cy="19" r="1" />
-          </svg>
-          <span>More</span>
-        </button>
-        <div class="export__overflow-menu" id="exportOverflowMenu" role="menu" aria-label="Additional export formats">
-          <button class="m3e-button m3e-button--outlined m3e-state export__btn" id="exportMd" role="menuitem" title="Markdown (Obsidian/Notion)">
-            <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-              <line x1="8" y1="13" x2="16" y2="13" />
-              <line x1="8" y1="17" x2="16" y2="17" />
-              <line x1="12" y1="10" x2="12" y2="20" />
+        <!-- Wavy progress: the M3 Expressive indicator for indeterminate,
+             long-running work. Hidden entirely when not capturing. -->
+        <div class="status__progress" id="progressHost" hidden>
+          <div class="m3e-progress m3e-progress--wavy" role="progressbar"
+            aria-label="Capture in progress" aria-valuetext="Capturing">
+            <svg class="m3e-progress__wave" aria-hidden="true">
+              <defs>
+                <pattern id="m3e-wave" width="32" height="10" patternUnits="userSpaceOnUse">
+                  <path d="M-32 5 Q-24 1 -16 5 T0 5 T16 5 T32 5 T48 5 T64 5"
+                    fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
+                </pattern>
+              </defs>
+              <rect class="m3e-progress__wave-fill"
+                x="-32" y="0" width="calc(100% + 64px)" height="10" fill="url(#m3e-wave)" />
             </svg>
-            <span>MD</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- "Media" is what the run is FOR: a capture that finds posts but no
+           media failed in a way a post count cannot show. Duplicates are
+           scraper diagnostics and live in the activity log. -->
+      <dl class="stats" id="stats">
+        <div class="stat stat--captured m3e-state">
+          <dt class="m3e-label-small stat__label">Posts</dt>
+          <dd class="m3e-title-large m3e-title-large--emphasized m3e-tabular stat__value" id="statCaptured">0</dd>
+        </div>
+        <div class="stat stat--new m3e-state">
+          <dt class="m3e-label-small stat__label">New</dt>
+          <dd class="m3e-title-large m3e-title-large--emphasized m3e-tabular stat__value" id="statNew">0</dd>
+        </div>
+        <div class="stat stat--media m3e-state">
+          <dt class="m3e-label-small stat__label">Media</dt>
+          <dd class="m3e-title-large m3e-title-large--emphasized m3e-tabular stat__value" id="statMedia">0</dd>
+        </div>
+        <div class="stat stat--failed m3e-state">
+          <dt class="m3e-label-small stat__label">Failed</dt>
+          <dd class="m3e-title-large m3e-title-large--emphasized m3e-tabular stat__value" id="statFailed">0</dd>
+        </div>
+      </dl>
+      <p class="stats__hint" id="mediaHint">No photos or video yet</p>
+
+      <!-- One filled primary action. Everything else is subordinate — the M3
+           rule of a single filled button per view, applied literally. -->
+      <div class="controls">
+        <button type="button" class="m3e-button m3e-button--filled m3e-button--m m3e-button--block m3e-state" id="primaryBtn">
+          <span id="primaryIcon" class="m3e-button__icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+          </span>
+          <span id="primaryLabel">Start capture</span>
+        </button>
+
+        <div class="controls__row" role="group" aria-label="Capture controls">
+          <button type="button" class="m3e-button m3e-button--tonal m3e-button--s m3e-state" id="pauseBtn" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="6" y="4" width="4" height="16" />
+              <rect x="14" y="4" width="4" height="16" />
+            </svg>
+            <span>Pause</span>
           </button>
-          <button class="m3e-button m3e-button--outlined m3e-state export__btn" id="exportHtml" role="menuitem" title="HTML (offline gallery)">
+          <button type="button" class="m3e-button m3e-button--tonal m3e-button--s m3e-state" id="stopBtn" disabled>
             <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-              <line x1="8" y1="13" x2="16" y2="13" />
-              <line x1="12" y1="10" x2="12" y2="17" />
-              <line x1="8" y1="17" x2="16" y2="17" />
+              <rect x="3" y="3" width="18" height="18" rx="2" />
             </svg>
-            <span>HTML</span>
+            <span>Stop</span>
+          </button>
+        </div>
+
+        <!-- Panic is a destructive escape hatch: abort now, don't flush. It
+             keeps the error role and the lowest emphasis so it can never be
+             hit by accident, but stays one click away while a run is live. -->
+        <button type="button" class="m3e-button m3e-button--text m3e-button--xs m3e-state controls__panic"
+          id="panicBtn" disabled>Panic stop — abort without saving</button>
+      </div>
+    </section>
+
+    <!-- =====================================================================
+         Unfollow
+         ===================================================================== -->
+    <section class="panel" id="panelUnfollow" data-panel="unfollow" role="tabpanel" aria-labelledby="tabUnfollow" hidden>
+      <div class="panel__head">
+        <div>
+          <h2 class="m3e-title-small m3e-title-small--emphasized panel__title">Unfollow everyone</h2>
+          <p class="m3e-body-small panel__sub">One account at a time, at human pace. Every target is backed up locally.</p>
+        </div>
+      </div>
+
+      <dl class="stats" id="unfollowStats">
+        <div class="stat stat--uf-queued m3e-state">
+          <dt class="m3e-label-small stat__label">Queued</dt>
+          <dd class="m3e-title-large m3e-title-large--emphasized m3e-tabular stat__value" id="ufQueued">0</dd>
+        </div>
+        <div class="stat stat--uf-done m3e-state">
+          <dt class="m3e-label-small stat__label">Done</dt>
+          <dd class="m3e-title-large m3e-title-large--emphasized m3e-tabular stat__value" id="ufDone">0</dd>
+        </div>
+        <div class="stat stat--uf-failed m3e-state">
+          <dt class="m3e-label-small stat__label">Failed</dt>
+          <dd class="m3e-title-large m3e-title-large--emphasized m3e-tabular stat__value" id="ufFailed">0</dd>
+        </div>
+        <div class="stat stat--uf-rate m3e-state">
+          <dt class="m3e-label-small stat__label">Per min</dt>
+          <dd class="m3e-title-large m3e-title-large--emphasized m3e-tabular stat__value" id="ufRate">0</dd>
+        </div>
+      </dl>
+
+      <div class="status status--inline" id="unfollowCard" data-status="idle">
+        <span class="status__dot" aria-hidden="true"></span>
+        <p class="m3e-body-small unfollow__status" id="unfollowStatus" data-status="idle" aria-live="polite">Idle — no unfollow run yet.</p>
+      </div>
+
+      <div class="controls">
+        <button type="button" class="m3e-button m3e-button--error m3e-button--m m3e-button--block m3e-state" id="ufStartBtn">
+          <span id="ufStartLabel">Start unfollow</span>
+        </button>
+        <div class="controls__row" role="group" aria-label="Unfollow controls">
+          <button type="button" class="m3e-button m3e-button--tonal m3e-button--s m3e-state" id="ufPauseBtn" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="6" y="4" width="4" height="16" />
+              <rect x="14" y="4" width="4" height="16" />
+            </svg>
+            <span>Pause</span>
+          </button>
+          <button type="button" class="m3e-button m3e-button--tonal m3e-button--s m3e-state" id="ufStopBtn" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+            </svg>
+            <span>Stop</span>
           </button>
         </div>
       </div>
-    </div>
-    <p class="m3e-body-small export__hint" id="exportHint">Nothing captured yet.</p>
 
-    <p class="m3e-body-small export__compat">
-      XReels compatible: open <strong>Import → Upload JSON</strong>. Text-only posts are imported too; turn on <strong>Keep text-only posts</strong> in the app to show them.
-    </p>
-    <button class="m3e-button m3e-button--filled m3e-state export__open" id="appHelp">
-      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="10" />
-        <path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3" />
-        <path d="M12 17h.01" />
-      </svg>
-      <span>Use with XReels</span>
-    </button>
-  </section>
-
-  <section class="audit" aria-labelledby="auditTitle">
-    <div class="audit__heading">
-      <div>
-        <h2 class="m3e-label-medium section-label" id="auditTitle">Coverage check</h2>
-        <p class="m3e-body-small audit__intro">Verify stored IDs against X timeline responses and spot structural issues.</p>
+      <div class="panel__foot">
+        <button type="button" class="m3e-button m3e-button--outlined m3e-button--xs m3e-state" id="unfollowBackup" disabled
+          title="Download a JSON backup of every account this engine has targeted">Backup JSON</button>
+        <button type="button" class="m3e-button m3e-button--text m3e-button--xs m3e-state controls__panic" id="ufResetBtn">Reset data</button>
       </div>
-      <button class="m3e-button m3e-button--outlined m3e-button--xs m3e-state" id="runAudit" disabled>Verify</button>
-    </div>
-    <div class="audit__result" id="auditResult" hidden aria-live="polite">
-      <p class="audit__status" id="auditStatus"></p>
-      <p class="audit__metrics m3e-body-small" id="auditMetrics"></p>
-      <ul class="audit__findings" id="auditFindings"></ul>
-    </div>
-  </section>
+
+      <details class="disclosure">
+        <summary class="m3e-label-large">How it works</summary>
+        <p class="m3e-body-small">Sweeps your Following list from X's own responses and unfollows one account at a time — warm-up ramp, jittered gaps, wave breaks, a ~26/min ceiling and automatic backoff. Every target goes into a local JSON backup. Pause or stop any time; the engine checkpoints every 2,500 attempts.</p>
+      </details>
+    </section>
+
+    <!-- =====================================================================
+         Export
+         ===================================================================== -->
+    <section class="panel" id="panelExport" data-panel="export" role="tabpanel" aria-labelledby="tabExport" hidden>
+      <div class="panel__head">
+        <div>
+          <h2 class="m3e-title-small m3e-title-small--emphasized panel__title">Library export</h2>
+          <p class="m3e-body-small panel__sub" id="exportHint">Nothing captured yet.</p>
+        </div>
+      </div>
+
+      <!-- The one format the dashboard consumes is the primary action; the
+           rest are alternate shapes of the same data, not equals. -->
+      <button type="button" class="m3e-button m3e-button--filled m3e-button--m m3e-button--block m3e-state" id="exportJson"
+        title="XReels-compatible JSON export of every captured post">
+        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3v12"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>
+        </svg>
+        <span>XReels JSON</span>
+      </button>
+
+      <div class="export__grid">
+        <button type="button" class="m3e-button m3e-button--outlined m3e-button--s m3e-state" id="exportJsonl" title="JSON Lines (streaming)">
+          <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 4h16v16H4z"/>
+            <line x1="8" y1="9" x2="16" y2="9"/>
+            <line x1="8" y1="13" x2="16" y2="13"/>
+            <line x1="8" y1="17" x2="13" y2="17"/>
+          </svg>
+          <span>JSONL</span>
+        </button>
+        <button type="button" class="m3e-button m3e-button--outlined m3e-button--s m3e-state" id="exportCsv" title="CSV (Excel-friendly)">
+          <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <line x1="9" y1="3" x2="9" y2="21" />
+            <line x1="15" y1="3" x2="15" y2="21" />
+            <line x1="3" y1="9" x2="21" y2="9" />
+            <line x1="3" y1="15" x2="21" y2="15" />
+          </svg>
+          <span>CSV</span>
+        </button>
+        <button type="button" class="m3e-button m3e-button--outlined m3e-button--s m3e-state" id="exportMd" title="Markdown (Obsidian/Notion)">
+          <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="8" y1="13" x2="16" y2="13" />
+            <line x1="8" y1="17" x2="16" y2="17" />
+          </svg>
+          <span>Markdown</span>
+        </button>
+        <button type="button" class="m3e-button m3e-button--outlined m3e-button--s m3e-state" id="exportHtml" title="HTML (offline gallery)">
+          <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <polyline points="9 15 7 17 9 19" />
+            <polyline points="15 15 17 17 15 19" />
+          </svg>
+          <span>HTML</span>
+        </button>
+      </div>
+
+      <p class="export__note">Shift-click any format for an incremental export of posts captured since your last download.</p>
+
+      <div class="export__compat">
+        <p class="m3e-body-small">Import into XReels with <strong>Import → Upload JSON</strong>. Text-only posts come along; enable <strong>Keep text-only posts</strong> in the app to show them.</p>
+      </div>
+      <button type="button" class="m3e-button m3e-button--text m3e-button--xs m3e-state export__help" id="appHelp">
+        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10" />
+          <path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3" />
+          <path d="M12 17h.01" />
+        </svg>
+        <span>How to import</span>
+      </button>
+
+      <section class="audit" aria-labelledby="auditTitle">
+        <div class="audit__heading">
+          <div>
+            <h3 class="m3e-label-large audit__title" id="auditTitle">Coverage check</h3>
+            <p class="m3e-body-small audit__intro">Compare saved IDs with X's timeline responses.</p>
+          </div>
+          <button type="button" class="m3e-button m3e-button--outlined m3e-button--xs m3e-state" id="runAudit" disabled>Verify</button>
+        </div>
+        <div class="audit__result" id="auditResult" hidden aria-live="polite">
+          <p class="audit__status" id="auditStatus"></p>
+          <p class="audit__metrics m3e-body-small" id="auditMetrics"></p>
+          <ul class="audit__findings" id="auditFindings"></ul>
+        </div>
+      </section>
+    </section>
+  </div>
 
   <!-- =======================================================================
-       Activity log — collapsed by default; detail on demand
+       Activity — collapsed by default; its summary keeps the latest line in
+       view so a silent run never looks like a dead one.
        ======================================================================= -->
   <details class="log" id="logPanel">
     <summary class="log__summary m3e-state">
-      <svg class="log__chevron" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <svg class="log__chevron" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <polyline points="9 18 15 12 9 6" />
       </svg>
-      <span class="m3e-label-large">Activity</span>
-      <span class="m3e-chip__badge m3e-tabular" id="logCount">0</span>
+      <span class="m3e-label-large log__title">Activity</span>
+      <span class="log__preview m3e-body-small" id="logPreview">Nothing yet</span>
+      <span class="log__count m3e-tabular" id="logCount">0</span>
     </summary>
     <ol class="log__list" id="log" aria-live="polite" aria-relevant="additions"></ol>
   </details>
 
-  <!-- =======================================================================
-       Footer
-       ======================================================================= -->
   <footer class="popup__foot">
-    <span class="version-badge" id="versionBadge">v1.1.0 · M3E</span>
-    <button class="m3e-button m3e-button--text m3e-button--xs m3e-state" id="resetBtn">Clear captured data</button>
+    <span class="version-badge" id="versionBadge">v1.3.0 · M3E</span>
+    <button type="button" class="m3e-button m3e-button--text m3e-button--xs m3e-state" id="resetBtn">Clear captured data</button>
   </footer>
 </div>
 
