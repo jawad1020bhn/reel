@@ -1222,6 +1222,11 @@ async function runCaptureLoop(run) {
 }
 
 async function startCapture() {
+  /* The unfollow engine owns the Following route; two engines scrolling and
+     issuing requests from one profile would fight each other's pacing. */
+  const { xUnfollowState = null } = await chrome.storage.local.get("xUnfollowState");
+  if (xUnfollowState?.status === "running") return { ok: false, reason: "unfollow-running" };
+
   if (capture) {
     if (capture.pause) {
       const run = capture;

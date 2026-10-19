@@ -315,6 +315,42 @@ body {
 .controls__panic:disabled { color: var(--md-sys-color-on-surface); }
 
 /* =============================================================================
+   Unfollow engine
+   ============================================================================= */
+.unfollow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--md-sys-spacing-3);
+  padding: var(--md-sys-spacing-4);
+  border-radius: var(--md-sys-shape-corner-extra-large);
+  background: var(--md-sys-color-surface-container-low);
+  box-shadow: var(--md-sys-elevation-level0);
+}
+.unfollow__heading { display: flex; align-items: flex-start; gap: var(--md-sys-spacing-3); }
+.unfollow__heading-text { flex: 1; min-width: 0; }
+.unfollow__heading .section-label { margin: 0; }
+.unfollow__intro { margin: 4px 0 0; color: var(--md-sys-color-on-surface-variant); }
+.unfollow__backup { flex: none; }
+.unfollow__stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+/* The status line carries state through text + tone, never colour alone —
+   the same three-channel rule as the capture card, condensed to a line. */
+.unfollow__status { margin: 0; color: var(--md-sys-color-on-surface-variant); }
+.unfollow__status[data-status="running"] { color: var(--md-sys-color-primary); }
+.unfollow__status[data-status="navigating"] { color: var(--md-sys-color-primary); }
+.unfollow__status[data-status="completed"] { color: var(--md-sys-color-on-surface); }
+.unfollow__status[data-status="rate-limited"] { color: var(--md-sys-color-tertiary); }
+.unfollow__status[data-status="stopped_by_error"] { color: var(--md-sys-color-error); }
+.unfollow__controls { gap: var(--md-sys-spacing-2); }
+.stat--uf-done[data-nonzero="true"] dd { color: var(--md-sys-color-primary); }
+.stat--uf-failed[data-nonzero="true"] {
+  background: var(--md-sys-color-error-container);
+  box-shadow: var(--md-sys-elevation-level1);
+}
+.stat--uf-failed[data-nonzero="true"] dt,
+.stat--uf-failed[data-nonzero="true"] dd { color: var(--md-sys-color-on-error-container); }
+.stat--uf-queued[data-nonzero="true"] dd { color: var(--md-sys-color-tertiary); }
+
+/* =============================================================================
    Export
    ============================================================================= */
 .export { display: flex; flex-direction: column; gap: var(--md-sys-spacing-2); }
