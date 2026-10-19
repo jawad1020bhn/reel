@@ -103,6 +103,13 @@
 @media (prefers-reduced-motion: reduce) {
   .lib-filter-count.is-bump { animation: none; }
 }
+/* Phones: the account strip (avatar, handle, likes, caption) under each media is
+   removed in the library only, so the artwork owns the whole tile and the rows
+   tighten. Desktop and tablets keep the hover / always-on strip. Matches the
+   768px breakpoint used by ui.tiles.infoHeight in features/library/index.js. */
+@media (max-width: 767px) {
+  .lib-grid .tile-info { display: none !important; }
+}
 
 /* ---- select mode: tile checkmarks + floating bulk bar --------------------- */
 .lib-grid.is-selecting .tile { outline: 1px dashed rgb(255 255 255 / 0.18); outline-offset: 2px; cursor: pointer; }
