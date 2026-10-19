@@ -1,6 +1,6 @@
 # X Bookmarks Exporter
 
-A local Chrome/Chromium MV3 extension that captures the signed-in account's **Bookmarks** timeline and exports an XReels-compatible JSON file.
+A local Chrome/Chromium MV3 extension that captures the signed-in account's **Bookmarks** timeline and exports an XReels-compatible JSON file — plus a paced **Unfollow everyone** engine that clears the account's Following list without acting like a bot.
 
 ## Install and use
 
@@ -21,6 +21,21 @@ The extension observes the authenticated page's bookmark-timeline responses; it 
 - **Coverage check** compares unique tweet IDs observed in captured X responses with IDs persisted in the library, reports duplicates/invalid IDs, and shows large Snowflake-ID jumps as *heuristic hints only*. X does not expose a reliable total bookmark count in this flow, and ID gaps alone can never prove a skipped bookmark.
 - Reaching a quiet end after repeated bottom checks is a strong operational signal, not a guarantee that X served every historical/locked/deleted bookmark.
 
+## Unfollow everyone (paced mass-unfollow)
+
+Popup → **Unfollow everyone** → confirm. From any x.com tab the engine opens your Following list itself; on `x.com/<you>/following` it starts immediately.
+
+### How it works
+
+- **Discovery** rides the same interception technology as capture: the page hook forwards Following-timeline GraphQL responses, and `following.js` extracts exact user IDs (entryId `user-<digits>` plus the `following` flag). Who-to-follow modules embedded in the list are never treated as targets, and stale rows X marks `following: false` are skipped.
+- **Execution** is single-flight through `bridge.js`, a MAIN-world bridge that replays the X web client's own request shape: same origin, same cookies, same CSRF/bearer headers, same `UnfollowUser` mutation. No credentials are requested — the bridge *observes* the authorization and `x-csrf-token` headers on requests the signed-in page already makes.
+- **Rolling operation IDs**: the `UnfollowUser` queryId is learned from the app's own GraphQL URLs, lazily parsed from the page's script bundles when never observed, and falls back to the stable v1.1 `friendships/destroy` path. If an ID goes stale mid-run (GraphQL 400/404), the engine drops it, requeues the account, and re-derives — a transport miss never marks a user done.
+- **Human pacing** (`pacing.js`, unit-tested): a warm-up ramp (first 6 actions slower), ±35% jittered gaps around a 2.4 s base, irregular 7–14-action waves followed by 7–22 s "reading" pauses, and a closed-loop governor that stretches delays whenever the measured rate crosses the ~26/min ceiling.
+- **Backpressure**: HTTP 429 and 5xx ride exponential full-jitter backoff (6 s → 5 min, 10 retries); 401/403 stop the run; 5 consecutive transport failures trip the breaker. Rate limits don't count toward the breaker — X saying "slow down" is not a defect.
+- **Sessions and safety valves**: queue + done-set + counters persist every 30 s, so closing the tab loses nothing and an orphaned run auto-resumes only when its owner is gone (per-tab `sessionStorage` heartbeat prevents double-runs). Each Start gets a 3-hour/2,500-attempt budget and then pauses with a *resumable* checkpoint — thousands of back-to-back unfollows in one sitting is exactly what looks inhuman.
+- **Backup**: every targeted account is appended to a local JSON backup (`xUnfollowBackup`) with discovery timestamp and outcome. The popup's **Backup** button exports it for review or re-following. **Reset unfollow data** clears engine records only.
+- Capture and unfollow refuse to run at the same time — one engine per profile.
+
 ## Tests
 
 From the repository root:
@@ -28,3 +43,5 @@ From the repository root:
 ```sh
 node --test xextension/tests/*.test.mjs
 ```
+
+Covered: bookmark timeline extraction, Following-list parsing (recommendation exclusion, dedupe, tri-state flags), the pacing/governor/backoff/outcome-classification engine, and chunked store integrity.

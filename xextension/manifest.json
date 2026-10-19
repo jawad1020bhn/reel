@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "X Bookmarks Exporter",
-  "version": "1.1.0",
-  "description": "Fast, verified capture of your X bookmarks with app-ready JSON exports.",
+  "version": "1.2.0",
+  "description": "Fast, verified capture of your X bookmarks — plus a paced, human-like unfollow engine.",
   "permissions": [
     "storage",
     "unlimitedStorage",
@@ -24,7 +24,8 @@
         "https://x.com/*"
       ],
       "js": [
-        "page.js"
+        "page.js",
+        "bridge.js"
       ],
       "run_at": "document_start",
       "world": "MAIN"
@@ -35,8 +36,11 @@
       ],
       "js": [
         "timeline.js",
+        "following.js",
+        "pacing.js",
         "store.js",
-        "content.js"
+        "content.js",
+        "unfollow.js"
       ],
       "run_at": "document_start"
     }

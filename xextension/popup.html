@@ -141,6 +141,65 @@
   </div>
 
   <!-- =======================================================================
+       Unfollow engine — mass-unfollow of the Following list, paced like a
+       person. Discovery rides X's own timeline responses; execution is
+       single-flight through the page bridge with a closed-loop rate governor.
+       ======================================================================= -->
+  <section class="unfollow" aria-labelledby="unfollowLabel">
+    <div class="unfollow__heading">
+      <div class="unfollow__heading-text">
+        <h2 class="m3e-label-medium section-label" id="unfollowLabel">Unfollow everyone</h2>
+        <p class="m3e-body-small unfollow__intro">Sweeps your Following list from X's own responses and unfollows one account at a time — warm-up ramp, jittered gaps, wave breaks, ~26/min ceiling, automatic backoff. Every account goes into a local JSON backup.</p>
+      </div>
+      <button class="m3e-button m3e-button--outlined m3e-button--xs m3e-state unfollow__backup" id="unfollowBackup" disabled title="Download a JSON backup of every account this engine has targeted">Backup</button>
+    </div>
+
+    <dl class="stats unfollow__stats" id="unfollowStats">
+      <div class="stat stat--uf-queued m3e-state">
+        <dt class="m3e-label-small">Queued</dt>
+        <dd class="m3e-headline-small m3e-headline-small--emphasized m3e-tabular" id="ufQueued">0</dd>
+      </div>
+      <div class="stat stat--uf-done m3e-state">
+        <dt class="m3e-label-small">Done</dt>
+        <dd class="m3e-headline-small m3e-headline-small--emphasized m3e-tabular" id="ufDone">0</dd>
+      </div>
+      <div class="stat stat--uf-failed m3e-state">
+        <dt class="m3e-label-small">Failed</dt>
+        <dd class="m3e-headline-small m3e-headline-small--emphasized m3e-tabular" id="ufFailed">0</dd>
+      </div>
+      <div class="stat stat--uf-rate m3e-state">
+        <dt class="m3e-label-small">Per min</dt>
+        <dd class="m3e-headline-small m3e-headline-small--emphasized m3e-tabular" id="ufRate">0</dd>
+      </div>
+    </dl>
+
+    <p class="m3e-body-small unfollow__status" id="unfollowStatus" data-status="idle" aria-live="polite">Idle — no unfollow run yet.</p>
+
+    <div class="controls unfollow__controls">
+      <button class="m3e-button m3e-button--tonal m3e-button--block m3e-state" id="ufStartBtn">
+        <span id="ufStartLabel">Start unfollow</span>
+        <span class="m3e-button__loader" aria-hidden="true"></span>
+      </button>
+      <div class="m3e-button-group controls__group" role="group" aria-label="Unfollow controls">
+        <button class="m3e-button m3e-button--tonal m3e-state" id="ufPauseBtn" disabled>
+          <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="6" y="4" width="4" height="16" />
+            <rect x="14" y="4" width="4" height="16" />
+          </svg>
+          <span>Pause</span>
+        </button>
+        <button class="m3e-button m3e-button--tonal m3e-state" id="ufStopBtn" disabled>
+          <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+          </svg>
+          <span>Stop</span>
+        </button>
+      </div>
+      <button class="m3e-button m3e-button--text m3e-button--xs m3e-state controls__panic" id="ufResetBtn">Reset unfollow data</button>
+    </div>
+  </section>
+
+  <!-- =======================================================================
        Export
        ======================================================================= -->
   <section class="export" aria-labelledby="exportLabel">

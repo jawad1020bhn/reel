@@ -17,6 +17,14 @@
   const isBookmarkTimelineText = (text) => typeof text === "string" &&
     /bookmark_(?:timeline|collection)/i.test(text) && /instructions/i.test(text);
 
+  // Following-list responses share the profile-timeline envelope. Forwarded
+  // alongside bookmarks; each consumer filters by its own parser.
+  const isFollowingTimelineText = (text) => typeof text === "string" &&
+    /"user":\{"result":/.test(text) && /"instructions":/.test(text);
+
+  const isForwardableTimelineText = (text) =>
+    isBookmarkTimelineText(text) || isFollowingTimelineText(text);
+
   const forward = (payload) => {
     try {
       window.postMessage(
@@ -54,7 +62,7 @@
       if (contentType && !contentType.toLowerCase().includes("json")) return response;
 
       response.clone().text().then((text) => {
-        if (!isBookmarkTimelineText(text)) return;
+        if (!isForwardableTimelineText(text)) return;
         try {
           forward({ ok: true, status: response.status, contentType, json: JSON.parse(text) });
         } catch { /* ignore malformed or partial JSON */ }
@@ -83,7 +91,7 @@
           if (bookmarkRoute) forward({ ok: false, status: this.status, contentType, url });
           return;
         }
-        if (!isBookmarkTimelineText(text)) return;
+        if (!isForwardableTimelineText(text)) return;
         try {
           forward({ ok: true, status: this.status, contentType, json: JSON.parse(text) });
         } catch { /* ignore malformed or partial JSON */ }
@@ -100,7 +108,7 @@
         const socket = new OriginalWebSocket(...args);
         try {
           socket.addEventListener("message", (event) => {
-            if (typeof event.data !== "string" || !isBookmarkTimelineText(event.data)) return;
+            if (typeof event.data !== "string" || !isForwardableTimelineText(event.data)) return;
             try {
               forward({ ok: true, status: 200, contentType: "application/json", json: JSON.parse(event.data) });
             } catch { /* ignore non-JSON frames */ }

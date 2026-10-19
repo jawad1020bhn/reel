@@ -56,8 +56,44 @@
     "panic-stop": "Capture aborted. Pending in-memory posts were discarded; saved chunks remain.",
   };
 
+  /* Unfollow engine — its own status/reason vocabulary. The engine reports
+     into `xUnfollowState`, mirrored live here. */
+  const UF_STATUS = {
+    idle:             "Idle — no unfollow run yet.",
+    navigating:       "Opening your Following list…",
+    running:          "Unfollowing — human pacing active.",
+    paused:           "Paused — progress is saved. Resume to continue.",
+    completed:        "Completed — X served a quiet, empty Following list.",
+    stopped_by_user:  "Stopped — progress is saved; Start resumes the queue.",
+    stopped_by_error: "Stopped on an error — see the activity log.",
+  };
+
+  const UF_REASONS = {
+    "end-of-list": "Following list exhausted after repeated quiet checks.",
+    "max-runtime": "Hit the 3-hour run budget. Start again to continue from the queue.",
+    "run-cap": "Safety checkpoint after 2,500 attempts — a natural break, then resume.",
+    "no-responses-seen": "No Following timeline responses were intercepted. Open your profile's Following page and reload the tab.",
+    "auth-error": "X rejected the session. Sign in on x.com, then resume.",
+    "auth-unavailable": "No session credentials observed yet — reload x.com, then retry.",
+    "too-many-errors": "Too many consecutive failures; the engine stopped to protect the account.",
+    "max-backoff-retries": "Rate limits persisted past the retry budget. Wait a few minutes and resume.",
+    "running-elsewhere": "Another tab owns this unfollow session. Close it or wait a moment.",
+    "capture-running": "Stop the bookmark capture first — only one engine runs at a time.",
+    "stopped-by-user": "Stopped by you; progress is saved.",
+    "navigation-timeout": "Navigation to the Following list timed out — open it manually and press Start.",
+    "run-error": "An unexpected error stopped the run. Saved progress is intact; retry.",
+  };
+
+  const UF_START_REASONS = {
+    "open-following": "Open your Following list (x.com/you/following) first — or stay on any x.com page and press Start to auto-open it.",
+    "already-running": "The unfollow engine is already running.",
+    "unfollow-running": "Stop the unfollow engine first — one engine at a time.",
+    ...UF_REASONS,
+  };
+
   const LOG_MAX = 50;
   const THEME_KEY = "bmPopupTheme";
+  const UF_BACKUP_KEY = "xUnfollowBackup";
 
   /* ---------------------------------------------------------------------------
      2 · DOM
@@ -99,6 +135,20 @@
     themeToggle:    $("#themeToggle"),
     mediaHint:      $("#mediaHint"),
     stats:          $("#stats"),
+    unfollowBackup: $("#unfollowBackup"),
+    ufStartBtn:     $("#ufStartBtn"),
+    ufStartLabel:   $("#ufStartLabel"),
+    ufPauseBtn:     $("#ufPauseBtn"),
+    ufStopBtn:      $("#ufStopBtn"),
+    ufResetBtn:     $("#ufResetBtn"),
+    unfollowStatus: $("#unfollowStatus"),
+  };
+
+  const ufStats = {
+    queued: $("#ufQueued"),
+    done:   $("#ufDone"),
+    failed: $("#ufFailed"),
+    rate:   $("#ufRate"),
   };
 
   const stats = {
@@ -116,6 +166,9 @@
 
   let currentState = null;
   let captureCount = 0;
+  /* Unfollow engine mirror + backup size (for the Backup button gate). */
+  let ufState = null;
+  let ufBackupCount = 0;
   /* The dashboard is a media browser, so "how many posts" is no longer the
      number that tells you whether the capture is working. A run that found
      400 posts and zero photos means the media pipeline broke, and the old
@@ -360,28 +413,111 @@
   }
 
   /* ---------------------------------------------------------------------------
+     5b · Unfollow engine rendering
+     --------------------------------------------------------------------------- */
+
+  function setUfStat(slot, value) {
+    if (!slot) return;
+    const nextNum = Number(value) || 0;
+    const prev = Number(slot.dataset.countValue) || 0;
+    slot.dataset.countValue = String(nextNum);
+    const box = slot.closest(".stat");
+    if (box) box.dataset.nonzero = String(nextNum > 0);
+    if (prev === nextNum) {
+      nextCountUpRun(slot);
+      if (slot.textContent !== nextNum.toLocaleString()) slot.textContent = nextNum.toLocaleString();
+      return;
+    }
+    if (nextNum > prev && prev >= 0) animateCountUp(slot, prev, nextNum);
+    else {
+      nextCountUpRun(slot);
+      slot.textContent = nextNum.toLocaleString();
+    }
+    pulse(slot);
+  }
+
+  function renderUnfollow() {
+    const s = ufState || {};
+    const status = UF_STATUS[s.status] ? s.status : "idle";
+    const st = s.stats || {};
+    const running = status === "running";
+    const navigating = status === "navigating";
+    const paused = status === "paused";
+    const resumable = paused || status === "stopped_by_user" || status === "stopped_by_error";
+    const backingOff = !!(s.lastStopReason && s.lastStopReason.startsWith("backoff-"));
+
+    let text = UF_STATUS[status] || UF_STATUS.idle;
+    if (running && backingOff) {
+      const match = s.lastStopReason.match(/backoff-(\d+)\s+\(attempt\s+(\d+)\/(\d+),\s+(\d+)s\)/);
+      text = match
+        ? `Rate limited (HTTP ${match[1]}) — retry ${match[2]}/${match[3]} in ${match[4]}s`
+        : s.lastStopReason;
+    } else if (running) {
+      const doneCount = (Number(st.unfollowed) || 0) + (Number(st.already) || 0);
+      const parts = [];
+      if (s.lastStopReason && s.lastStopReason.startsWith("wave-break")) parts.push("reading pause");
+      if (st.pending) parts.push(`${Number(st.pending).toLocaleString()} queued`);
+      if (doneCount) parts.push(`${doneCount.toLocaleString()} done`);
+      if (st.perMin) parts.push(`${Number(st.perMin)}/min`);
+      if (st.rateLimits) parts.push(`${Number(st.rateLimits)} limit wait(s)`);
+      text = parts.join(" · ") || "Unfollowing — warming up…";
+    } else if (s.lastStopReason && UF_REASONS[s.lastStopReason]) {
+      text = UF_REASONS[s.lastStopReason];
+    } else if (s.lastStopReason && status !== "idle") {
+      text = "Stopped: " + s.lastStopReason;
+    }
+    el.unfollowStatus.textContent = text;
+    el.unfollowStatus.dataset.status = running && backingOff ? "rate-limited" : status;
+
+    const done = (Number(st.unfollowed) || 0) + (Number(st.already) || 0);
+    setUfStat(ufStats.queued, st.pending || 0);
+    setUfStat(ufStats.done, done);
+    setUfStat(ufStats.failed, st.failed || 0);
+    setUfStat(ufStats.rate, st.perMin || 0);
+
+    const busy = running || navigating;
+    el.ufStartBtn.disabled = busy;
+    el.ufStartBtn.setAttribute("aria-busy", String(navigating));
+    el.ufStartLabel.textContent = navigating ? "Opening…"
+      : busy ? "Unfollowing…"
+        : resumable ? "Resume unfollow"
+          : "Start unfollow";
+    el.ufPauseBtn.disabled = !running;
+    el.ufStopBtn.disabled = !busy;
+    el.unfollowBackup.disabled = ufBackupCount <= 0;
+  }
+
+  /* ---------------------------------------------------------------------------
      6 · Storage + messaging
      --------------------------------------------------------------------------- */
 
   async function loadState() {
     try {
-      const [data, summary] = await Promise.all([
+      const [data, summary, ufData, backupData] = await Promise.all([
         chrome.storage.local.get({ xCaptureState: null }),
         XBookmarkStore.summary(),
+        chrome.storage.local.get({ xUnfollowState: null }),
+        chrome.storage.local.get({ [UF_BACKUP_KEY]: null }),
       ]);
       currentState = data.xCaptureState || null;
       captureCount = summary.count;
       mediaCount = summary.mediaItems;
       videoCount = summary.videos;
+      ufState = ufData.xUnfollowState || null;
+      ufBackupCount = Array.isArray(backupData[UF_BACKUP_KEY]?.entries)
+        ? backupData[UF_BACKUP_KEY].entries.length : 0;
     } catch (error) {
       console.warn("[popup] Could not read capture state", error);
       currentState = null;
       captureCount = 0;
       mediaCount = 0;
       videoCount = 0;
+      ufState = null;
+      ufBackupCount = 0;
     }
     renderState();
     renderExportHint();
+    renderUnfollow();
   }
 
   async function activeTab() {
@@ -394,20 +530,31 @@
   }
 
   const isBookmarksUrl = (url) => /^https:\/\/x\.com\/i\/bookmarks(?:[/?#]|$)/i.test(String(url || ""));
+  const isFollowingUrl = (url) => /^https:\/\/x\.com\/[^/]+\/following(?:[/?#]|$)/i.test(String(url || ""));
+  const isXUrl = (url) => /^https?:\/\/(?:www\.)?x\.com\//i.test(String(url || ""));
 
-  /** Tell the user, up front, whether this popup can do anything at all. */
+  /** Tell the user, up front, which engine this tab can drive. */
   async function renderTabHint() {
     const tab = await activeTab();
-    const ok = tab && isBookmarksUrl(tab.url);
-    if (ok) {
-      el.tabHint.textContent = "Ready on x.com";
+    const onBookmarks = !!(tab && isBookmarksUrl(tab.url));
+    const onFollowing = !!(tab && isFollowingUrl(tab.url));
+    const onX = !!(tab && isXUrl(tab.url));
+
+    if (onBookmarks) {
+      el.tabHint.textContent = "Ready — bookmarks page";
       el.tabHint.classList.remove("is-warn");
+    } else if (onFollowing) {
+      el.tabHint.textContent = "Ready — Following list";
+      el.tabHint.classList.remove("is-warn");
+    } else if (onX) {
+      el.tabHint.textContent = "x.com open — needs Following list or bookmarks page";
+      el.tabHint.classList.add("is-warn");
     } else {
-      el.tabHint.textContent = "Open x.com/i/bookmarks to capture";
+      el.tabHint.textContent = "Open x.com to capture or unfollow";
       el.tabHint.classList.add("is-warn");
     }
-    el.primaryBtn.dataset.ready = String(!!ok);
-    return ok;
+    el.primaryBtn.dataset.ready = String(onBookmarks);
+    return onBookmarks;
   }
 
   async function send(type) {
@@ -415,6 +562,26 @@
     if (!tab || !isBookmarksUrl(tab.url)) {
       snackbar.show("Open https://x.com/i/bookmarks in the active tab first.", { error: true });
       log("No x.com tab active.", "warn");
+      return null;
+    }
+    try {
+      return await chrome.tabs.sendMessage(tab.id, { type });
+    } catch {
+      snackbar.show("Can't reach the x.com tab. Reload it and try again.", { error: true });
+      log("Content script unreachable — reload the tab.", "error");
+      return null;
+    }
+  }
+
+  /**
+   * The unfollow engine accepts any x.com tab: from there it can auto-open
+   * the Following list itself, so the gate is looser than capture's.
+   */
+  async function sendUnfollow(type) {
+    const tab = await activeTab();
+    if (!tab || !isXUrl(tab.url)) {
+      snackbar.show("Open x.com in the active tab first.", { error: true });
+      log("No x.com tab active for unfollow.", "warn");
       return null;
     }
     try {
@@ -457,8 +624,11 @@
     } else if (res.reason === "already-running") {
       log("Capture is already running.", "warn");
     } else {
+      const friendly = res.reason === "unfollow-running"
+        ? "Stop the unfollow engine first — one engine runs at a time."
+        : res.reason || "Couldn't start capture.";
       log("Couldn't start: " + (res.reason || "unknown"), "error");
-      snackbar.show(res.reason || "Couldn't start capture.", { error: true });
+      snackbar.show(friendly, { error: true });
     }
     await loadState();
     setPrimaryLoading(false);
@@ -484,6 +654,99 @@
           log("Panic stop requested.", "warn");
           setTimeout(loadState, 400);
         }
+      },
+    });
+  });
+
+  /* ---------------------------------------------------------------------------
+     7b · Unfollow controls
+     --------------------------------------------------------------------------- */
+
+  function setUfStartLoading(loading) {
+    el.ufStartBtn.disabled = loading;
+    el.ufStartBtn.setAttribute("aria-busy", String(loading));
+    if (loading) el.ufStartLabel.textContent = "Starting…";
+    else renderUnfollow();
+  }
+
+  el.ufStartBtn.addEventListener("click", () => {
+    confirmDialog({
+      title: "Unfollow everyone you follow?",
+      body: "The engine sweeps your Following list and unfollows every account — one at a time, at human speed: warm-up ramp, jittered gaps, irregular wave breaks, a ~26/min ceiling, and automatic backoff when X pushes back. Every account is written to a local JSON backup so you can review it or re-follow later. You can pause or stop any time; the engine also takes a forced checkpoint break every 2,500 attempts.",
+      confirmLabel: "Start unfollowing",
+      destructive: true,
+      onConfirm: async () => {
+        setUfStartLoading(true);
+        const res = await sendUnfollow("unfollow-start");
+        setUfStartLoading(false);
+        if (!res) return;
+        if (res.ok) {
+          if (res.navigating) {
+            log("Opening the Following list — engine starts on arrival.");
+            snackbar.show("Following list opening — the engine starts automatically.");
+          } else {
+            log(res.resumed ? "Unfollow run resumed." : "Unfollow run started.");
+          }
+        } else {
+          const reason = res.reason || "unknown";
+          log("Unfollow start failed: " + reason, "error");
+          snackbar.show(UF_START_REASONS[reason] || reason, { error: true });
+        }
+        setTimeout(loadState, 500);
+      },
+    });
+  });
+
+  el.ufPauseBtn.addEventListener("click", async () => {
+    const res = await sendUnfollow("unfollow-pause");
+    if (!res) return;
+    if (res.ok) {
+      log("Unfollow paused — progress saved.");
+      setTimeout(loadState, 400);
+    } else {
+      const reason = res.reason || "unknown";
+      log("Unfollow pause failed: " + reason, "error");
+      snackbar.show(UF_REASONS[reason] || reason, { error: true });
+    }
+  });
+
+  el.ufStopBtn.addEventListener("click", async () => {
+    const res = await sendUnfollow("unfollow-stop");
+    if (!res) return;
+    if (res.ok) {
+      log("Unfollow stopped — progress saved; Start resumes the queue.");
+      setTimeout(loadState, 400);
+    } else {
+      const reason = res.reason || "unknown";
+      log("Unfollow stop failed: " + reason, "error");
+      snackbar.show(UF_REASONS[reason] || reason, { error: true });
+      setTimeout(loadState, 300);
+    }
+  });
+
+  el.ufResetBtn.addEventListener("click", () => {
+    confirmDialog({
+      title: "Reset unfollow data?",
+      body: "Clears the queue, counters, and the local JSON backup of targeted accounts. Accounts you already unfollowed are not re-followed — this only forgets the engine's records. Captured bookmarks are untouched.",
+      confirmLabel: "Reset unfollow data",
+      destructive: true,
+      onConfirm: async () => {
+        const res = await sendUnfollow("unfollow-reset");
+        if (res && res.ok === false) {
+          snackbar.show(UF_REASONS[res.reason] || res.reason, { error: true });
+          log("Unfollow reset refused: " + res.reason, "error");
+          return;
+        }
+        if (!res) {
+          // No reachable tab: still clear from the popup side so a dead tab
+          // cannot trap data.
+          await chrome.storage.local.remove(["xUnfollowState", "xUnfollowSession", UF_BACKUP_KEY, "xUnfollowQueryId"]);
+        }
+        ufState = null;
+        ufBackupCount = 0;
+        renderUnfollow();
+        snackbar.show("Unfollow data reset.");
+        log("Unfollow data reset.", "warn");
       },
     });
   });
@@ -752,6 +1015,51 @@
     }
   });
 
+  /* ---------------------------------------------------------------------------
+     Unfollow backup export — the undo record the engine maintains locally.
+     --------------------------------------------------------------------------- */
+
+  async function runBackupExport() {
+    try {
+      const data = await chrome.storage.local.get({ [UF_BACKUP_KEY]: null });
+      const entries = Array.isArray(data[UF_BACKUP_KEY]?.entries) ? data[UF_BACKUP_KEY].entries : [];
+      if (!entries.length) {
+        snackbar.show("No unfollow backup yet.");
+        return;
+      }
+      const payload = {
+        export_version: 1,
+        exported_at: new Date().toISOString(),
+        source: "x-unfollow-engine",
+        count: entries.length,
+        accounts: entries,
+      };
+      const blobUrl = URL.createObjectURL(
+        new Blob([JSON.stringify(payload)], { type: "application/json;charset=utf-8" })
+      );
+      try {
+        await chrome.downloads.download({ url: blobUrl, filename: "x-unfollow-backup.json", saveAs: true });
+      } catch (downloadError) {
+        const anchor = document.createElement("a");
+        anchor.href = blobUrl;
+        anchor.download = "x-unfollow-backup.json";
+        anchor.hidden = true;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        log("Used browser download fallback: " + String(downloadError?.message || downloadError), "warn");
+      }
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 5 * 60 * 1000);
+      snackbar.show("Backup exported (" + entries.length.toLocaleString() + " accounts).");
+      log("Downloaded x-unfollow-backup.json.");
+    } catch (error) {
+      snackbar.show("Backup export failed.", { error: true });
+      log("Backup export failed: " + String(error?.message || error), "error");
+    }
+  }
+
+  el.unfollowBackup.addEventListener("click", runBackupExport);
+
   el.appHelp.addEventListener("click", () => {
     confirmDialog({
       title: "Use this export in XReels",
@@ -897,6 +1205,10 @@
         if (currentState?.status === "capturing" && !currentState.audit) el.auditResult.hidden = true;
         renderState();
       }
+      if (msg && msg.type === "unfollow-state") {
+        ufState = msg.state;
+        renderUnfollow();
+      }
     });
 
     chrome.storage.onChanged.addListener((changes, area) => {
@@ -905,6 +1217,15 @@
         currentState = changes.xCaptureState.newValue || null;
         if (currentState?.status === "capturing" && !currentState.audit) el.auditResult.hidden = true;
         renderState();
+      }
+      if (changes.xUnfollowState) {
+        ufState = changes.xUnfollowState.newValue || null;
+        renderUnfollow();
+      }
+      if (changes[UF_BACKUP_KEY]) {
+        const entries = changes[UF_BACKUP_KEY].newValue?.entries;
+        ufBackupCount = Array.isArray(entries) ? entries.length : 0;
+        renderUnfollow();
       }
       if (changes.xBookmarkMeta) {
         const summary = XBookmarkStore.summaryFromMeta(changes.xBookmarkMeta.newValue);
