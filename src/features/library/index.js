@@ -53,7 +53,7 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
       S.grid = masonryUI.createMasonry(gridHost, {
         scroller: outlet, colMin: colMin(), gap: gapPx(), overscan: 900,
         minCols: innerWidth < 700 ? 2 : 1,
-        aspectOf: (p) => tiles.aspectOf(p), extraHeight: () => tiles.infoHeight(),
+        aspectOf: (p) => tiles.aspectOf(p), extraHeight: tileExtra,
         render: (post, i, w) => tiles.make(post, { ids: S.ids, index: i, label: label(), width: w, ...selectOpts() }),
       });
       runQuery();
@@ -69,11 +69,14 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
     }
     function recreateGrid() {
       S.grid.destroy();
-      return masonryUI.createMasonry(S.els.gridHost, { scroller: S.host, colMin: colMin(), gap: gapPx(), overscan: 900, minCols: innerWidth < 700 ? 2 : 1, aspectOf: (p) => tiles.aspectOf(p), extraHeight: () => tiles.infoHeight(), render: (post, i, w) => tiles.make(post, { ids: S.ids, index: i, label: label(), width: w, ...selectOpts() }) });
+      return masonryUI.createMasonry(S.els.gridHost, { scroller: S.host, colMin: colMin(), gap: gapPx(), overscan: 900, minCols: innerWidth < 700 ? 2 : 1, aspectOf: (p) => tiles.aspectOf(p), extraHeight: tileExtra, render: (post, i, w) => tiles.make(post, { ids: S.ids, index: i, label: label(), width: w, ...selectOpts() }) });
     }
     const colMin = () => ({ compact: 140, cozy: 180, comfortable: 230 }[prefs.get("density")] || 180);
     const gapPx = () => ({ compact: 6, cozy: 10, comfortable: 14 }[prefs.get("density")] || 10);
     const label = () => engine.describe(S.spec);
+    /* Phones (below the 768px breakpoint) drop the account strip under each media
+       (see styles/features/library.css), so the grid reserves no height for it. */
+    const tileExtra = () => (innerWidth < 768 ? 0 : tiles.infoHeight());
 
     function unmount() {
       for (const off of S.offs) off(); S.offs = [];

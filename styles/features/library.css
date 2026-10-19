@@ -103,6 +103,19 @@
 @media (prefers-reduced-motion: reduce) {
   .lib-filter-count.is-bump { animation: none; }
 }
+/* Phones: the account strip (avatar, handle, likes, caption) under each media is
+   removed in the library only, so the artwork owns the whole tile and the rows
+   tighten. Desktop and tablets keep the hover / always-on strip. Matches the
+   768px breakpoint used by ui.tiles.infoHeight in features/library/index.js. */
+@media (max-width: 767px) {
+  .lib-grid .tile-info { display: none !important; }
+  /* The shared page inset (header + 18px) plus the toolbar's own 9px left a
+     band of empty page between the app bar and the search field. On phones the
+     search sits 8px under the bar instead. Matches the shell's page-inset
+     selector (same specificity) and loads after shell.css, so this wins. */
+  .outlet:not([data-feature="watch"]) > .library { padding-top: calc(var(--hdr-offset) + 8px); }
+  .lib-toolbar { padding-top: 0; }
+}
 
 /* ---- select mode: tile checkmarks + floating bulk bar --------------------- */
 .lib-grid.is-selecting .tile { outline: 1px dashed rgb(255 255 255 / 0.18); outline-offset: 2px; cursor: pointer; }
