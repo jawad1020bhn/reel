@@ -1,0 +1,9 @@
+/* AUTO-GENERATED — do not edit.
+   Using system fonts as fallback. Roboto Flex can be added by downloading the woff2 files. */
+@font-face {
+  font-family: "Roboto Flex";
+  src: local("Roboto Flex"), local("Roboto"), local("Google Sans"), local("system-ui");
+  font-weight: 100 1000;
+  font-stretch: 25% 151%;
+  font-display: swap;
+}
