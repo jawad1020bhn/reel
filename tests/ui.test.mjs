@@ -146,14 +146,21 @@ test("responsive chrome and compact hero at phone, tablet, landscape and desktop
         return { viewport: innerWidth, pageWidth: document.documentElement.scrollWidth, outletWidth: outlet.clientWidth, outletScrollWidth: outlet.scrollWidth,
           navVisible: !!nav.getClientRects().length, activeNav: nav.querySelector("[aria-current=page]")?.dataset.feature,
           heroHeight: document.querySelector(".bb-mobile-card")?.getBoundingClientRect().height || 0,
-          shelfY: document.querySelector(".rail")?.getBoundingClientRect().top || 0 };
+          shelfY: document.querySelector(".rail")?.getBoundingClientRect().top || 0,
+          dockTop: nav.getBoundingClientRect().top || 0 };
       });
       assert.ok(result.pageWidth <= w + 1, `${w}/${route}: no document overflow`);
       assert.ok(result.outletScrollWidth <= result.outletWidth + 1, `${w}/${route}: no outlet overflow`);
-      assert.equal(result.navVisible, w < 768 && !route.startsWith("watch"), `${w}/${route}: correct nav mode`);
-      if (w < 768 && route === "discover") {
+      /* Phones — including phones held in landscape — get the bottom dock. */
+      const docked = (w < 768 || (h < 500 && w < 1024)) && !route.startsWith("watch");
+      assert.equal(result.navVisible, docked, `${w}/${route}: correct nav mode`);
+      if (docked && w < 768 && route === "discover") {
         assert.ok(result.heroHeight < h * 0.61, "hero leaves room for browsing");
         assert.ok(result.shelfY < h * 0.88, "first shelf is visible without scrolling");
+      }
+      if (docked) {
+        /* The dock itself must never cover bulk actions, toasts or page endings. */
+        assert.ok(result.dockTop > h * 0.7, `${w}/${route}: dock sits in the thumb zone`);
       }
       if ([390, 844, 1440].includes(w) && ["discover", "library", "watch?post=clip-1"].includes(route)) {
         await page.screenshot({ path: resolve(SHOTS, `${w}x${h}-${route.split("?")[0]}.png`) });
@@ -161,6 +168,97 @@ test("responsive chrome and compact hero at phone, tablet, landscape and desktop
     }
     await page.close();
   }
+});
+
+test("phone search is a labelled mode and Escape or Cancel leaves it cleanly", async (t) => {
+  const page = await pageFor(t);
+  await open(page, "discover");
+  await tap(page, ".hdr-search-btn");
+  await page.waitForFunction(() => document.activeElement?.classList.contains("hdr-search-input"));
+  const mode = await page.evaluate(() => {
+    const bar = document.querySelector(".hdr-search").getBoundingClientRect();
+    const cancel = document.querySelector(".hdr-search-cancel").getBoundingClientRect();
+    return { searching: document.documentElement.classList.contains("is-searching"), width: bar.width, inBar: bar.top >= 0 && bar.bottom <= 56, cancel: cancel.width, label: document.querySelector(".hdr-search-cancel").textContent.trim(), placeholder: document.querySelector(".hdr-search-input").placeholder };
+  });
+  assert.equal(mode.searching, true, "search takes over the bar");
+  assert.ok(mode.inBar, "the bar replaces the 56px app bar instead of floating over it");
+  assert.ok(mode.cancel >= 44, "Cancel is a real touch target");
+  assert.equal(mode.label, "Cancel");
+  assert.ok(mode.placeholder.length > 0 && mode.placeholder.length < 40, "phone placeholder fits the field");
+  await page.evaluate(axe.source);
+  const report = await page.evaluate(() => window.axe.run(".hdr", {
+    runOnly: { type: "rule", values: ["color-contrast", "button-name", "label", "aria-input-field-name", "aria-valid-attr-value"] },
+  }));
+  assert.deepEqual(report.violations.map((v) => v.id), [], "search mode passes named accessibility rules");
+  await page.type(".hdr-search-input", "Test clip");
+  await tap(page, ".hdr-search-cancel");
+  await page.waitForFunction(() => document.querySelector(".hdr-search").hidden);
+  assert.equal(await page.evaluate(() => location.hash), "#/discover", "Cancel does not navigate");
+  assert.equal(await page.evaluate(() => document.documentElement.classList.contains("is-searching")), false);
+  assert.equal(await page.evaluate(() => document.activeElement?.classList.contains("hdr-search-btn")), true, "focus returns to the search action");
+  // Escape from inside the field closes it too
+  await tap(page, ".hdr-search-btn");
+  await page.waitForFunction(() => document.activeElement?.classList.contains("hdr-search-input"));
+  await page.keyboard.press("Escape");
+  await page.waitForFunction(() => document.querySelector(".hdr-search").hidden);
+  // Enter navigates and the query it publishes is not wiped by a pending close
+  await tap(page, ".hdr-search-btn");
+  await page.waitForFunction(() => document.activeElement?.classList.contains("hdr-search-input"));
+  await page.type(".hdr-search-input", "Test clip");
+  await page.keyboard.press("Enter");
+  await page.waitForFunction(() => location.hash.includes("q=Test"));
+  await sleep(300);
+  const landed = await page.evaluate(() => ({ hidden: document.querySelector(".hdr-search").hidden, value: document.querySelector(".hdr-search-input").value }));
+  assert.equal(landed.hidden, true, "Enter closes the search bar");
+  assert.equal(landed.value, "Test clip", "the routed query survives the close animation");
+  await page.close();
+});
+
+test("tapping the current destination returns that page to the top", async (t) => {
+  const page = await pageFor(t);
+  await open(page, "library");
+  await page.evaluate(() => { document.querySelector(".outlet").scrollTop = 600; });
+  await page.waitForFunction(() => document.querySelector(".outlet").scrollTop > 100);
+  await tap(page, '.mobile-nav-link[data-feature="library"]');
+  await page.waitForFunction(() => document.querySelector(".outlet").scrollTop === 0);
+  /* Leaving a scrolled page hands the bar back to the wordmark once the new
+     page is at the top, and the compact page name follows the destination. */
+  await tap(page, '.mobile-nav-link[data-feature="discover"]');
+  await page.waitForSelector('.outlet[data-feature="discover"]');
+  await sleep(300);
+  const chrome = await page.evaluate(() => ({
+    scrolled: document.querySelector(".hdr").classList.contains("is-scrolled"),
+    context: document.querySelector(".hdr-context").textContent,
+  }));
+  assert.equal(chrome.scrolled, false, "a page at the top does not inherit the previous scroll state");
+  assert.equal(chrome.context, "Discover");
+  await page.close();
+});
+
+test("the More sheet closes by dragging its handle, not only by the backdrop", async (t) => {
+  const page = await pageFor(t);
+  await open(page, "discover");
+  await tap(page, ".mobile-nav-more");
+  await page.waitForSelector(".menu-sheet.in");
+  assert.equal(await page.$eval(".navigation-menu .menu-cancel", (el) => !!el), true, "sheet has a labelled Cancel");
+  await page.evaluate(axe.source);
+  const report = await page.evaluate(() => window.axe.run(".navigation-menu", {
+    runOnly: { type: "rule", values: ["color-contrast", "button-name", "aria-valid-attr-value"] },
+  }));
+  assert.deepEqual(report.violations.map((v) => v.id), [], "the refined sheet keeps its contrast and names");
+  const grip = await (await page.$(".navigation-menu .sheet-drag")).boundingBox();
+  const cdp = await page.createCDPSession();
+  const x = grip.x + grip.width / 2, y = grip.y + 12;
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+  for (let i = 1; i <= 10; i++) {
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: y + i * 16 }] });
+    await sleep(12);
+  }
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await page.waitForFunction(() => !document.querySelector(".menu"));
+  assert.equal(await page.$eval(".mobile-nav-more", (el) => el.getAttribute("aria-expanded")), "false");
+  assert.equal(await page.evaluate(() => document.activeElement === document.querySelector(".mobile-nav-more")), true, "focus returns to the trigger");
+  await page.close();
 });
 
 test("bottom navigation, More pages, search and Back work with touch", async (t) => {

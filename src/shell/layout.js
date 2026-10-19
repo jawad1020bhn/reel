@@ -38,29 +38,69 @@ XR.define("shell.layout", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu", "app.f
     /* -------------------------------------------------------------- search -- */
     function buildSearch() {
       const input = h("input.hdr-search-input", {
-        type: "search", placeholder: i18n.t("Search titles, creators, #tags") + "  ( / )", "aria-label": "Search your library",
+        type: "search", placeholder: i18n.t("Search titles, creators, #tags"), "aria-label": "Search your library",
         autocomplete: "off", spellcheck: false, enterkeyhint: "search",
         onkeydown: (e) => {
-          if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); nav.go("library", {}, { q: input.value.trim() }); closeSearch(); }
+          if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); nav.go("library", {}, { q: input.value.trim() }); closeSearch({ instant: true }); }
           else if (e.key === "Escape") { e.stopPropagation(); closeSearch(); }
         },
       });
-      let focusTimer = 0;
-      const form = h("form.hdr-search", { hidden: true, role: "search", id: "hdr-search-form", onsubmit: (e) => { e.preventDefault(); nav.go("library", {}, { q: input.value.trim() }); closeSearch(); } },
-        icons.icon("search", 19), input,
-        h("button.hdr-search-close", { type: "button", "aria-label": "Close search", onclick: () => closeSearch() }, icons.icon("x", 15)));
+      let focusTimer = 0, hideTimer = 0;
+      const cancel = h("button.hdr-search-cancel", { type: "button", onclick: () => closeSearch() }, i18n.t("Cancel"));
+      const form = h("form.hdr-search", { hidden: true, role: "search", id: "hdr-search-form", onsubmit: (e) => { e.preventDefault(); nav.go("library", {}, { q: input.value.trim() }); closeSearch({ instant: true }); } },
+        icons.icon("search", 19), input, cancel);
       const btn = h("button.hdr-icon.hdr-search-btn", { title: "Search ( / )", "aria-label": "Open search", "aria-expanded": "false", "aria-controls": "hdr-search-form", onclick: () => (form.classList.contains("open") ? closeSearch() : openSearch()) }, icons.icon("search", 20), h("span.hdr-search-label", i18n.t("Search")), h("kbd.hdr-search-key", { "aria-hidden": "true" }, "/"));
+      const isOpen = () => !form.hidden && form.classList.contains("open");
+      /* On phones the bar covers the app bar's own controls. They stay painted
+         underneath, but leave the tab order and pointer surface while it is open. */
+      const phoneOnly = () => typeof matchMedia === "function" && matchMedia("(max-width: 767px)").matches;
+      function setChromeInert(on) {
+        if (!els || !phoneOnly()) return;
+        const covered = [els.header.querySelector(".hdr-left"), ...els.header.querySelectorAll(".hdr-actions > .hdr-icon, .hdr-actions > .src-chip"), els.mobileNav];
+        for (const el of covered) if (el) el.inert = on;
+      }
+      /* Escape leaves search from anywhere inside the bar, not just the field. */
+      function onDocKey(e) {
+        if (e.key !== "Escape" || !isOpen()) return;
+        e.preventDefault(); e.stopPropagation();
+        closeSearch();
+      }
       function openSearch() {
-        clearTimeout(focusTimer); form.hidden = false; form.classList.add("open");
+        clearTimeout(hideTimer);
+        /* Phones get the short label; the long one is clipped in a 44px bar. */
+        const narrow = typeof matchMedia === "function" && matchMedia("(max-width: 767px)").matches;
+        input.placeholder = narrow ? i18n.t("Search your library") : i18n.t("Search titles, creators, #tags");
+        form.hidden = false;
+        void form.offsetWidth;              /* commit the closed style so the bar actually expands */
+        form.classList.add("open");
         btn.setAttribute("aria-expanded", "true");
-        focusTimer = setTimeout(() => { if (!form.hidden) input.focus(); }, 0);
+        document.documentElement.classList.add("is-searching");
+        setChromeInert(true);
+        document.addEventListener("keydown", onDocKey, true);
+        focusTimer = setTimeout(() => { if (isOpen()) input.focus({ preventScroll: true }); }, 0);
       }
-      function closeSearch() {
-        clearTimeout(focusTimer); form.classList.remove("open"); form.hidden = true;
-        btn.setAttribute("aria-expanded", "false"); input.value = "";
-        if (form.contains(document.activeElement)) btn.focus({ preventScroll: true });
+      function closeSearch({ instant = false, restore = true } = {}) {
+        clearTimeout(focusTimer); clearTimeout(hideTimer);
+        const wasOpen = isOpen();
+        form.classList.remove("open");
+        btn.setAttribute("aria-expanded", "false");
+        document.documentElement.classList.remove("is-searching");
+        setChromeInert(false);
+        document.removeEventListener("keydown", onDocKey, true);
+        const land = () => {
+          /* Hiding the form blurs whatever it held, so hand focus back to the
+             action that opened it — unless the user already moved on. */
+          const held = form.contains(document.activeElement) || document.activeElement === document.body;
+          form.hidden = true; input.value = "";
+          if (restore && wasOpen && held) btn.focus({ preventScroll: true });
+        };
+        const reduce = document.documentElement.dataset.motion === "reduce" ||
+          (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches);
+        if (instant || reduce) land();
+        else hideTimer = setTimeout(land, 180);
+        if (restore && wasOpen && form.contains(document.activeElement)) btn.focus({ preventScroll: true });
       }
-      return { form, btn, input, openSearch, closeSearch };
+      return { form, btn, input, openSearch, closeSearch, isOpen };
     }
 
     /* --------------------------------------------------------------- build -- */
@@ -84,6 +124,10 @@ XR.define("shell.layout", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu", "app.f
       const brand = h("a.brand", { href: "#/discover", onclick: (e) => { e.preventDefault(); nav.go("discover"); }, "aria-label": "XReels home" },
         h("span.brand-word", "X"), h("span.brand-word.brand-word-rest", "REELS"));
       const back = h("button.hdr-icon.hdr-back", { title: "Back", "aria-label": "Back", onclick: () => nav.back() }, icons.icon("arrowLeft", 20));
+      /* Phones only: the destination name takes the bar once the page scrolls.
+         It is a duplicate of the page heading, so assistive tech skips it. */
+      const context = h("span.hdr-context", { "aria-hidden": "true" });
+      const scrim = h("div.hdr-scrim", { "aria-hidden": "true", onclick: () => search.closeSearch() });
 
       const actions = h("div.hdr-actions",
         source,
@@ -97,17 +141,23 @@ XR.define("shell.layout", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu", "app.f
           return btn;
         }));
 
-      const inner = h("div.hdr-in", h("div.hdr-left", back, brand, navEl), actions);
-      const header = h("header.hdr", inner, chips);
+      const inner = h("div.hdr-in", h("div.hdr-left", back, brand, context, navEl), actions);
+      const header = h("header.hdr", scrim, inner, chips);
       const outlet = h("div.outlet", { id: "outlet", tabindex: "-1", "aria-label": "Content" });
       const skip = h("a.skip-link", { href: "#outlet", onclick: (e) => { e.preventDefault(); outlet.focus({ preventScroll: true }); } }, i18n.t("Skip to content"));
       /* Four stable destinations, then the complete page list. Watch remains
-         immersive; its Back control returns to the same navigation context. */
+         immersive; its Back control returns to the same navigation context.
+         Tapping the current destination again returns the page to the top. */
       const phoneIds = ["discover", "library", "watch", "collections"];
+      const goTab = (id) => {
+        if (nav.current?.name !== id) { nav.go(id); return; }
+        const reduce = document.documentElement.dataset.motion === "reduce" || matchMedia("(prefers-reduced-motion: reduce)").matches;
+        outlet.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
+      };
       const phoneLinks = phoneIds.map((id) => {
         const m = items.find((item) => item.id === id);
         if (!m) return null;
-        return h("a.mobile-nav-link", { href: "#" + nav.build(id), dataset: { feature: id }, onclick: (e) => { e.preventDefault(); nav.go(id); } },
+        return h("a.mobile-nav-link", { href: "#" + nav.build(id), dataset: { feature: id }, onclick: (e) => { e.preventDefault(); goTab(id); } },
           icons.icon(m.icon, 21), h("span", i18n.t(m.title)));
       });
       const moreBtn = h("button.mobile-nav-link.mobile-nav-more", { type: "button", "aria-label": "More pages", "aria-haspopup": "menu", "aria-expanded": "false", onclick: () => {
@@ -116,6 +166,9 @@ XR.define("shell.layout", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu", "app.f
           ...items.filter((m) => !phoneIds.includes(m.id)).map((m) => ({ label: m.title, icon: m.icon, checked: nav.current?.name === m.id, run: () => nav.go(m.id) })),
           { sep: true },
           { label: "Command palette", icon: "command", run: () => events.bus.emit(EV.PALETTE_OPEN, {}) },
+          /* Playback is global, so sound lives with the other preferences rather
+             than competing with Search in the 56px bar. */
+          { label: playback.muted ? "Unmute sound" : "Mute sound", icon: playback.muted ? "volume" : "mute", run: () => playback.toggleMuted() },
         ], { title: "More", className: "navigation-menu", onClose: () => moreBtn.setAttribute("aria-expanded", "false") });
         moreBtn.setAttribute("aria-expanded", "true");
       } }, icons.icon("more", 21), h("span", i18n.t("More")));
@@ -125,11 +178,14 @@ XR.define("shell.layout", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu", "app.f
       const app = h("div.app", { id: "app" }, skip, main);
       document.body.appendChild(app);
 
-      els = { app, header, nav: navEl, chips, pill, outlet, main, mobileNav, mobilePill, moreBtn, phoneIds, search: search.input, searchBtn: search.btn, openSearch: search.openSearch, muteBtn, source, back };
+      els = { app, header, nav: navEl, chips, pill, outlet, main, mobileNav, mobilePill, moreBtn, context, scrim, phoneIds, search: search.input, searchBtn: search.btn, searchIsOpen: search.isOpen, closeSearch: search.closeSearch, source, back };
 
-      /* header reacts to the outlet scroll: scrim at top, solid once you move */
+      /* header reacts to the outlet scroll: scrim at top, solid once you move,
+         and the compact page name after the content has travelled a little */
       outlet.addEventListener("scroll", dom.rafThrottle(() => {
-        header.classList.toggle("is-solid", outlet.scrollTop > 14);
+        const y = outlet.scrollTop;
+        header.classList.toggle("is-solid", y > 14);
+        header.classList.toggle("is-scrolled", y > 44);
       }), { passive: true });
       window.addEventListener("resize", dom.rafThrottle(() => { movePill(false); syncHeaderChrome(false); }), { passive: true });
       if (typeof ResizeObserver === "function") new ResizeObserver(() => syncHeaderChrome()).observe(header);
@@ -167,6 +223,7 @@ XR.define("shell.layout", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu", "app.f
     function setActive(route) {
       if (!els) return;
       const f = features.get(route.name);
+      els.context.textContent = f ? i18n.t(f.title) : "";
       for (const a of els.app.querySelectorAll("[data-feature]")) {
         const active = a.dataset.feature === route.name;
         a.classList.toggle("is-active", active);
@@ -176,12 +233,21 @@ XR.define("shell.layout", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu", "app.f
       els.moreBtn.classList.toggle("is-active", moreActive);
       els.moreBtn.setAttribute("aria-label", moreActive && f ? `More pages, current page: ${i18n.t(f.title)}` : "More pages");
       menu.close();
+      /* Close unconditionally: it also clears a pending hide timer, so the query
+         this route is about to publish can't be wiped by that timer a beat later. */
+      els.closeSearch({ instant: true, restore: false });
       els.app.dataset.feature = route.name;
       els.app.classList.toggle("app-immersive", !!(f && f.layout === "immersive"));
       /* back only exists where there is somewhere to go back to (detail pages) */
       const detail = Object.keys(route.params || {}).length > 0 || [].concat(route.query?.q || [], route.query?.state || []).some(Boolean);
       els.header.classList.toggle("has-back", !!(f && f.back && detail));
       els.back.setAttribute("aria-hidden", f && f.back && detail ? "false" : "true");
+      /* The outlet restores its own scroll a moment later; re-read once it has,
+         so the phone bar doesn't show the previous page's scroll state. */
+      els.header.classList.toggle("is-scrolled", els.outlet.scrollTop > 44);
+      requestAnimationFrame(() => {
+        if (els) els.header.classList.toggle("is-scrolled", els.outlet.scrollTop > 44);
+      });
       movePill(true);
       syncHeaderChrome(false);
       const activeChip = els.chips.querySelector(".chipnav-link.is-active");

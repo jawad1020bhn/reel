@@ -283,7 +283,7 @@ XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "
     function scheduleRefresh() { clearTimeout(refreshTimer); refreshTimer = setTimeout(() => { if (host) { for (const r of rails) r.each((t2) => t2.update && t2.update()); } }, 150); }
 
     return {
-      id: "discover", title: "Discover", icon: "sparkles", route: "/discover", nav: true, order: 10, key: "d",
+      id: "discover", title: "Discover", icon: "compass", route: "/discover", nav: true, order: 10, key: "d",
       mount(outlet) {
         host = outlet;
         render();

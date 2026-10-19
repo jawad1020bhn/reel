@@ -92,6 +92,11 @@
 .hdr-icon.hdr-back { display: none; width: 34px; height: 34px; margin-inline-start: -6px; color: var(--fg); }
 .hdr.has-back .hdr-icon.hdr-back { display: inline-flex; }
 
+/* Compact page name (phones only) and the scrim that puts search in focus.
+   Both are inert on wider screens where navigation already names the page. */
+.hdr-context { display: none; }
+.hdr-scrim { display: none; }
+
 /* right cluster */
 .hdr-actions { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .hdr-spacer { width: 2px; height: 20px; background: var(--line-strong); margin: 0 6px; }
@@ -146,12 +151,15 @@
 }
 .hdr-search.open .hdr-search-input { opacity: 1; }
 .hdr-search-input::placeholder { color: var(--fg-2); }
-.hdr-search-close {
-  flex: none; width: 44px; height: 100%; display: grid; place-items: center;
-  color: rgb(255 255 255 / 0.7); opacity: 0; transition: opacity 160ms var(--ease-soft);
+/* Search is a mode, not a floating box: one labelled way out, always tappable. */
+.hdr-search-cancel {
+  flex: none; display: inline-flex; align-items: center; justify-content: center;
+  height: 100%; padding: 0 14px 0 10px; border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  font-size: 13px; font-weight: 600; color: var(--fg-1);
+  opacity: 0; transition: opacity 160ms var(--ease-soft), color 160ms ease;
 }
-.hdr-search.open .hdr-search-close { opacity: 1; }
-.hdr-search-close:hover { color: var(--fg); }
+.hdr-search.open .hdr-search-cancel { opacity: 1; }
+.hdr-search-cancel:hover { color: var(--fg); }
 
 /* mobile: frosted chip rail under the bar */
 .hdr-chips {
@@ -184,50 +192,120 @@
   .hdr-in { height: calc(56px + env(safe-area-inset-top, 0px)); }
   :root { --hdr-h: 56px; --hdr-offset: 110px; }
 }
-@media (max-width: 640px) {
-  .hdr-icon { width: 34px; height: 34px; }
-  .hdr-search.open { width: calc(100vw - 2 * var(--gutter)); }
-}
-
-/* Phones use a stable bottom bar, not a clipped row of page chips. Tablets
-   retain the full chip rail and desktops retain the text navigation. */
+/* Phones use a stable bottom dock, not a clipped row of page chips. Tablets
+   retain the full chip rail and desktops retain the text navigation. Short
+   landscape phones get the same thumb-reachable dock in a compact form. */
 .mobile-nav { display: none; }
-@media (max-width: 767px) {
-  :root { --bottom-nav-h: calc(84px + env(safe-area-inset-bottom, 0px)); }
-  .hdr-chips, .hdr-command, .hdr-secondary { display: none; }
-  .hdr-in { gap: 8px; }
-  .hdr-left { gap: 8px; }
-  .hdr-actions { gap: 4px; }
+@media (max-width: 767px), (max-width: 1023px) and (max-height: 500px) and (orientation: landscape) {
+  :root { --bottom-nav-h: calc(84px + env(safe-area-inset-bottom, 0px)); --hdr-offset: 56px; }
+  /* the 56px bar keeps one action; sound moves into More (global, not page-level) */
+  .hdr-chips, .hdr-command, .hdr-secondary, .hdr-mute { display: none; }
+
+  /* --- 56px app bar: the brand at rest, the page name once content moves --- */
+  .hdr-in { position: relative; z-index: 2; gap: 8px; }
+  .hdr-left { flex: 1 1 auto; position: relative; gap: 8px; }
+  .hdr-actions { gap: 2px; margin-left: auto; }
   .hdr-icon, .hdr-icon.hdr-back { width: 44px; height: 44px; flex: none; }
-  .brand { min-height: 44px; align-items: center; }
+  .brand { min-height: 44px; align-items: center; transition: opacity 160ms var(--ease-soft), visibility 0s; }
+  /* a detail page keeps Back + its name instead of the wordmark */
+  .hdr.has-back .brand { display: none; }
+  .hdr.is-scrolled:not(.has-back) .brand {
+    opacity: 0; visibility: hidden; pointer-events: none;
+    transition: opacity 160ms var(--ease-soft), visibility 0s 160ms;
+  }
+  .hdr-context {
+    position: absolute; inset-inline-start: 0; top: calc(env(safe-area-inset-top, 0px) + 28px);
+    translate: 0 calc(-50% + 5px); display: block; max-width: 100%;
+    font-size: 14.5px; font-weight: 600; line-height: 1.2; letter-spacing: -0.012em;
+    color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    opacity: 0; visibility: hidden; pointer-events: none;
+    transition: opacity 180ms var(--ease-soft), translate 220ms var(--ease), visibility 0s 180ms;
+  }
+  .hdr.is-scrolled .hdr-context, .hdr.has-back .hdr-context {
+    opacity: 1; visibility: visible; translate: 0 -50%;
+    transition: opacity 180ms var(--ease-soft), translate 220ms var(--ease), visibility 0s;
+  }
+  .hdr.has-back .hdr-context { inset-inline-start: 46px; }
+
+  /* --- search mode: one bar, one labelled exit, dimmed page beneath --- */
+  .hdr.is-searching { background: rgb(16 16 18 / 0.98); }
+  .hdr-scrim {
+    display: block; position: fixed; inset: 0; z-index: 1;
+    background: rgb(0 0 0 / 0.6); opacity: 0; pointer-events: none;
+    transition: opacity 180ms var(--ease-soft);
+  }
+  .is-searching .hdr-scrim { opacity: 1; pointer-events: auto; }
+  /* the dock keeps its opaque body; only its contents step back */
+  .is-searching .mobile-nav-link, .is-searching .mobile-nav-pill { opacity: 0.24; }
+  .hdr-search {
+    inset-inline: 8px; top: calc(env(safe-area-inset-top, 0px) + 6px); width: auto; height: 44px;
+    translate: none;
+    opacity: 0; transform: translateY(-3px) scale(0.99); transform-origin: right center;
+    border-radius: 12px; box-shadow: none;
+    transition: opacity 180ms var(--ease-soft), transform 260ms var(--ease), border-color 180ms var(--ease);
+  }
+  /* The bar covers the app bar edge to edge; layout.js marks the covered
+     controls inert so they leave the tab order without disappearing. */
+  .hdr-search.open {
+    width: auto; opacity: 1; transform: none; pointer-events: auto;
+    border-color: rgb(255 255 255 / 0.22);
+    box-shadow: 0 12px 30px rgb(0 0 0 / 0.5);
+  }
+  .hdr-search .icon { margin-inline-start: 10px; }
+  .hdr-search-input { height: 100%; padding-inline: 4px 2px; font-size: 16px; }
+  .hdr-search-cancel { padding: 0 14px 0 8px; }
+
+  /* --- bottom dock: one moving surface, one crimson marker --- */
   .mobile-nav {
     position: fixed; inset-inline: max(10px, env(safe-area-inset-left, 0px)) max(10px, env(safe-area-inset-right, 0px));
     bottom: calc(10px + env(safe-area-inset-bottom, 0px)); z-index: var(--z-hdr);
     display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));
     height: 64px; padding: 4px; isolation: isolate;
     background: #101012; border: 1px solid rgb(255 255 255 / 0.14); border-radius: 20px;
-    box-shadow: 0 8px 28px rgb(0 0 0 / 0.4);
+    box-shadow: 0 10px 30px rgb(0 0 0 / 0.5), inset 0 1px 0 rgb(255 255 255 / 0.06);
+    transition: opacity 160ms var(--ease-soft);
   }
   .mobile-nav-pill {
     position: absolute; z-index: -1; left: 0; top: 4px; height: 54px; width: 0;
-    border-radius: 15px; background: rgb(255 255 255 / 0.07); opacity: 0; pointer-events: none;
+    border-radius: 15px; background: rgb(255 255 255 / 0.075);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.05);
+    opacity: 0; pointer-events: none;
     transition: transform 300ms var(--ease), width 240ms var(--ease), opacity 160ms ease;
+  }
+  .mobile-nav-pill::after {
+    content: ""; position: absolute; top: 0; left: calc(50% - 8px);
+    width: 16px; height: 2px; border-radius: 0 0 2px 2px; background: var(--accent);
   }
   .mobile-nav-link {
     position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center;
-    min-height: 54px; min-width: 0; gap: 4px; padding: 4px 0;
+    min-height: 54px; min-width: 0; gap: 5px; padding: 3px 0;
     color: var(--fg-2); font-size: 11px; font-weight: 500; line-height: 1.25;
-    border-radius: 15px; transition: color 160ms ease;
+    border-radius: 15px; -webkit-tap-highlight-color: transparent;
+    transition: color 160ms ease;
   }
+  .mobile-nav-link > span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .mobile-nav-link .icon { flex: none; transition: transform 200ms var(--ease), color 160ms ease; }
   .mobile-nav-link:hover, .mobile-nav-link.is-active { color: var(--fg); }
-  .mobile-nav-link.is-active .icon { color: var(--accent-text); }
-  .mobile-nav-link:active .icon { transform: scale(0.88); }
+  .mobile-nav-link:active .icon { transform: scale(0.9); }
   .outlet:not([data-feature="watch"]) > :not(.discover) { padding-bottom: calc(28px + var(--bottom-nav-h)); }
   .outlet > .discover { padding-bottom: var(--bottom-nav-h); }
   .app-immersive .mobile-nav { display: none; }
-  .hdr-search { height: 44px; top: calc(28px + env(safe-area-inset-top, 0px)); }
-  .hdr-search-input { height: 100%; font-size: 16px; }
+}
+
+/* Short landscape: the dock stays, the frame keeps its height. */
+@media (max-width: 1023px) and (max-height: 500px) and (orientation: landscape) {
+  :root { --bottom-nav-h: 66px; --hdr-h: 48px; --hdr-offset: 48px; }
+  .hdr-in { height: calc(48px + env(safe-area-inset-top, 0px)); }
+  .hdr-icon, .hdr-icon.hdr-back { width: 40px; height: 40px; }
+  .brand { min-height: 40px; }
+  .brand-word { font-size: 24px; }
+  .hdr-context { top: calc(env(safe-area-inset-top, 0px) + 24px); font-size: 14px; }
+  .hdr-search { top: calc(env(safe-area-inset-top, 0px) + 2px); translate: none; }
+  .mobile-nav { height: 56px; bottom: calc(6px + env(safe-area-inset-bottom, 0px)); border-radius: 18px; padding: 3px; }
+  .mobile-nav-pill { height: 50px; top: 3px; border-radius: 15px; }
+  .mobile-nav-link { min-height: 50px; gap: 2px; padding: 2px 0; }
+  .mobile-nav-link .icon { width: 19px; height: 19px; }
+  .outlet:not([data-feature="watch"]) > :not(.discover) { padding-bottom: calc(16px + var(--bottom-nav-h)); }
 }
 .hdr-search[hidden] { display: none; }
 .skip-link { min-height: 44px; }

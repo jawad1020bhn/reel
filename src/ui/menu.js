@@ -33,14 +33,70 @@ XR.define("ui.menu", ["ui.dom", "ui.icons", "core.i18n"], function (dom, icons, 
     if (e.key === "ArrowDown") { e.preventDefault(); items[(i + 1) % items.length]?.focus(); }
     else if (e.key === "ArrowUp") { e.preventDefault(); items[(i - 1 + items.length) % items.length]?.focus(); }
   }
+  /* Sheets close by dragging their head down, the page dimming in step.
+     Pointer events cover touch, pen and mouse; a short flick counts too. */
+  function attachSheetDrag(sheet, handle, backdrop) {
+    let pointerId = null, startY = 0, dy = 0, startedAt = 0;
+    const reduced = () => document.documentElement.dataset.motion === "reduce" || matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const settle = (dismiss) => {
+      if (pointerId === null) return;
+      pointerId = null;
+      handle.classList.remove("is-dragging");
+      sheet.classList.remove("is-dragging");
+      if (dismiss) {
+        const exit = reduced() ? 0 : 170;
+        sheet.style.transition = exit ? "transform 170ms var(--ease-soft), opacity 140ms linear" : "none";
+        backdrop.style.transition = exit ? "opacity 140ms linear" : "none";
+        sheet.style.transform = `translateY(${sheet.offsetHeight}px)`;
+        sheet.style.opacity = "0";
+        backdrop.style.opacity = "0";
+        setTimeout(() => { if (current === sheet) close(); }, exit);
+      } else {
+        sheet.style.transition = "";
+        backdrop.style.transition = "";
+        sheet.style.transform = "";
+        sheet.style.opacity = "";
+        backdrop.style.opacity = "";
+      }
+      dy = 0;
+    };
+    handle.addEventListener("pointerdown", (e) => {
+      if (!e.isPrimary || (e.button !== undefined && e.button !== 0)) return;
+      if (e.target.closest("button, a, input, select, textarea")) return;
+      pointerId = e.pointerId; startY = e.clientY; dy = 0; startedAt = performance.now();
+      handle.classList.add("is-dragging");
+      sheet.classList.add("is-dragging");
+      try { handle.setPointerCapture(pointerId); } catch { /* synthetic pointers */ }
+    });
+    handle.addEventListener("pointermove", (e) => {
+      if (pointerId === null || e.pointerId !== pointerId) return;
+      dy = Math.max(0, e.clientY - startY);
+      if (dy > 0 && e.cancelable) e.preventDefault();
+      sheet.style.transform = `translateY(${dy}px)`;
+      backdrop.style.opacity = String(Math.max(0, 1 - dy / Math.max(160, sheet.offsetHeight * 0.9)));
+    });
+    const release = (e) => {
+      if (pointerId === null || e.pointerId !== pointerId) return;
+      const speed = dy / Math.max(1, performance.now() - startedAt);
+      settle(dy > Math.min(132, sheet.offsetHeight * 0.32) || speed > 0.55);
+    };
+    handle.addEventListener("pointerup", release);
+    handle.addEventListener("pointercancel", () => settle(false));
+  }
+
   function open(anchor, items, { title = "", align = "start", className = "", onClose = null } = {}) {
     close();
     trigger = anchor instanceof Element ? anchor : document.activeElement;
     onClosed = onClose;
     const sheet = isSheetMode();
     const el = dom.h("div.menu", { role: "menu", class: (sheet ? "menu-sheet " : "") + className, "aria-label": title ? i18n.t(title) : i18n.t("Actions") });
-    if (sheet) el.appendChild(dom.h("div.sheet-grip"));
-    if (title) el.appendChild(dom.h("div.menu-title", i18n.t(title)));
+    let dragArea = null;
+    if (sheet) {
+      /* The grip is a handle, not decoration: the whole head drags the sheet. */
+      dragArea = dom.h("div.sheet-drag", dom.h("div.sheet-grip"));
+      if (title) dragArea.appendChild(dom.h("div.menu-title", i18n.t(title)));
+      el.appendChild(dragArea);
+    }
     for (const it of items) {
       if (!it) continue;
       if (it.sep) { el.appendChild(dom.h("div.menu-sep")); continue; }
@@ -50,11 +106,19 @@ XR.define("ui.menu", ["ui.dom", "ui.icons", "core.i18n"], function (dom, icons, 
         it.hint ? dom.h("span.menu-hint", i18n.t(it.hint)) : null,
         it.checked ? icons.icon("check", 14) : null));
     }
+    if (sheet) {
+      /* Sheets get a labelled exit at the end, the way a native action sheet does:
+         drag and backdrop are gestures, this is the explicit way out. */
+      el.appendChild(dom.h("div.menu-sep"));
+      el.appendChild(dom.h("button.menu-item.menu-cancel", { role: "menuitem", onclick: (e) => { e.stopPropagation(); close(); } },
+        icons.icon("x", 16), dom.h("span.menu-label", i18n.t("Cancel"))));
+    }
     let backdrop = null;
     if (sheet) { backdrop = dom.h("div.sheet-backdrop", { onclick: close }); document.body.appendChild(backdrop); }
     document.body.appendChild(el);
     current = el; currentBackdrop = backdrop;
     if (sheet) {
+      attachSheetDrag(el, dragArea, backdrop);
       requestAnimationFrame(() => {
         if (current !== el) return;
         el.classList.add("in"); backdrop.classList.add("in");
