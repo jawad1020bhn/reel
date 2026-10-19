@@ -30,7 +30,6 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu",
       menu.open(speedBtn, SPEEDS.map((rate) => ({ label: rate === 1 ? "Normal · 1×" : rate + "×", checked: playback.speed === rate, run: () => playback.setSpeed(rate) })), { title: "Playback speed" });
     } }, "1×");
     const bar = h("div.cell-bar", playBtn, progress, timeLabel, speedBtn);
-    const unmuteBtn = h("button.cell-unmute", { type: "button", "aria-label": "Unmute video", onclick: (e) => { e.stopPropagation(); playback.setMuted(false); } }, icons.icon("volume", 16), h("span", "Tap for sound"));
     const offPlayback = events.bus.on(EV.PLAYBACK_CHANGED, syncControls);
 
     function duration() {
@@ -82,12 +81,11 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu",
       dom.replace(playBtn, icons.icon(playing ? "pause" : "play", 18, { filled: true }));
       playBtn.setAttribute("aria-label", playing ? "Pause video" : "Play video");
       playBtn.title = playing ? "Pause video" : "Play video";
-      unmuteBtn.classList.toggle("on", active && playing && !failed && !!playback.muted);
     }
 
     /* ------------------------------------------------------------- media -- */
     function videoNode(m, { primary = true } = {}) {
-      const video = h("video.cell-video", { preload: "none", disablePictureInPicture: false, controlsList: "nodownload" });
+      const video = h("video.cell-video", { preload: "none", disablePictureInPicture: true, controlsList: "nodownload" });
       const hd = playback.wire(video, m, {
         preload: "metadata",
         loop: prefs.get("loopShorts") && m.duration > 0 && m.duration <= 60 && !(isCarousel),
@@ -181,7 +179,7 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu",
     /* ----------------------------------------------------------- overlay -- */
     const m0 = post.media[0];
     stage.appendChild(h("div.cell-gradient"));
-    if (post.media.some((m) => m.kind !== "photo")) el.append(bar, unmuteBtn);
+    if (post.media.some((m) => m.kind !== "photo")) el.append(bar);
     syncControls();
     const unplayable = h("div.cell-unplayable", icons.icon("alert", 28), h("p", "This video can't be played — it may have been deleted on X."),
       h("div.cell-unplayable-actions",

@@ -42,7 +42,7 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.postMenu",
         h("div.viewer-backdrop", { onclick: () => close() }),
         h("div.viewer-ambient"),
 
-        /* Top bar (fit & fullscreen live in the rail / keyboard) */
+        /* Top bar (fit lives in the rail / keyboard) */
         h("header.viewer-top",
           h("div.viewer-top-left",
             h("button.viewer-close.btn.btn-icon", { title: "Close (Esc)", onclick: () => close() }, icons.icon("x", 22)),
@@ -118,6 +118,11 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.postMenu",
     }
 
     function toggleFit() {
+      const m = current()?.media[S.mediaIndex];
+      const aspect = Number(m?.aspect) || (m?.width && m?.height ? m.width / m.height : 1);
+      if (platform.isMobileView() && m?.kind !== "photo" && aspect > 1.05 && S.handle?.video) {
+        void platform.landscapeFullscreen(S.el, S.handle.video);
+      }
       S.fit = S.fit === "contain" ? "cover" : "contain";
       if (S.el) {
         const frame = S.el.querySelector(".viewer-frame");
@@ -133,11 +138,6 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.postMenu",
         if (card) card.classList.toggle("on", S.showInfo);
         if (btn) btn.classList.toggle("on", S.showInfo);
       }
-    }
-
-    function toggleFullscreen() {
-      const target = S.el ? S.el.querySelector(".viewer-frame") || S.el : document.documentElement;
-      platform.fullscreen(target);
     }
 
     function teardownStage() {
@@ -233,6 +233,7 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.postMenu",
           /* Video / GIF */
           const video = h("video.viewer-video", {
             playsInline: true,
+            disablePictureInPicture: true,
             preload: "auto",
             poster: media.poster(m, 1200),
           });
@@ -733,7 +734,6 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.postMenu",
       b("m", () => playback.toggleMuted(), "Mute / unmute");
       b("x", () => toggleFit(), "Toggle fit mode");
       b("i", () => toggleInfo(), "Toggle details");
-      b("f", () => toggleFullscreen(), "Fullscreen");
       b("tab", (e) => {
         if (current()?.media.length > 1) {
           if (e) e.preventDefault();

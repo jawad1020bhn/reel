@@ -40,9 +40,7 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
         h("div.watch-title", h("b.watch-label", S.label), h("span.watch-counter")),
         h("div.watch-top-actions",
           W.iconBtn("fit", "Fit / fill (x)", () => cycleFit(), { cls: "watch-fit" }),
-          W.iconBtn("pip", "Picture-in-picture (p)", () => togglePip(), { cls: "watch-pip" }),
-          W.iconBtn("sliders", "Player options", () => playerOptions(), { cls: "watch-options" }),
-          W.iconBtn("expand", "Fullscreen (f)", () => platform.fullscreen(S.root), { cls: "watch-fs" })));
+          W.iconBtn("sliders", "Player options", () => playerOptions(), { cls: "watch-options" })));
       const side = h("div.watch-side",
         h("button.side-btn.side-mute", { "aria-label": "Mute / unmute", title: "Mute (m)", onclick: () => playback.toggleMuted() }, icons.icon(playback.muted ? "mute" : "volume", 26), h("span.side-label", "Sound")),
         h("button.side-btn.side-info", { "aria-label": "Caption and details", title: "Caption & details (i)", onclick: (e) => { e.stopPropagation(); toggleInfo(); } }, icons.icon("info", 26), h("span.side-label", "Info")),
@@ -63,9 +61,6 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
       const root = h("div.watch", { tabindex: "-1" }, track, top, side, arrows, hud, upnext, info, nextup, h("div.watch-heart", icons.icon("heart", 96, { filled: true })), h("div.watch-seekflash"));
       outlet.appendChild(root);
       S.root = root; S.track = track; S.els = { top, side, arrows, hud, upnext, info, nextup, counter: top.querySelector(".watch-counter"), label: top.querySelector(".watch-label") };
-      /* Never show a player control the engine cannot honour. */
-      if (!platform.canPip || !platform.canPip()) top.querySelector(".watch-pip")?.setAttribute("hidden", "");
-      if (!(document.fullscreenEnabled || root.webkitRequestFullscreen)) top.querySelector(".watch-fs")?.setAttribute("hidden", "");
       S.infoOpen = false; S.nextCancelled = false;
       const unbindGestures = bindGestures();
       bindKeys();
@@ -104,7 +99,6 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
       menu.close();
       for (const c of S.cells.values()) c.destroy(); S.cells.clear();
       feed.setIndex(S.index);
-      if (platform.isFullscreen()) platform.exitFullscreen();
       S.endCard?.remove(); S.endCard = null;
       S.root = null; S.host = null; S.track = null;
       clearInterval(S.idleT); S.idleT = 0;
@@ -307,14 +301,7 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
       if (consume) S.nextCancelled = true;
     }
 
-    /* -------------------------------------------------- pip & idle -- */
-    function togglePip() {
-      const v = S.cells.get(S.index)?.video;
-      if (!v || !platform.canPip || !platform.canPip()) { flash("Picture-in-picture not supported"); return; }
-      if (document.pictureInPictureElement) { document.exitPictureInPicture().then(() => flash("Back to feed")).catch(() => flash("Cannot exit picture-in-picture")); return; }
-      v.requestPictureInPicture().then(() => flash("Picture-in-picture")).catch(() => flash("Picture-in-picture unavailable"));
-    }
-
+    /* -------------------------------------------------------------- idle -- */
     /* ------------------------------------------------ lock screen & wake -- */
     let wakeLock = null;
     async function setWake(on) {
@@ -402,13 +389,26 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
     }
     let seekFlashTimer = 0;
     function playerOptions() {
-      const items = [{ label: "Fit / fill", icon: "fit", run: cycleFit }];
-      if (!platform.canPip || platform.canPip()) items.push({ label: "Picture-in-picture", icon: "pip", run: togglePip });
-      items.push({ label: "Up next", icon: "list", run: () => queueSheet() });
+      const items = [
+        { label: "Fit / fill", icon: "fit", run: cycleFit },
+        { label: "Up next", icon: "list", run: () => queueSheet() },
+      ];
       /* Anchor on the control that is actually visible for this input mode. */
       menu.open(S.root?.querySelector(platform.canHover() ? ".watch-options" : ".side-options"), items, { title: "Player options" });
     }
-    function cycleFit() { const order = ["auto", "cover", "contain"]; const cur = fitMode(); S.fitOverride = order[(order.indexOf(cur) + 1) % order.length]; S.cells.forEach((c) => c.fit(S.fitOverride)); flash(S.fitOverride === "cover" ? "Fill" : S.fitOverride === "contain" ? "Fit" : "Auto"); }
+    function cycleFit() {
+      const cell = S.cells.get(S.index);
+      const mediaItem = cell?.post.media[cell.carousel?.index ?? 0];
+      const aspect = Number(mediaItem?.aspect) || (mediaItem?.width && mediaItem?.height ? mediaItem.width / mediaItem.height : 1);
+      if (platform.isMobileView() && mediaItem?.kind !== "photo" && aspect > 1.05 && cell?.video) {
+        void platform.landscapeFullscreen(S.root, cell.video);
+      }
+      const order = ["auto", "cover", "contain"];
+      const cur = fitMode();
+      S.fitOverride = order[(order.indexOf(cur) + 1) % order.length];
+      S.cells.forEach((c) => c.fit(S.fitOverride));
+      flash(S.fitOverride === "cover" ? "Fill" : S.fitOverride === "contain" ? "Fit" : "Auto");
+    }
     function renderUpNext() {
       const el = S.els?.upnext; if (!el) return;
       const next = catalog.post(S.ids[S.index + 1]);
@@ -561,11 +561,9 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
       b("c", () => { const p = current(); if (p) actions.addToCollection(p.id); }, "Add to collection");
       b("o", () => { const p = current(); if (p) actions.openOnX(p); }, "Open on X");
       b("m", () => playback.toggleMuted(), "Mute / unmute");
-      b("f", () => platform.fullscreen(S.root), "Fullscreen");
-      b("p", () => togglePip(), "Picture-in-picture");
       b("i", () => toggleInfo(), "Caption & details");
       b("x", () => cycleFit(), "Fit / fill");
-      b("escape", () => { if (S.infoOpen) closeInfo(); else if (platform.isFullscreen()) platform.exitFullscreen(); else nav.back("discover"); }, "Back");
+      b("escape", () => { if (S.infoOpen) closeInfo(); else nav.back("discover"); }, "Back");
       b("home", () => jump(0), ""); b("end", () => jump(S.ids.length - 1), "");
       b("shift+.", () => { const r = Math.min(3, playback.speed + 0.25); playback.setSpeed(r); flash(r + "×"); }, "Faster");
       b("shift+,", () => { const r = Math.max(0.25, playback.speed - 0.25); playback.setSpeed(r); flash(r + "×"); }, "Slower");

@@ -34,23 +34,31 @@ XR.define("infra.platform", [], function () {
   }
   function openExternal(url) { try { window.open(url, "_blank", "noopener,noreferrer"); } catch { location.href = url; } }
 
-  const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement || null;
-  async function fullscreen(el = document.documentElement) {
-    try {
-      if (fsEl()) { await exitFullscreen(); return false; }
-      if (el.requestFullscreen) await el.requestFullscreen({ navigationUI: "hide" });
-      else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
-      return true;
-    } catch { return false; }
-  }
-  async function exitFullscreen() { try { if (document.exitFullscreen) await document.exitFullscreen(); else if (document.webkitExitFullscreen) document.webkitExitFullscreen(); } catch { /* ignore */ } }
-  const isFullscreen = () => !!fsEl();
   const isTouch = () => (typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches) || navigator.maxTouchPoints > 0;
+  const isMobileView = () => typeof matchMedia === "function" && matchMedia("(max-width: 899px)").matches;
+  async function landscapeFullscreen(el, video) {
+    if (video?.webkitDisplayingFullscreen) return true;
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+      try { await globalThis.screen?.orientation?.lock?.("landscape"); } catch { /* orientation lock is optional */ }
+      return true;
+    }
+    try {
+      const request = el?.requestFullscreen || el?.webkitRequestFullscreen;
+      if (request) {
+        await request.call(el);
+        try { await globalThis.screen?.orientation?.lock?.("landscape"); } catch { /* orientation lock is optional */ }
+        return true;
+      }
+    } catch { /* try the native video fullscreen on iOS */ }
+    try {
+      if (video?.webkitEnterFullscreen) { video.webkitEnterFullscreen(); return true; }
+    } catch { /* unavailable or denied */ }
+    return false;
+  }
   /* A touchscreen laptop has a fine pointer as well; hover UI should follow the
      pointer, not the presence of a touch digitizer. */
   const canHover = () => typeof matchMedia === "function" && matchMedia("(hover: hover) and (pointer: fine)").matches;
   const canShare = () => typeof navigator !== "undefined" && typeof navigator.share === "function";
-  const canPip = () => typeof document !== "undefined" && !!document.pictureInPictureEnabled && typeof HTMLVideoElement !== "undefined" && typeof HTMLVideoElement.prototype.requestPictureInPicture === "function";
   const reducedMotion = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
   const prefersDark = () => typeof matchMedia === "function" && matchMedia("(prefers-color-scheme: dark)").matches;
   const dpr = () => (typeof devicePixelRatio === "number" ? devicePixelRatio : 1);
@@ -94,5 +102,5 @@ XR.define("infra.platform", [], function () {
     return [...H].map((x) => (x >>> 0).toString(16).padStart(8, "0")).join("");
   }
 
-  return { copy, share, download, openExternal, fullscreen, exitFullscreen, isFullscreen, isTouch, canHover, canShare, canPip, reducedMotion, prefersDark, dpr, vibrate, sha256, randomId, isFile };
+  return { copy, share, download, openExternal, isTouch, isMobileView, landscapeFullscreen, canHover, canShare, reducedMotion, prefersDark, dpr, vibrate, sha256, randomId, isFile };
 });
