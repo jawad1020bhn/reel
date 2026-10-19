@@ -1,5 +1,5 @@
 /* features/watch.css — the vertical feed */
-.watch { position: relative; width: 100%; height: 100%; min-height: 100%; background: #000; color: #fff; overflow: hidden; touch-action: none; -webkit-user-select: none; user-select: none; outline: none; }
+.watch { position: relative; width: 100%; height: 100%; min-height: 100%; background: #000; color: #fff; overflow: hidden; touch-action: manipulation; -webkit-user-select: none; user-select: none; outline: none; }
 .watch-track { position: absolute; inset: 0; }
 .watch-track.bounce .cell.is-active { animation: edge-nudge 260ms var(--ease-soft); }
 @keyframes edge-nudge { from { transform: translate3d(0, 14px, 0); } }
@@ -7,7 +7,7 @@
 /* cells */
 .cell { position: absolute; inset: 0; will-change: transform; transition: transform 360ms var(--ease); background: #000; overflow: hidden; }
 .cell.no-anim, .watch-track.is-dragging .cell { transition: none; }
-.cell-stage { position: absolute; inset: 0; display: grid; place-items: center; }
+.cell-stage { position: absolute; inset: 0; display: grid; place-items: center; touch-action: none; }
 .cell-bg { position: absolute; inset: -30px; background-size: cover; background-position: center; filter: blur(40px) brightness(0.45) saturate(1.3); transform: scale(1.1); opacity: 0; transition: opacity 400ms var(--ease); }
 .cell[data-fit="contain"] .cell-bg { opacity: 1; }
 .cell-fit { position: absolute; inset: 0; }
@@ -86,6 +86,7 @@
 .watch-label { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .watch-counter { font-size: 12px; opacity: 0.75; font-variant-numeric: tabular-nums; }
 .watch-options { display: none; }
+.side-btn.side-options { display: none; }
 .watch-top-actions { margin-left: auto; display: flex; gap: 6px; }
 
 /* side actions */
@@ -233,7 +234,11 @@
   z-index: 8;
   max-width: 560px;
   max-height: min(62vh, 560px);
+  max-height: min(62svh, 560px);
   overflow: auto;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   display: none;
   padding: 16px 18px;
   border-radius: var(--r-xl);
@@ -300,8 +305,14 @@
 
 /* small screens */
 @media (max-width: 899px) {
-  .watch-info-card { left: 12px; right: 12px; bottom: calc(0px + 58px); max-height: min(56vh, 460px); }
+  .watch-info-card { left: 12px; right: 12px; bottom: calc(0px + 58px); max-height: min(56vh, 460px); max-height: min(56svh, 460px); }
   .watch-nextup { right: 12px; left: 12px; bottom: calc(0px + 58px); width: auto; }
+}
+
+/* Touch: the phone's player options live on the thumb-side rail. */
+@media (hover: none) {
+  .side-btn.side-options { display: flex; }
+  .watch-options { display: none; }
 }
 
 @media (max-width: 380px) {
@@ -313,3 +324,14 @@
 .watch:has(.cell.is-active.is-unplayable) .watch-side { display: none; }
 
 .watch:has(.cell-end.is-active) .watch-side, .watch:has(.cell-end.is-active) .watch-upnext { display: none; }
+
+
+/* Touch devices: hover is not a state the user can enter or leave. */
+@media (hover: none) {
+  .side-btn:hover { transform: none; }
+  .watch-top .btn-icon:hover { background: transparent; }
+  .watch-upnext:hover { background: rgb(10 10 13 / 0.62); transform: none; }
+  .cell-unplayable-actions .btn:hover { background: rgb(255 255 255 / 0.1); }
+  .cell-unplayable-actions .btn-primary:hover { background: var(--accent); }
+  .cell-unplayable-actions .btn:last-child:hover { background: transparent; }
+}

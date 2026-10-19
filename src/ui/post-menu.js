@@ -18,6 +18,7 @@ XR.define("ui.postMenu", ["ui.menu", "ui.dialog", "ui.dom", "app.actions", "app.
         { label: `@${post.author.username}`, icon: "users", run: () => actions.goCreator(post.author.username) },
         ...(post.hashtags.slice(0, 3).map((t) => ({ label: "#" + t, icon: "hash", run: () => actions.goTag(t) }))),
         { sep: true },
+        actions.canShare() ? { label: "Share…", icon: "share", run: () => actions.share(post) } : null,
         { label: "Open on X", icon: "external", run: () => actions.openOnX(post) },
         { label: "Copy link", icon: "link", run: () => actions.copyLink(post) },
         post.text ? { label: "Copy caption", icon: "copy", run: () => actions.copyText(post) } : null,

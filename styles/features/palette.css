@@ -3,6 +3,7 @@
   position: fixed; inset: 0; z-index: var(--z-dialog); background: rgb(0 0 0 / 0.66);
   display: flex; justify-content: center; align-items: flex-start;
   padding: max(12vh, 72px) 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  padding-top: max(12svh, 72px);
   opacity: 0; transition: opacity 160ms var(--ease-soft);
 
 }
@@ -20,7 +21,7 @@
 .palette-input::placeholder { color: var(--fg-3); }
 .palette-head .kbd, .palette-head kbd { flex: none; }
 .palette-close {
-  flex: none; width: 34px; height: 34px; margin-right: 2px; border-radius: 50%;
+  flex: none; position: relative; width: 34px; height: 34px; margin-right: 2px; border-radius: 50%;
   display: none; place-items: center; color: var(--fg-1); background: rgb(255 255 255 / 0.06);
   transition: background var(--dur) var(--ease-soft), color var(--dur) var(--ease-soft);
 }
@@ -49,14 +50,16 @@
 .palette-foot-end { margin-left: auto; font-family: var(--mono); font-size: 11px; letter-spacing: 0.05em; }
 @media (max-width: 600px), (pointer: coarse) {
   .palette-close { display: grid; }
+  /* 34px drawing, 44px hit area: nothing about the sheet moves. */
+  .palette-close::after { content: ""; position: absolute; inset: -5px; border-radius: 50%; }
   .palette-esc { display: none; }
 }
 @media (max-width: 600px) {
   /* a full-screen sheet needs to be a sheet: nothing of the page reads through */
-  .palette-backdrop { padding: 0; align-items: stretch; background: #08080a; }
+  .palette-backdrop { padding: 0; padding-bottom: var(--kb-inset, 0px); align-items: stretch; background: #08080a; }
   .palette { width: 100%; max-height: 100%; height: 100%; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
   .palette-head { padding: calc(14px + env(safe-area-inset-top, 0px)) 16px 14px; gap: 10px; }
-  .palette-input { font-size: 15px; }
+  .palette-input { font-size: 16px; }
   .palette-list { flex: 1; }
   .palette-foot { padding-bottom: calc(9px + env(safe-area-inset-bottom, 0px)); }
   .palette-foot .foot-hint { display: none; }

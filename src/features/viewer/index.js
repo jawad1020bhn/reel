@@ -642,6 +642,13 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.postMenu",
         frame.style.opacity = (1 - Math.min(0.45, Math.abs(dy) / 1100)).toFixed(2);
       }, { passive: true });
 
+      const springBack = () => {
+        frame.style.transition = "transform 260ms cubic-bezier(.2,.8,.2,1), opacity 220ms ease";
+        frame.style.transform = "";
+        frame.style.opacity = "";
+        setTimeout(() => clearInline(frame), 300);
+      };
+
       el.addEventListener("touchend", (e) => {
         if (!active) return;
         active = false;
@@ -652,12 +659,17 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.postMenu",
         const going = Math.abs(dy) > 80 || speed > 0.55;
         const dir = dy < 0 ? 1 : -1; /* swipe up = next, swipe down = previous */
         const atEdge = (dir > 0 && S.index >= S.ids.length - 1) || (dir < 0 && S.index === 0);
+        /* At the very first post there is nothing above: a downward pull closes
+           the viewer, the way a full-screen surface is expected to behave. */
+        if (dy > 0 && S.index === 0 && going) {
+          frame.style.transition = "transform 220ms cubic-bezier(.2,.8,.2,1), opacity 180ms ease";
+          frame.style.transform = `translate3d(0, ${Math.max(120, dy)}px, 0) scale(0.96)`;
+          frame.style.opacity = "0";
+          setTimeout(() => { if (S.el) close(); }, 190);
+          return;
+        }
         if (!going || atEdge) {
-          /* spring back */
-          frame.style.transition = "transform 260ms cubic-bezier(.2,.8,.2,1), opacity 220ms ease";
-          frame.style.transform = "";
-          frame.style.opacity = "";
-          setTimeout(() => clearInline(frame), 300);
+          springBack();
           return;
         }
         /* sweep out → render next → sweep in from the opposite side */
@@ -678,6 +690,15 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.postMenu",
             setTimeout(() => clearInline(next), 260);
           });
         }, 180);
+      }, { passive: true });
+
+      /* A system gesture (notification shade, call, navigation) cancels the touch
+         stream. Settle the frame instead of leaving it mid-transform. */
+      el.addEventListener("touchcancel", () => {
+        if (!active) return;
+        active = false;
+        axis = null;
+        springBack();
       }, { passive: true });
 
       /* Mouse wheel on desktop — vertical only, one post per notch */

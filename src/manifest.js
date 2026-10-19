@@ -81,6 +81,7 @@ window.XREELS_MANIFEST = {
     "src/ui/icons.js",
     "src/ui/toast.js",
     "src/ui/dialog.js",
+    "src/ui/overlay-history.js",
     "src/ui/menu.js",
     "src/ui/widgets.js",
     "src/ui/charts.js",

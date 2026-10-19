@@ -165,3 +165,25 @@
 
 [data-touch="on"] .lib-search-wrap { height: 44px; }
 [data-touch="on"] .lib-act-group .btn.lib-act { width: 44px; min-width: 44px; }
+
+/* The sort select lives in the filter sheet on phones; mirror a non-default
+   order on the toolbar button so it is visible after the sheet closes. */
+.lib-sort-flag { display: none; }
+@media (max-width: 700px) {
+  .lib-sort-flag.on {
+    display: inline; margin-left: 2px; font-family: var(--mono); font-size: 10px;
+    letter-spacing: 0.04em; color: var(--fg-2); text-transform: uppercase;
+  }
+}
+
+/* Touch sizing and horizontal containment. */
+[data-touch="on"] .lib-more { width: 44px; height: 44px; }
+[data-touch="on"] .lib-filter { min-height: 44px; }
+[data-touch="on"] .lib-search { font-size: 16px; }
+.chip-row-body, .bulk-bar { overscroll-behavior-inline: contain; overscroll-behavior-x: contain; }
+
+@media (hover: none) {
+  .lib-act-group .btn.lib-act:hover { color: var(--fg-1); }
+  .lib-more:hover { background: transparent; }
+  .lib-filter:hover { border-color: var(--line); }
+}

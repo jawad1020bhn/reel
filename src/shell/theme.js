@@ -19,12 +19,18 @@ XR.define("shell.theme", ["app.prefs", "app.ports.platform", "core.i18n"], funct
     root.dataset.motion = rm === "system" ? (platform.reducedMotion() ? "reduce" : "full") : rm === "on" ? "reduce" : "full";
     root.dataset.blur = prefs.get("blur") ? "on" : "off";
     root.dataset.touch = platform.isTouch() ? "on" : "off";
+    root.dataset.hover = platform.canHover() ? "on" : "off";
     root.dataset.file = platform.isFile() ? "on" : "off";
     i18n.setLocale(prefs.get("language"));
     root.lang = i18n.locale; root.dir = i18n.dir();
-    const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.content = "#141414";
+    syncChrome();
     setTitle();
+  }
+  /* The Watch route is full black; the rest of the app keeps the near-black bar. */
+  function syncChrome() {
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (!meta) return;
+    meta.content = document.querySelector(".app.app-immersive") ? "#000000" : "#141414";
   }
   let currentTitle = "";
   function setTitle(section = currentTitle) {
@@ -41,6 +47,10 @@ XR.define("shell.theme", ["app.prefs", "app.ports.platform", "core.i18n"], funct
     XR.resolveAll("core.i18n.");   // instantiate every registered dictionary (core.i18n.*)
     apply();
     prefs.onChange(({ patch }) => { if (["density", "reduceMotion", "blur", "discreet", "language"].some((k) => k in patch)) apply(); });
+    if (typeof MutationObserver === "function") {
+      /* layout toggles .app-immersive on route changes; keep the browser chrome in step. */
+      new MutationObserver(syncChrome).observe(document.body, { attributes: true, attributeFilter: ["class"], subtree: true });
+    }
     if (typeof matchMedia === "function" && platform.prefersDark) {
       mq = matchMedia("(prefers-color-scheme: dark)");
       mq.addEventListener?.("change", () => { /* dark-only */ });

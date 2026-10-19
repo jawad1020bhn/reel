@@ -46,6 +46,11 @@ XR.define("infra.platform", [], function () {
   async function exitFullscreen() { try { if (document.exitFullscreen) await document.exitFullscreen(); else if (document.webkitExitFullscreen) document.webkitExitFullscreen(); } catch { /* ignore */ } }
   const isFullscreen = () => !!fsEl();
   const isTouch = () => (typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches) || navigator.maxTouchPoints > 0;
+  /* A touchscreen laptop has a fine pointer as well; hover UI should follow the
+     pointer, not the presence of a touch digitizer. */
+  const canHover = () => typeof matchMedia === "function" && matchMedia("(hover: hover) and (pointer: fine)").matches;
+  const canShare = () => typeof navigator !== "undefined" && typeof navigator.share === "function";
+  const canPip = () => typeof document !== "undefined" && !!document.pictureInPictureEnabled && typeof HTMLVideoElement !== "undefined" && typeof HTMLVideoElement.prototype.requestPictureInPicture === "function";
   const reducedMotion = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
   const prefersDark = () => typeof matchMedia === "function" && matchMedia("(prefers-color-scheme: dark)").matches;
   const dpr = () => (typeof devicePixelRatio === "number" ? devicePixelRatio : 1);
@@ -89,5 +94,5 @@ XR.define("infra.platform", [], function () {
     return [...H].map((x) => (x >>> 0).toString(16).padStart(8, "0")).join("");
   }
 
-  return { copy, share, download, openExternal, fullscreen, exitFullscreen, isFullscreen, isTouch, reducedMotion, prefersDark, dpr, vibrate, sha256, randomId, isFile };
+  return { copy, share, download, openExternal, fullscreen, exitFullscreen, isFullscreen, isTouch, canHover, canShare, canPip, reducedMotion, prefersDark, dpr, vibrate, sha256, randomId, isFile };
 });

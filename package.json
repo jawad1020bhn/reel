@@ -5,8 +5,8 @@
   "description": "Local-first viewer for your X bookmarks with media \u2014 open index.html, no server needed.",
   "license": "MIT",
   "scripts": {
-    "lint": "node tools/lint-deps.mjs",
-    "check": "node tools/lint-deps.mjs",
+    "lint": "node tools/lint-deps.mjs && node tools/lint-mobile.mjs",
+    "check": "node tools/lint-deps.mjs && node tools/lint-mobile.mjs",
     "site:password": "node tools/set-site-password.mjs",
     "test:ui": "node --test tests/ui.test.mjs",
     "audit:ui": "bash tools/impeccable-audit.sh"

@@ -125,3 +125,15 @@ password does not un-publish an export that was pushed before.
 `site.config.js` with an empty `hash` is the default that ships in the repo, so
 double-clicking `index.html` keeps working exactly as before: no prompt, no
 network, no server.
+
+---
+
+## 6. Installable app (Android home screen)
+
+The repo ships a web app manifest (`manifest.webmanifest`) and maskable icons in
+`assets/icons/`. Serve the folder over **HTTPS** and serve `.webmanifest` as
+`application/manifest+json` (Vercel, Netlify and GitHub Pages do this already).
+Chrome on Android will then offer *Install app* / *Add to Home screen*, opening
+standalone with the `#141414` theme colour and the red-X icon.
+
+The manifest is inert on `file://`; the app itself still runs there.

@@ -76,7 +76,7 @@ XR.define("ui.tile", ["ui.dom", "ui.icons", "ui.preview"], function (dom, icons,
     let infoFocusFrame = 0;
     function syncInfo() {
       if (!info) return;
-      const compact = document.documentElement.dataset.touch === "on" || innerWidth < 768;
+      const compact = document.documentElement.dataset.hover !== "on" || innerWidth < 768;
       const expanded = opts.info === "always" || compact || el.matches(":hover, :focus-within");
       info.inert = !expanded;
       info.setAttribute("aria-hidden", expanded ? "false" : "true");
@@ -93,7 +93,16 @@ XR.define("ui.tile", ["ui.dom", "ui.icons", "ui.preview"], function (dom, icons,
     };
     el.addEventListener("click", open);
     el.addEventListener("keydown", (e) => { if (e.target === opener && e.key === "s" && opts.onStar) { e.preventDefault(); opts.onStar(post); } });
-    el.addEventListener("contextmenu", (e) => { if (opts.onMenu) { e.preventDefault(); opts.onMenu(post, e); } });
+    /* Android fires contextmenu for the same long-press that already opened the
+       sheet at 450ms. Whichever arrives first wins; the other is swallowed. */
+    let lastLongPress = 0;
+    el.addEventListener("contextmenu", (e) => {
+      if (!opts.onMenu) return;
+      e.preventDefault();
+      if (Date.now() - lastLongPress < 900) return;
+      cancelPress();
+      opts.onMenu(post, e);
+    });
 
     /* touch long-press → the post sheet (iOS Safari does not fire contextmenu for touch);
        cancelled by any scroll/drag, and the click that follows the release is swallowed */
@@ -103,7 +112,7 @@ XR.define("ui.tile", ["ui.dom", "ui.icons", "ui.preview"], function (dom, icons,
       if (e.pointerType !== "touch" || !opts.onMenu || opts.selectActive?.()) return;
       px = e.clientX; py = e.clientY; pressed = false;
       cancelPress();
-      pressTimer = setTimeout(() => { pressTimer = 0; pressed = true; opts.vibrate?.(12); opts.onMenu(post, e); }, 450);
+      pressTimer = setTimeout(() => { pressTimer = 0; pressed = true; lastLongPress = Date.now(); opts.vibrate?.(12); opts.onMenu(post, e); }, 450);
     }, { passive: true });
     el.addEventListener("pointermove", (e) => { if (pressTimer && (Math.abs(e.clientX - px) > 10 || Math.abs(e.clientY - py) > 10)) cancelPress(); }, { passive: true });
     el.addEventListener("pointerup", cancelPress, { passive: true });

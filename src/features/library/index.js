@@ -10,6 +10,8 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
     const KIND_CHIPS = [["all", "All", "grid"], ["video", "Videos", "play"], ["short", "Shorts", "zap"], ["long", "Long", "film"], ["photo", "Photos", "image"], ["carousel", "Albums", "layers"], ["gif", "GIFs", "gif"]];
     const STATE_CHIPS = [["unseen", "Unseen", "eye"], ["starred", "Starred", "star"], ["progress", "In progress", "clock"], ["seen", "Seen", "check"], ["hidden", "Hidden", "eyeOff"]];
     const SORT_OPTIONS = [["smart", "Smart shuffle"], ["saved", "Recently saved"], ["newest", "Newest posted"], ["oldest", "Oldest posted"], ["likes", "Most liked"], ["views", "Most viewed"], ["longest", "Longest"], ["shortest", "Shortest"], ["creator", "By creator"], ["random", "Shuffled"]];
+    /* Compact labels for the toolbar flag; the full name lives in the aria-label. */
+    const SORT_SHORT = { saved: "Recent", newest: "Newest", oldest: "Oldest", likes: "Liked", views: "Viewed", longest: "Longest", shortest: "Shortest", creator: "Creator", random: "Random" };
     /* Everything the Filters sheet owns: the badge counts exactly these and nothing
        else — the search box shows its own state on the page, so q never inflates it. */
     const SHEET_FILTERS = ["kind", "state", "creator", "month", "savedMonth"];
@@ -107,8 +109,9 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
       const sort = W.select(SORT_OPTIONS.map(([value, label]) => ({ value, label })), S.spec.sort, (v) => setSpec({ sort: v, seed: v === "random" || v === "smart" ? Math.floor(Math.random() * 2147483646) + 1 : 0 }), { cls: "lib-sort" });
       sort.setAttribute("aria-label", "Sort order");
       const filterCount = h("span.lib-filter-count", { hidden: true });
+      const sortFlag = h("span.lib-sort-flag", { "aria-hidden": "true" });
       const filterBtn = h("button.btn.lib-filter", { "aria-haspopup": "dialog", onclick: () => openFilters() },
-        icons.icon("sliders", 16), h("span.lib-act-label", "Filters"), filterCount);
+        icons.icon("sliders", 16), h("span.lib-act-label", "Filters"), filterCount, sortFlag);
       const selectBtn = W.btn("Select", { icon: "check", kind: "ghost", title: "Select posts (v)", cls: "lib-act", onClick: () => toggleBulk() });
       const shuffleBtn = W.btn("", { icon: "shuffle", kind: "ghost", title: "Shuffle (r)", cls: "lib-act", onClick: shuffle });
       const viewsBtn = W.btn("", { icon: "bookmark", kind: "ghost", title: "Saved views", cls: "lib-act", onClick: (e) => viewsMenu(e.currentTarget) });
@@ -123,7 +126,7 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
           filterBtn,
           h("div.lib-act-group", selectBtn, shuffleBtn, viewsBtn),
           moreBtn));
-      S.els.search = q; S.els.sort = sort; S.els.filterBtn = filterBtn; S.els.filterCount = filterCount;
+      S.els.search = q; S.els.sort = sort; S.els.filterBtn = filterBtn; S.els.filterCount = filterCount; S.els.sortFlag = sortFlag;
       syncToolbar();
     }
 
@@ -140,7 +143,7 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
 
     /** Reflect spec changes without rebuilding inputs. */
     function syncToolbar() {
-      const { sort, search, filterCount: badge, filterBtn } = S.els;
+      const { sort, search, filterCount: badge, filterBtn, sortFlag } = S.els;
       if (sort && sort.value !== (S.spec.sort || "saved")) sort.value = S.spec.sort || "saved";
       if (search && document.activeElement !== search && search.value !== (S.spec.q || "")) search.value = S.spec.q || "";
       const n = filterCount();
@@ -150,7 +153,13 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
         badge.textContent = String(n);
         if (n && n !== was) { badge.classList.remove("is-bump"); void badge.offsetWidth; badge.classList.add("is-bump"); }
       }
-      if (filterBtn) filterBtn.setAttribute("aria-label", n ? `Filters, ${n} applied` : "Filters");
+      /* On phones the sort select lives inside the filter sheet; surface a
+         non-default order on the button so it is not invisible after closing. */
+      const sortValue = S.spec.sort || "smart";
+      const sortLabel = (SORT_OPTIONS.find(([v]) => v === sortValue) || [])[1] || "";
+      const customSort = !!S.spec.sort && S.spec.sort !== "smart";
+      if (sortFlag) { sortFlag.textContent = customSort ? (SORT_SHORT[sortValue] || sortLabel) : ""; sortFlag.classList.toggle("on", customSort); }
+      if (filterBtn) filterBtn.setAttribute("aria-label", `${n ? `Filters, ${n} applied` : "Filters"}${customSort ? `; sorted by ${sortLabel}` : ""}`);
     }
 
     function field(label, control) {
