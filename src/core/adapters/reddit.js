@@ -30,6 +30,11 @@ XR.define("core.adapters.reddit", ["core.adapters.registry", "core.util"], funct
   const isRedditHost = (url) => { try { return /(^|\.)(reddit\.com|redd\.it|redditmedia\.com)$/i.test(new URL(url).hostname); } catch { return true; } };
   const toTime = (value) => { const t = Date.parse(value); return Number.isFinite(t) ? t : 0; };
 
+  /* A Reddit-hosted video is "https://v.redd.it/<id>". Reddit serves it as HLS (with sound) at
+     <id>/HLSPlaylist.m3u8; the silent DASH_<h>.mp4 files are not used, because the player would
+     try them before HLS. Only this exact shape is accepted. */
+  const videoBase = (url) => { const m = String(url || "").match(/^https:\/\/v\.redd\.it\/([A-Za-z0-9]+)\/?$/); return m ? "https://v.redd.it/" + m[1] : ""; };
+
   /** One still per post at most: the image itself, or Reddit's thumbnail. Link posts (redgifs,
       external articles) and text posts carry a thumbnail too, so those still get a picture. */
   function mediaOf(p) {
@@ -37,6 +42,8 @@ XR.define("core.adapters.reddit", ["core.adapters.registry", "core.util"], funct
     const direct = list.find((m) => m && m.kind === "image" && httpUrl(m.url));
     if (direct) return [{ kind: "photo", thumb: httpUrl(direct.url) }];
     const poster = httpUrl(p.thumbnail);
+    const playable = list.find((m) => m && m.kind === "video" && videoBase(m.url));
+    if (playable) return [{ kind: "video", thumb: poster, poster, hls: videoBase(playable.url) + "/HLSPlaylist.m3u8", alt: "" }];
     if (!poster) return [];
     const video = list.some((m) => m && m.kind === "video");
     const gallery = list.some((m) => m && m.kind === "gallery");
