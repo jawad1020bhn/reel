@@ -1,8 +1,10 @@
 /* =============================================================================
-   Extension popup · Layout
-   Built on m3e. A popup is a constrained surface: 420 × 720 (capped by the browser), one scrolling
-   content region, one job per tab. The frame (header, tabs, activity, footer)
-   never moves; only the panel between them scrolls.
+   Side panel · Layout
+   Built on m3e. The UI runs in the browser's side panel, so it takes the full
+   height of the window and whatever width the user gives it. Nothing is pinned
+   to a fixed frame: the header, tabs, activity and footer stay in view, and only
+   the panel between them scrolls. Very wide panels cap the reading column so
+   controls and labels don't stretch across the screen.
    ============================================================================= */
 
 @media (prefers-reduced-motion: reduce) {
@@ -18,17 +20,18 @@
    Shell
    ============================================================================= */
 :root {
-  --popup-width: 420px;
-  --popup-height: 720px;
-  --popup-pad: 16px;
+  --panel-min-width: 300px;
+  --panel-max-column: 680px;
+  --panel-pad: 16px;
 }
 
-html { width: var(--popup-width); }
+html { width: 100%; height: 100%; }
 
 body {
-  width: var(--popup-width);
-  height: var(--popup-height);
-  max-height: 100vh;
+  width: 100%;
+  min-width: var(--panel-min-width);
+  height: 100vh;
+  height: 100dvh;
   margin: 0;
   overflow: hidden;
   background: var(--md-sys-color-surface);
@@ -39,7 +42,9 @@ body {
   flex-direction: column;
   gap: 10px;
   height: 100%;
-  padding: 12px var(--popup-pad) 10px;
+  max-width: var(--panel-max-column);
+  margin-inline: auto;
+  padding: 12px var(--panel-pad) 10px;
 }
 
 /* =============================================================================
@@ -103,10 +108,11 @@ body {
 
 .tab {
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  height: 40px;
+  gap: 3px;
+  height: 56px;
   min-width: 0;
   padding-inline: 4px;
   border: 0;
@@ -114,7 +120,8 @@ body {
   background: transparent;
   color: var(--md-sys-color-on-surface-variant);
   font-family: var(--md-ref-typeface-plain);
-  font-size: var(--md-sys-typescale-label-large-size);
+  font-size: 12px;
+  line-height: 1.1;
   font-weight: var(--md-sys-typescale-label-large-weight);
   letter-spacing: 0;
   white-space: nowrap;
@@ -125,8 +132,8 @@ body {
               border-radius var(--md-sys-motion-spring-fast-spatial);
 }
 .tab > svg {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   flex: none;
   opacity: 0.9;
 }
@@ -619,7 +626,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  max-height: 132px;
+  max-height: min(35vh, 320px);
   margin: 0;
   padding: 0 8px 8px;
   overflow-y: auto;
@@ -695,7 +702,7 @@ body {
 }
 
 /* =============================================================================
-   Dialog inside a popup — the viewport is tiny, so shrink the defaults
+   Dialog inside the panel — keep the defaults compact
    ============================================================================= */
 .dialog {
   position: fixed;
@@ -723,7 +730,7 @@ body {
 
 .m3e-snackbar {
   bottom: var(--md-sys-spacing-4);
-  max-width: calc(var(--popup-width) - var(--md-sys-spacing-6));
+  max-width: calc(100% - var(--md-sys-spacing-6));
   box-shadow: var(--md-sys-elevation-level3);
 }
 
@@ -777,3 +784,12 @@ body {
 .stat--us-queued[data-nonzero="true"] .stat__value { color: var(--md-sys-color-tertiary); }
 .stat--us-failed[data-nonzero="true"] { background: var(--md-sys-color-error-container); color: var(--md-sys-color-on-error-container); }
 .unsave__status { margin: 0; line-height: 1.4; }
+
+/* =============================================================================
+   Panel widths
+   Chrome lets the user resize the side panel. Under ~340px the four stat tiles
+   would wrap unevenly, so they fall back to a 2 × 2 grid.
+   ============================================================================= */
+@media (max-width: 340px) {
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

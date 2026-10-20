@@ -27,9 +27,9 @@ before(async () => {
   browser = await puppeteer.launch({ executablePath: process.env.IMPECCABLE_BROWSER, headless: true, args: ["--no-sandbox", "--disable-dev-shm-usage"] });
 });
 after(async () => { await browser?.close(); if (server) await new Promise((done) => server.close(done)); });
-async function popup(t, height = 720, dark = false) {
+async function popup(t, height = 720, dark = false, width = 420) {
   const page = await browser.newPage(); t.after(() => page.isClosed() ? undefined : page.close());
-  await page.setViewport({ width: 420, height, deviceScaleFactor: 1 });
+  await page.setViewport({ width, height, deviceScaleFactor: 1 });
   await page.emulateMediaFeatures([{ name: "prefers-reduced-motion", value: "reduce" }]);
   const errors = []; page.on("pageerror", (error) => errors.push(error.message));
   t.after(() => assert.deepEqual(errors, [], "no popup runtime errors"));
@@ -58,7 +58,7 @@ async function popup(t, height = 720, dark = false) {
     window.updateUnsave = (state) => emit("xUnsaveState", state);
   }, dark);
   await page.goto(origin + "/popup.html");
-  await page.waitForFunction(() => document.querySelector("#logPreview").textContent.includes("Popup ready"));
+  await page.waitForFunction(() => document.querySelector("#logPreview").textContent.includes("Side panel ready"));
   return page;
 }
 
@@ -83,6 +83,27 @@ test("four accessible tabs and a taller scrolling Unsave panel fit both preferre
     assert.equal(await page.$eval("#tabUnsave", (el) => el.getAttribute("aria-selected")), "true");
     await page.$eval("#popupBody", (el) => { el.scrollTop = el.scrollHeight; });
     await page.screenshot({ path: resolve(SHOTS, `unsave-${height}-scrolled.png`) });
+    await page.close();
+  }
+});
+
+test("side panel reflows across narrow, default and wide widths without horizontal overflow", async (t) => {
+  for (const width of [300, 400, 760]) {
+    const page = await popup(t, 800, false, width);
+    const metrics = await page.evaluate(() => ({
+      overflow: document.documentElement.scrollWidth > innerWidth,
+      tabs: document.querySelectorAll('[role="tab"]').length,
+      footer: document.querySelector(".popup__foot").getBoundingClientRect().bottom <= innerHeight,
+      tabsFit: [...document.querySelectorAll('[role="tab"]')].every((el) => el.scrollWidth <= el.clientWidth + 1),
+    }));
+    assert.equal(metrics.overflow, false, `no horizontal overflow at ${width}px`);
+    assert.equal(metrics.tabs, 4, "four tabs at every width");
+    assert.equal(metrics.footer, true, `footer stays visible at ${width}px`);
+    assert.equal(metrics.tabsFit, true, `tab labels are not clipped at ${width}px`);
+    await page.click("#tabExport");
+    const exportScrolls = await page.evaluate(() => { const b = document.querySelector("#popupBody"); return b.scrollHeight > b.clientHeight; });
+    assert.equal(exportScrolls, true, `Export tab scrolls inside the panel at ${width}px`);
+    await page.screenshot({ path: resolve(SHOTS, `sidepanel-${width}.png`) });
     await page.close();
   }
 });

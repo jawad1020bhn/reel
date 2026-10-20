@@ -4,22 +4,23 @@ A local Chrome/Chromium MV3 extension that captures the signed-in account's **Bo
 
 ## Install and use
 
-1. Open `chrome://extensions`, enable **Developer mode**, and choose **Load unpacked**.
+1. Open `chrome://extensions`, enable **Developer mode**, and choose **Load unpacked**. Requires Chrome 116 or newer.
 2. Select this `xextension/` directory.
 3. Sign in to X and open `https://x.com/i/bookmarks` in the active tab.
-4. Open the extension popup and select **Start capture**. Keep the tab open while the adaptive sweep runs. Pause/stop are safe; completed chunks are persisted as it goes.
+4. Click the toolbar icon to open the **side panel**, then select **Start capture**. Keep the tab open while the adaptive sweep runs. Pause/stop are safe; completed chunks are persisted as it goes.
 5. Select **XReels JSON** to download a full `{ export_version, bookmarks: [...] }` export. In XReels, choose **Import → Upload JSON**. The export contains text-only bookmarks too; enable **Settings → Keep text-only posts** in XReels if they should appear in the media library.
 
-## Popup layout
+## Side panel layout
 
-The popup now requests a taller **420 × 720** frame with four tabs — **Capture**, **Unfollow**, **Unsave**, **Export** — under a context-aware header. Chrome may cap native popups at 600px (or less on a small display); the middle region scrolls at either height, so long checklists and recovery instructions remain reachable while the header, tabs, activity log and footer stay put. Arrow/Home/End keys navigate the tabs.
+The UI runs in Chrome's **side panel**, not a popup. Clicking the toolbar icon opens it (`openPanelOnActionClick`), and it stays open while you move between tabs. The panel takes the full height of the window and whatever width you give it, so nothing is pinned to a fixed frame. The header, tabs, activity and footer stay in view, and only the middle region scrolls, so long checklists and recovery instructions remain reachable.
 
-- The tab you land on follows the page you opened the popup from (a Following page opens Unfollow, a bookmarks page opens Capture), or a run that is already live.
+- Four tabs (**Capture**, **Unfollow**, **Unsave**, **Export**) stack an icon above each label. Arrow/Home/End keys navigate them.
+- Below about 340px wide the stat tiles drop to a 2 × 2 grid. Above about 680px the content holds a centred reading column.
+- The context hint follows the active tab. Switching tabs or finishing a page load re-checks whether the current page is an X bookmarks or Following page, or a Reddit saved listing.
 - A pulsing dot on a tab shows a run continuing while you are looking at another tab; a square dot means it is paused.
-- The collapsed activity summary carries the latest log line, so a run never looks silent.
-- Long explanations live behind disclosures instead of pushing actions below the fold.
+- The Activity log is collapsed by default. Its summary keeps the latest line visible, and when open it takes up to about a third of the panel height.
 
-The extension observes the authenticated page's bookmark-timeline responses; it does not ask for an X password, call an external service, or upload the archive. `unlimitedStorage` is used so large local bookmark libraries do not stop at Chromium's small default extension-storage quota.
+The extension observes the authenticated page's bookmark-timeline responses; it does not ask for an X password, call an external service, or upload the archive. `unlimitedStorage` is used so large local bookmark libraries fit.
 
 ## Capture and verification
 
@@ -32,7 +33,7 @@ The extension observes the authenticated page's bookmark-timeline responses; it 
 
 ## Unfollow everyone (paced mass-unfollow)
 
-Popup → **Unfollow everyone** → confirm. From any x.com tab the engine opens your Following list itself; on `x.com/<you>/following` it starts immediately.
+Side panel → **Unfollow everyone** → confirm. From any x.com tab the engine opens your Following list itself; on `x.com/<you>/following` it starts immediately.
 
 ### How it works
 
@@ -42,7 +43,7 @@ Popup → **Unfollow everyone** → confirm. From any x.com tab the engine opens
 - **Human pacing** (`pacing.js`, unit-tested): a warm-up ramp (first 6 actions slower), ±35% jittered gaps around a 2.4 s base, irregular 7–14-action waves followed by 7–22 s "reading" pauses, and a closed-loop governor that stretches delays whenever the measured rate crosses the ~26/min ceiling.
 - **Backpressure**: HTTP 429 and 5xx ride exponential full-jitter backoff (6 s → 5 min, 10 retries); 401/403 stop the run; 5 consecutive transport failures trip the breaker. Rate limits don't count toward the breaker — X saying "slow down" is not a defect.
 - **Sessions and safety valves**: queue + done-set + counters persist every 30 s, so closing the tab loses nothing and an orphaned run auto-resumes only when its owner is gone (per-tab `sessionStorage` heartbeat prevents double-runs). Each Start gets a 3-hour/2,500-attempt budget and then pauses with a *resumable* checkpoint — thousands of back-to-back unfollows in one sitting is exactly what looks inhuman.
-- **Backup**: every targeted account is appended to a local JSON backup (`xUnfollowBackup`) with discovery timestamp and outcome. The popup's **Backup** button exports it for review or re-following. **Reset unfollow data** clears engine records only.
+- **Backup**: every targeted account is appended to a local JSON backup (`xUnfollowBackup`) with discovery timestamp and outcome. The side panel's **Backup** button exports it for review or re-following. **Reset unfollow data** clears engine records only.
 - Capture, unfollow and unsave share a browser-owned Web Lock, preventing simultaneous runs across x.com tabs in the same browser profile. Pausing/stopping releases the lease; tab close/crash releases it automatically. No racing read-then-write storage flag is used as the lock.
 
 ## Unsave all bookmarks (removes bookmarks from X)
@@ -54,7 +55,7 @@ X tab** so the new MAIN-world bridge and content scripts are installed.
 2. Open the signed-in account's main **`https://x.com/i/bookmarks`** page (not a
    bookmark folder), then choose **Unsave → Unsave all bookmarks**.
 3. Read and confirm the destructive-action dialog. Cancel sends no Start command.
-4. Keep the X tab open. Closing only the popup does not interrupt the engine.
+4. Keep the X tab open. Closing the side panel does not interrupt the engine.
    **Pause** or **Stop** waits for the single in-flight request and saves the
    remaining queue. Start/Resume requires confirmation again.
 5. **Backup JSON** downloads `x-unsave-backup.json`, containing the locally
@@ -119,6 +120,32 @@ reset forgets this engine's records only and does not put bookmarks back.
   or change its private API. No live account was cleared as part of automated
   testing; test carefully with your own intentionally disposable bookmarks.
 
+## Reddit saved posts (NSFW only)
+
+The **Export** tab has a second section, **Reddit saved · NSFW only**. It captures the signed-in account's own saved posts that Reddit tags over-18, and exports them as `reddit-nsfw-saved.json`.
+
+1. Log in to `old.reddit.com` and turn on **Show NSFW content** in your preferences. Reddit hides NSFW rows otherwise.
+2. Open `https://old.reddit.com/user/<your-name>/saved` in the active tab, reload it once after installing the extension, then open the side panel on **Export** and select **Start capture**.
+3. The run reads the rendered rows, then follows the page's **next** links with same-origin requests, using your browser session. It never calls the Reddit API.
+
+What is kept: posts only (`t3_`), and only rows marked NSFW (the `over18` class or `data-nsfw="true"`). SFW posts are counted but not stored, and comments are skipped. Each record has `id`, `title`, `subreddit`, `author`, `permalink`, `url`, `domain`, `score`, `comments`, `created_at`, `thumbnail` and `media`. Media is `{kind, url}` for `i.redd.it` (image), `v.redd.it` (video) and galleries (the post permalink). Nothing is downloaded.
+
+Export shape: `{ export_version: 1, exported_at, source: "reddit-saved-nsfw", account, count, scan: {pages, rows, nsfw_kept, sfw_skipped, comments_skipped}, posts: [...] }`.
+
+Behaviour:
+- Pages are paced 2.5–5 s apart, with a longer 8–20 s break every 8–14 pages. A 429 or 5xx response is retried with jittered backoff (30 s doubling, capped at 5 min). A login or age-check redirect stops the run with a message.
+- Pause and Stop keep the position, and Start resumes from the next unprocessed page. Reset clears every captured post; it is refused while a run is live.
+- Posts are stored in 256-item chunks under `redditSavedChunk.NNNNNN`, with `redditSavedMeta` and `redditCaptureState`. A capture belongs to one account. Starting it for a different account requires a Reset first.
+- A Web Lock stops two saved-listing tabs from capturing at once.
+
+Limits and unverified points:
+- The DOM selectors and the NSFW markers were written from old.reddit's markup and checked only against fixtures. They have not been run against a live account. Confirm on your own saved page before relying on the output.
+- Reddit's saved listing stops around 1,000 items. Posts beyond that cap will not appear.
+- Media URLs are links, not files. `i.redd.it` and `preview` URLs are signed or time-limited, and `v.redd.it` audio is a separate DASH track, so links can stop working later.
+- Reddit has said it intends to restrict old.reddit.com to logged-in use and to curb abusive scraping. This section depends on that page continuing to render server-side. Automated access may breach Reddit's terms and can get the account restricted. Use it at your own risk.
+
+Tests for the pure logic are in `tests/reddit-saved.test.mjs`. The DOM and side panel paths were checked with a jsdom harness outside the repo.
+
 ## Design system
 
 `m3e/` is a mirrored copy of the dashboard design system (the sync tool is not part of this repo). If you refresh the mirror, re-run the smoke tests — the copy has previously arrived with a broken UMD wrapper in `color.js`, HTML-entity damage in `interactions.js`, and a `tokens.css` block accidentally nested inside `:root`, all of which silently disable parts of the popup.
@@ -136,7 +163,7 @@ pacing/governor/backoff; operation discovery and cache isolation; bridge single-
 requests; browser-owned exclusivity; backup-before-delete; pause/stop/resume; rate
 limits; account/route guards; session budgets; and chunked-store integrity.
 
-Popup browser tests (synthetic Chrome APIs; **no real X requests or mutations**):
+Side panel browser tests (synthetic Chrome APIs; **no real X requests or mutations**):
 
 ```sh
 npm ci
