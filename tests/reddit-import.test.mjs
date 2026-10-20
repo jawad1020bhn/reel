@@ -155,6 +155,42 @@ test("an unchanged data/r-posts.json is served from cache on the next boot", asy
   assert.deepEqual(ids(catalog.posts), ["1893", "1894", "t3_abc123", "t3_def456"]);
 });
 
+test("a Reddit cache written by an older adapter version is discarded, not replayed", async () => {
+  // The reported bug: browsers that cached r-posts.json before videos carried hls/hlsFirst
+  // kept showing stills, because an unchanged file hit the old cache. A cache whose
+  // fingerprint carries an old version prefix must never be reused.
+  const text = JSON.stringify({
+    ...redditExport, count: 3,
+    posts: [...redditExport.posts,
+      { fullname: "t3_vid777", title: "A clip", subreddit: "NSFW_GIF", author: "bob", permalink: "/r/NSFW_GIF/comments/vid777/clip/", url: "https://v.redd.it/vid777", score: 5, comments: 0, created_at: "2026-05-02T12:00:00.000Z", nsfw: true, thumbnail: "https://b.thumbs.redditmedia.com/v.jpg", media: [{ kind: "video", url: "https://v.redd.it/vid777" }], captured_at: "2026-10-19T08:00:00.000Z" }],
+  });
+  const { importer, catalog, cache } = setup({ redditText: text });
+  // What an earlier build left behind: same file, old version prefix, image-only normalisation.
+  cache.set(importer.KEY_REDDIT, { fingerprint: "v4:" + importer.fingerprintOf(text), adapter: "reddit", at: 1, posts: [
+    { id: "t3_abc123", platform: "reddit", text: "Sunset", author: { id: "alice", username: "alice", name: "u/alice", avatar: "" }, createdAt: 0, savedAt: 0, order: 1, url: "", lang: "", metrics: {}, hashtags: [], links: [], quoted: null, flags: {}, media: [{ kind: "photo", thumb: "https://b.thumbs.redditmedia.com/v.jpg", alt: "Reddit video (still image, open on Reddit to play)" }] },
+    { id: "t3_vid777", platform: "reddit", text: "A clip", author: { id: "bob", username: "bob", name: "u/bob", avatar: "" }, createdAt: 0, savedAt: 0, order: 2, url: "", lang: "", metrics: {}, hashtags: [], links: [], quoted: null, flags: {}, media: [{ kind: "photo", thumb: "https://b.thumbs.redditmedia.com/v.jpg", alt: "Reddit video (still image, open on Reddit to play)" }] },
+  ] });
+  await importer.boot();
+  assert.equal(importer.redditStatus().cached, false, "the old-version cache entry is not served");
+  const clip = catalog.posts.find((p) => p.id === "t3_vid777");
+  assert.equal(clip.media[0].kind, "video", "the video post is re-normalised as a video");
+  assert.equal(clip.media[0].hls, "https://v.redd.it/vid777/HLSPlaylist.m3u8");
+  assert.equal(clip.media[0].hlsFirst, true);
+  assert.equal(cache.get(importer.KEY_REDDIT).fingerprint.slice(0, 3), importer.redditStatus().fingerprint.slice(0, 3), "the cache is rewritten with the current version");
+});
+
+test("'Re-read file' also drops the Reddit cache, so an unchanged r-posts.json is re-normalised", async () => {
+  const { importer, cache } = setup({ redditText: JSON.stringify(redditExport) });
+  await importer.boot();
+  await importer.boot();
+  assert.equal(importer.redditStatus().cached, true, "second boot hit the cache");
+  assert.ok(cache.has(importer.KEY_AUTO) && cache.has(importer.KEY_REDDIT), "both caches exist");
+  await importer.clearCache();
+  assert.ok(!cache.has(importer.KEY_AUTO) && !cache.has(importer.KEY_REDDIT), "clearCache removed both");
+  await importer.boot();
+  assert.equal(importer.redditStatus().cached, false, "the Reddit file is read again after a re-read");
+});
+
 test("a Reddit-free setup (file:// has no r-posts source) behaves exactly as before", async () => {
   const { importer, catalog } = setup({ redditText: undefined });
   await importer.boot();

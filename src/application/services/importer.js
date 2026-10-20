@@ -131,8 +131,10 @@ XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.po
           await storage.remove(KEY_REDDIT).catch(() => {});
           return;
         }
-        // "v2" = adapter version: a change to how posts are normalised must invalidate the cache.
-        const fp = "v4:" + fingerprintOf(res.text);
+        // The prefix is the adapter version: a change to how posts are normalised must
+        // invalidate the cache. "v5" = Reddit videos carry hls + hlsFirst + DASH fallbacks;
+        // caches written by the earlier "v4" builds keep replaying their stale posts.
+        const fp = "v5:" + fingerprintOf(res.text);
         const cached = await storage.get(KEY_REDDIT).catch(() => null);
         if (cached && cached.fingerprint === fp && Array.isArray(cached.posts)) {
           reddit = { posts: cached.posts, status: status("ready", { count: cached.posts.length, fingerprint: fp, cached: true }) };
@@ -295,7 +297,9 @@ XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.po
     }
     /** Back-compat name used by Settings: removes the active imported library. */
     async function forgetImported() { const id = (await loadIndex()).active; if (id && id !== "auto") return removeLibrary(id); return boot(); }
-    async function clearCache() { await storage.remove(KEY_AUTO); }
+    /** "Re-read file": drop every cached dataset (auto + Reddit) so the next boot re-reads
+        and re-normalises the files, even when their contents have not changed. */
+    async function clearCache() { await storage.remove(KEY_AUTO).catch(() => {}); await storage.remove(KEY_REDDIT).catch(() => {}); }
     async function reload() { await clearCache(); sources.clearGlobals?.(); return boot(); }
 
     /** Refresh once before loading any source (including imported caches). */
