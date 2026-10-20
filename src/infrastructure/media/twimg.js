@@ -49,6 +49,16 @@ XR.define("infra.media.twimg", [], function () {
       for (const s of media.sources || []) list.push(s);
       return list;
     },
+    /** Sound-track candidates for a (silent) video: the file the extension downloaded
+        (<localDir>/<postId>_<n>-audio.mp4), then the remote audio URL. */
+    audio(media, opts) {
+      if (!media || !media.audio) return [];
+      const list = [];
+      const dir = opts?.localDir;
+      if (dir) list.push({ url: `${dir.replace(/\/+$/, "")}/${media.postId}_${(media.index ?? 0) + 1}-audio.mp4`, type: "audio/mp4", local: true });
+      list.push({ url: media.audio, type: "audio/mp4" });
+      return list;
+    },
     hls: (media) => media.hls || "",
     download(media) {
       if (media.kind === "photo") return sized(media.thumb, "orig");

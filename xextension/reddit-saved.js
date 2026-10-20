@@ -23,7 +23,10 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const EXPORT_VERSION = 1;
+  // v2: video media entries carry the real CMAF facts (hls, duration, width,
+  // height, files[], audio) captured from the logged-in session. Older records
+  // (bare v.redd.it URL) stay readable; the app treats them as legacy.
+  const EXPORT_VERSION = 2;
   const SOURCE = "reddit-saved-nsfw";
   const CHUNK_SIZE = 256;
   const META_KEY = "redditSavedMeta";

@@ -1,13 +1,16 @@
 /* core.adapters.reddit — the Reddit saved-posts export written by xextension
    (reddit-saved.js, source "reddit-saved-nsfw"):
-     { export_version: 1, source: "reddit-saved-nsfw", posts: [{ fullname, title, subreddit, … }] }
+     { export_version: 1|2, source: "reddit-saved-nsfw", posts: [{ fullname, title, subreddit, … }] }
 
    Ids are Reddit fullnames ("t3_…"). They never collide with numeric X ids, so both
    sites can share one catalog. Only URLs are read; nothing is fetched here.
 
-   Media: a direct i.redd.it image is shown as-is. Reddit-hosted videos and galleries
-   show their thumbnail only, because playing them needs Reddit's DASH resolution,
-   which this app does not do. The permalink ("Open on Reddit") still plays them. */
+   Media: a direct i.redd.it image is shown as-is. Reddit-hosted videos come in two
+   flavours. Export v2 (extension ≥ 1.5) carries the real CMAF facts captured in the
+   logged-in session — file ladder, audio track, duration, size — and the app plays
+   the files with the audio track beside them. Legacy records have only the bare
+   v.redd.it URL; they keep the HLS-first + DASH-guess behaviour. Galleries and link
+   posts show their thumbnail, and the permalink ("Open on Reddit") always works. */
 XR.define("core.adapters.reddit", ["core.adapters.registry", "core.util"], function (registry, util) {
   "use strict";
 
@@ -30,10 +33,12 @@ XR.define("core.adapters.reddit", ["core.adapters.registry", "core.util"], funct
   const isRedditHost = (url) => { try { return /(^|\.)(reddit\.com|redd\.it|redditmedia\.com)$/i.test(new URL(url).hostname); } catch { return true; } };
   const toTime = (value) => { const t = Date.parse(value); return Number.isFinite(t) ? t : 0; };
 
-  /* A Reddit-hosted video is "https://v.redd.it/<id>". Its sound is in the HLS playlist
-     <id>/HLSPlaylist.m3u8, so that is played first (hlsFirst). The DASH_<h>.mp4 files are
-     video-only: they are the silent fallback, and the muted hover preview uses the lowest one.
-     Only this exact URL shape is accepted. */
+  /* A Reddit-hosted video is "https://v.redd.it/<id>". Export v2 records carry what the
+     extension captured in the logged-in session: the master playlist (hls), the real
+     CMAF video files (files[] — video-only, best-first), the audio file (audio),
+     duration and dimensions. The player tries the files first and plays the audio track
+     beside them; the master (which carries sound) is the last resort. Legacy records
+     (bare URL) keep the old guesses: HLS first, silent DASH mp4s as fallback. */
   const videoBase = (url) => { const m = String(url || "").match(/^https:\/\/v\.redd\.it\/([A-Za-z0-9]+)\/?$/); return m ? "https://v.redd.it/" + m[1] : ""; };
   const SILENT_LADDER = [720, 480, 360, 240];
 
@@ -44,11 +49,25 @@ XR.define("core.adapters.reddit", ["core.adapters.registry", "core.util"], funct
     const direct = list.find((m) => m && m.kind === "image" && httpUrl(m.url));
     if (direct) return [{ kind: "photo", thumb: httpUrl(direct.url) }];
     const poster = httpUrl(p.thumbnail);
-    const playable = list.find((m) => m && m.kind === "video" && videoBase(m.url));
+    const playable = list.find((m) => m && m.kind === "video" && (videoBase(m.url) || Array.isArray(m.files)));
     if (playable) {
       const base = videoBase(playable.url);
-      const sources = SILENT_LADDER.map((h) => ({ url: `${base}/DASH_${h}.mp4`, type: "video/mp4", bitrate: h * 1000 }));
-      return [{ kind: "video", thumb: poster, poster, hls: base + "/HLSPlaylist.m3u8", hlsFirst: true, sources, alt: "" }];
+      const files = Array.isArray(playable.files)
+        ? playable.files.filter((f) => f && httpUrl(f.url)).map((f) => ({ url: httpUrl(f.url), type: "video/mp4", bitrate: (parseInt(f.height, 10) || 480) * 1000 }))
+        : [];
+      const hls = httpUrl(playable.hls) || (base ? base + "/HLSPlaylist.m3u8" : "");
+      const sources = files.length ? files : (base ? SILENT_LADDER.map((h) => ({ url: `${base}/DASH_${h}.mp4`, type: "video/mp4", bitrate: h * 1000 })) : []);
+      return [{
+        kind: "video", thumb: poster, poster,
+        hls,
+        hlsFirst: !files.length && !!hls,   // v2: files first (sound is the separate audio track); v1: the master is the only hope
+        sources,
+        audio: httpUrl(playable.audio),
+        duration: Number(playable.duration) || 0,
+        width: Number(playable.width) || 0,
+        height: Number(playable.height) || 0,
+        alt: "",
+      }];
     }
     if (!poster) return [];
     const video = list.some((m) => m && m.kind === "video");

@@ -65,3 +65,49 @@ test("hlsFirst without an HLS address is ignored: the listed sources play as bef
   player.attach(video, { hlsFirst: true, hls: "", sources: [{ url: MP4(360), type: "video/mp4", bitrate: 360000 }] });
   assert.equal(video.assigned[0], MP4(360));
 });
+
+test("a source that fails mid-playback must not strand the video: play resumes once the next source has data", () => {
+  const player = load();
+  const video = fakeVideo();
+  const plays = [];
+  video.play = () => { plays.push(video.src); return Promise.resolve(); };
+  player.attach(video, { hls: "", sources: [{ url: "media/t3_x_1.mp4", type: "video/mp4", bitrate: 0 }, { url: MP4(720), type: "video/mp4", bitrate: 720000 }] });
+  video.paused = false;
+  video.dispatchEvent({ type: "play" });  // autoplay engaged on the (missing) local file
+  video.fail();                           // 404: the swap aborts the pending play promise; the browser
+  video.paused = true;                    // has already paused the element by the time the error arrives
+  assert.equal(video.assigned[1], MP4(720), "the ladder moved on");
+  assert.equal(plays.length, 0, "no futile synchronous play right after the src swap");
+  video.dispatchEvent({ type: "loadeddata" });
+  assert.equal(plays.length, 1, "playback resumed when the next source had data");
+  assert.equal(plays[0], MP4(720));
+  /* intent is one-shot: a second loadeddata (buffering) must not restart a paused video */
+  video.dispatchEvent({ type: "loadeddata" });
+  assert.equal(plays.length, 1);
+});
+
+test("a video that was paused before its source failed stays paused on the next source", () => {
+  const player = load();
+  const video = fakeVideo();
+  const plays = [];
+  video.play = () => { plays.push(1); return Promise.resolve(); };
+  player.attach(video, { hls: "", sources: [{ url: MP4(480), type: "video/mp4", bitrate: 480000 }, { url: MP4(360), type: "video/mp4", bitrate: 360000 }] });
+  video.fail();                          // never started playing: no intent to preserve
+  video.dispatchEvent({ type: "loadeddata" });
+  assert.equal(video.assigned[1], MP4(360), "the ladder still moved on");
+  assert.equal(plays.length, 0, "but nothing resumed playback");
+});
+
+test("after detach, no loadeddata can resurrect playback", () => {
+  const player = load();
+  const video = fakeVideo();
+  const plays = [];
+  video.play = () => { plays.push(1); return Promise.resolve(); };
+  player.attach(video, { hls: "", sources: [{ url: MP4(480), type: "video/mp4", bitrate: 480000 }] });
+  video.paused = false;
+  video.dispatchEvent({ type: "play" });
+  video.fail();
+  player.detach(video);
+  video.dispatchEvent({ type: "loadeddata" });
+  assert.equal(plays.length, 0);
+});

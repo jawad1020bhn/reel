@@ -17,6 +17,7 @@
   "use strict";
 
   const S = globalThis.XRedditSaved;
+  const RV = globalThis.XRedditVideo; // the v2 video-facts module (reddit-video.js)
   if (!S || typeof chrome === "undefined" || !chrome.runtime) return;
 
   const account = S.savedListingAccount(location.href);
@@ -38,6 +39,8 @@
       sfwSkipped: 0,
       commentsSkipped: 0,
       saved: 0,
+      videos: 0,
+      videosEnriched: 0,
       nextUrl: null,
       error: null,
       updatedAt: new Date().toISOString(),
@@ -163,6 +166,96 @@
   }
 
   /* ---------------------------------------------------------------------------
+     Video enrichment (export v2)
+     For each captured v.redd.it video, read the post's .json (same-origin, with
+     the session) for the HLS master URL, then read the master and the chosen
+     variant playlists through the background worker (v.redd.it is cross-origin
+     here). The real file URLs land in the record. Every failure is skipped
+     silently: enrichment must never stop a capture.
+     --------------------------------------------------------------------------- */
+
+  const sleepJitter = (lo, hi) => sleep(lo + Math.random() * (hi - lo));
+
+  /** Fetch text through the background worker, which holds the v.redd.it host
+      permission. Returns { text } | { error } | null when unavailable. */
+  async function bgFetchText(url) {
+    if (!RV) return null;
+    try {
+      const res = await chrome.runtime.sendMessage({ type: "reddit:fetchText", url });
+      if (res && res.ok) return { text: res.text };
+      return { error: (res && res.status) || "unavailable" };
+    } catch {
+      return { error: "message failed" };
+    }
+  }
+
+  /** The post's own .json, fetched same-origin so the session cookies apply. */
+  async function fetchPostJson(permalink) {
+    let path = "";
+    try {
+      path = new URL(permalink, location.origin).pathname.replace(/\/$/, "");
+    } catch {
+      return null;
+    }
+    if (!/^\/r\//.test(path) && !/^\/comments\//.test(path)) return null;
+    try {
+      const res = await fetch(location.origin + path + ".json", { credentials: "include", headers: { Accept: "application/json" } });
+      if (S.classifyStatus(res.status) !== "ok") return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  }
+
+  /** Enrich one stored record in place. Returns true when v2 facts were added. */
+  async function enrichVideoPost(post) {
+    if (!RV) return false;
+    const entry = (post.media || []).find((m) => m && m.kind === "video");
+    if (!entry) return false;
+    const info = RV.videoInfoFromPostJson(await fetchPostJson(post.permalink));
+    if (!info || !info.hls) return false;
+
+    const masterRes = await bgFetchText(info.hls);
+    if (!masterRes || masterRes.error) return false;
+    const master = RV.parseMasterPlaylist(masterRes.text, info.hls);
+    if (!master.variants.length && !master.audio) return false;
+
+    /* Verify the variant we would download (≤720) plus the audio rendition by
+       reading their playlists — the only guaranteed-correct file URLs. */
+    const want = [];
+    const chosen = RV.chooseFile(master.variants.map((v) => ({ url: v.url, height: v.height })), RV.DEFAULT_MAX_HEIGHT);
+    if (chosen) want.push(chosen.url);
+    if (master.audio) want.push(master.audio.url);
+    const verified = {};
+    for (const playlistUrl of want) {
+      const variantRes = await bgFetchText(playlistUrl);
+      if (variantRes && !variantRes.error) {
+        const { fileUrl } = RV.parseVariantPlaylist(variantRes.text, playlistUrl);
+        if (fileUrl) verified[fileUrl] = true;
+      }
+      await sleepJitter(400, 900);
+    }
+    const media = RV.enrichMedia(post, { info, master, verified });
+    if (!media) return false;
+    post.media = media;
+    return true;
+  }
+
+  /** Enrich every video post of a captured batch, paced. Updates state counters. */
+  async function enrichBatch(posts) {
+    let videos = 0;
+    let enriched = 0;
+    for (const post of posts) {
+      if (control.stop || control.pause) break;
+      if (!(post.media || []).some((m) => m && m.kind === "video")) continue;
+      videos++;
+      if (await enrichVideoPost(post)) enriched++;
+      await sleepJitter(900, 1800);
+    }
+    return { videos, enriched };
+  }
+
+  /* ---------------------------------------------------------------------------
      Run loop
      --------------------------------------------------------------------------- */
 
@@ -187,6 +280,7 @@
         counters = {
           pages: state.pages, rows: state.rows, nsfwKept: state.nsfwKept,
           sfwSkipped: state.sfwSkipped, commentsSkipped: state.commentsSkipped,
+          videos: state.videos || 0, videosEnriched: state.videosEnriched || 0,
         };
       } else {
         if (!looksLoggedIn() && !document.querySelector(".thing")) {
@@ -212,6 +306,8 @@
         }
 
         const batch = S.processRows(readRows(doc), new Date().toISOString());
+        /* Videos learn their real CMAF URLs before being stored (export v2). */
+        const enrichStats = await enrichBatch(batch.posts);
         await store.append(batch.posts, { account });
         counters = {
           pages: counters.pages + 1,
@@ -219,6 +315,8 @@
           nsfwKept: counters.nsfwKept + batch.counts.nsfwKept,
           sfwSkipped: counters.sfwSkipped + batch.counts.sfwSkipped,
           commentsSkipped: counters.commentsSkipped + batch.counts.commentsSkipped,
+          videos: counters.videos + enrichStats.videos,
+          videosEnriched: counters.videosEnriched + enrichStats.enriched,
         };
 
         const next = S.resolveNextUrl(nextHref(doc), url, account);

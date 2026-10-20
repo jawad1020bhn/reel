@@ -160,6 +160,20 @@
 .cell-unplayable-actions .btn:last-child { background: transparent; color: rgb(255 255 255 / 0.7); box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.1); }
 .cell-unplayable-actions .btn:last-child:hover { background: rgb(255 255 255 / 0.06); color: var(--fg); }
 .cell-unplayable-actions .btn:last-child .icon { color: rgb(255 255 255 / 0.55); }
+.cell-unplayable-url { font-family: var(--mono); font-size: 11px; color: rgb(255 255 255 / 0.42); word-break: break-all; margin: 0; }
+.cell-unplayable-url:empty { display: none; }
+
+/* Reddit silent-video path: the audio track is blocked, playback continues muted */
+.cell-quiet {
+  position: absolute; left: 50%; bottom: 84px; transform: translateX(-50%); z-index: 3;
+  display: none; align-items: center; gap: 7px; padding: 7px 14px;
+  background: rgb(14 14 16 / 0.88); border: 1px solid rgb(255 255 255 / 0.14);
+  border-radius: var(--r-pill); color: rgb(255 255 255 / 0.85);
+  font-size: 12.5px; font-weight: 600; cursor: pointer;
+}
+.cell.is-quiet .cell-quiet { display: inline-flex; }
+.cell-quiet:hover { background: rgb(32 32 36 / 0.95); color: #fff; }
+.cell-quiet .icon { color: var(--amber); flex: none; }
 
 
 /* end card */

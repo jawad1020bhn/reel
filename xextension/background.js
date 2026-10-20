@@ -77,7 +77,67 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     refreshBadge().then(() => sendResponse({ ok: true }));
     return true; // keep the message channel open for the async response
   }
+  if (msg && msg.type === "reddit:fetchText") {
+    // The content script cannot read v.redd.it (cross-origin); the worker's
+    // host permission for https://v.redd.it/* makes the playlists readable here.
+    fetch(msg.url, { credentials: "omit", redirect: "follow" })
+      .then(async (res) => sendResponse(res.ok ? { ok: true, text: await res.text() } : { ok: false, status: res.status }))
+      .catch((err) => sendResponse({ ok: false, error: String(err && err.message || err) }));
+    return true;
+  }
+  if (msg && msg.type === "reddit:downloadMedia") {
+    downloadMedia(msg.items || []).then((summary) => sendResponse(summary));
+    return true;
+  }
 });
+
+/* -------------------------------------------------------------------------- */
+/* Reddit media downloads                                                     */
+/*                                                                            */
+/* chrome.downloads runs in the browser's own network context, so the user's  */
+/* session applies — the one context Reddit still serves video+audio to.      */
+/* Files land in <Downloads>/xreels-media/ with the names the app's local     */
+/* media resolver expects. Progress goes to chrome.storage.local so the       */
+/* side panel can poll it.                                                    */
+/* -------------------------------------------------------------------------- */
+
+const MEDIA_STATE_KEY = "redditMediaDownloads";
+const MEDIA_DIR = "xreels-media";
+
+async function setMediaState(patch) {
+  const got = await chrome.storage.local.get({ [MEDIA_STATE_KEY]: { status: "idle" } });
+  const state = { ...got[MEDIA_STATE_KEY], ...patch, updatedAt: new Date().toISOString() };
+  await chrome.storage.local.set({ [MEDIA_STATE_KEY]: state });
+  return state;
+}
+
+const mediaGap = () => new Promise((resolve) => setTimeout(resolve, 700));
+
+async function downloadMedia(items) {
+  const planned = (items || []).filter((item) => item && item.url && item.filename);
+  if (!planned.length) return { ok: false, error: "Nothing to download." };
+  await setMediaState({ status: "running", total: planned.length, done: 0, failed: [] });
+  const failed = [];
+  let done = 0;
+  for (const item of planned) {
+    try {
+      const id = await chrome.downloads.download({
+        url: item.url,
+        filename: `${MEDIA_DIR}/${item.filename}`,
+        saveAs: false,
+        conflictAction: "overwrite",
+      });
+      if (id === undefined) throw new Error("download rejected");
+      done++;
+    } catch (err) {
+      failed.push({ url: item.url, error: String(err && err.message || err) });
+    }
+    await setMediaState({ done, failed });
+    await mediaGap();
+  }
+  const state = await setMediaState({ status: failed.length && !done ? "error" : "done" });
+  return { ok: !failed.length || !!done, downloaded: done, failed, state };
+}
 
 // Keep the badge honest even when the change came from somewhere else
 // (a reset from the side panel, another window, or a sync).
