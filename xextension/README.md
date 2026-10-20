@@ -1,6 +1,11 @@
-# X Bookmarks Exporter
+# XReels Exporter
 
-A local Chrome/Chromium MV3 extension that captures the signed-in account's **Bookmarks** timeline and exports an XReels-compatible JSON file — plus paced **Unfollow everyone** and **Unsave all bookmarks** engines with local backups and saved checkpoints.
+A local Chrome/Chromium MV3 side-panel extension for two sites, one account each:
+
+- **X** — captures the signed-in account's **Bookmarks** timeline into an XReels-compatible JSON export, plus paced **Unfollow everyone** and **Unsave all bookmarks** engines with local backups and saved checkpoints.
+- **Reddit** — captures the signed-in account's **NSFW saved posts** from old.reddit.com (with playable video URLs), plus a paced **Unsave NSFW saved posts** engine built on the same backup-before-delete, verify-before-complete model.
+
+(The extension was called *X Bookmarks Exporter* until 1.5; existing installs and storage keys are unchanged.)
 
 ## Install and use
 
@@ -12,13 +17,15 @@ A local Chrome/Chromium MV3 extension that captures the signed-in account's **Bo
 
 ## Side panel layout
 
-The UI runs in Chrome's **side panel**, not a popup. Clicking the toolbar icon opens it (`openPanelOnActionClick`), and it stays open while you move between tabs. The panel takes the full height of the window and whatever width you give it, so nothing is pinned to a fixed frame. The header, tabs, activity and footer stay in view, and only the middle region scrolls, so long checklists and recovery instructions remain reachable.
+The UI runs in Chrome's **side panel**, not a popup. Clicking the toolbar icon opens it (`openPanelOnActionClick`), and it stays open while you move between tabs. The panel takes the full height of the window and whatever width you give it, so nothing is pinned to a fixed frame. The header, site switcher, tabs, activity and footer stay in view, and only the middle region scrolls, so long checklists and recovery instructions remain reachable.
 
-- Four tabs (**Capture**, **Unfollow**, **Unsave**, **Export**) stack an icon above each label. Arrow/Home/End keys navigate them.
-- Below about 340px wide the stat tiles drop to a 2 × 2 grid. Above about 680px the content holds a centred reading column.
-- The context hint follows the active tab. Switching tabs or finishing a page load re-checks whether the current page is an X bookmarks or Following page, or a Reddit saved listing.
-- A pulsing dot on a tab shows a run continuing while you are looking at another tab; a square dot means it is paused.
-- The Activity log is collapsed by default. Its summary keeps the latest line visible, and when open it takes up to about a third of the panel height.
+- The first row picks the **site**: **X** or **Reddit**. Each card shows what is in its local library (bookmarks / NSFW saved posts) and carries the same running/paused dot as the tabs, so a run on one site stays visible while you work on the other.
+- Each site has its own job tabs with the same vocabulary. X: **Capture**, **Unfollow**, **Unsave**, **Export**. Reddit: **Capture**, **Unsave**, **Export**. Arrow/Home/End keys navigate within the visible tablist; each site remembers its last tab.
+- Every job panel is built the same way: a status card (colour + dot shape + word, never colour alone), four counters, one primary action, Pause/Stop, then backup/reset in the panel foot and the explanations in collapsible disclosures. Destructive primaries use the error role; capture primaries are filled.
+- The panel opens on whatever matters now: a live X engine, then a live Reddit engine, then the site of the page you are looking at.
+- Below about 340px wide the stat tiles drop to a 2 × 2 grid and the site cards stack. Above about 680px the content holds a centred reading column.
+- The context hint follows the active tab. Switching tabs or finishing a page load re-checks whether the current page is an X bookmarks or Following page, or a Reddit saved listing (and whose).
+- The Activity log is collapsed by default and shared by every panel. Its summary keeps the latest line visible, and when open it takes up to about a third of the panel height.
 
 The extension observes the authenticated page's bookmark-timeline responses; it does not ask for an X password, call an external service, or upload the archive. `unlimitedStorage` is used so large local bookmark libraries fit.
 
@@ -120,12 +127,12 @@ reset forgets this engine's records only and does not put bookmarks back.
   or change its private API. No live account was cleared as part of automated
   testing; test carefully with your own intentionally disposable bookmarks.
 
-## Reddit saved posts (NSFW only)
+## Reddit · Capture (NSFW saved posts)
 
-The **Export** tab has a second section, **Reddit saved · NSFW only**. It captures the signed-in account's own saved posts that Reddit tags over-18, and exports them as `reddit-nsfw-saved.json`.
+**Reddit → Capture** captures the signed-in account's own saved posts that Reddit tags over-18; **Reddit → Export** downloads them as `reddit-nsfw-saved.json` and can download the videos.
 
-1. Log in to `old.reddit.com` and turn on **Show NSFW content** in your preferences. Reddit hides NSFW rows otherwise.
-2. Open `https://old.reddit.com/user/<your-name>/saved` in the active tab, reload it once after installing the extension, then open the side panel on **Export** and select **Start capture**.
+1. Log in to `old.reddit.com` and turn on **I am over eighteen years old and willing to view adult content** in your preferences. Reddit hides NSFW rows otherwise; a fresh capture refuses to start while it is off, or while you are logged out or logged in as someone else.
+2. Open `https://old.reddit.com/user/<your-name>/saved` in the active tab, reload it once after installing the extension, then open the side panel on **Reddit → Capture** and select **Start capture**.
 3. The run reads the rendered rows, then follows the page's **next** links with same-origin requests, using your browser session. It never calls the Reddit API.
 
 What is kept: posts only (`t3_`), and only rows marked NSFW (the `over18` class or `data-nsfw="true"`). SFW posts are counted but not stored, and comments are skipped. Each record has `id`, `title`, `subreddit`, `author`, `permalink`, `url`, `domain`, `score`, `comments`, `created_at`, `thumbnail` and `media`. Media is `{kind, url}` for `i.redd.it` (image), `v.redd.it` (video) and galleries (the post permalink). Nothing is downloaded.
@@ -138,7 +145,7 @@ Behaviour:
 - Pages are paced 2.5–5 s apart, with a longer 8–20 s break every 8–14 pages. A 429 or 5xx response is retried with jittered backoff (30 s doubling, capped at 5 min). A login or age-check redirect stops the run with a message.
 - Pause and Stop keep the position, and Start resumes from the next unprocessed page. Reset clears every captured post; it is refused while a run is live.
 - Posts are stored in 256-item chunks under `redditSavedChunk.NNNNNN`, with `redditSavedMeta` and `redditCaptureState`. A capture belongs to one account. Starting it for a different account requires a Reset first.
-- A Web Lock stops two saved-listing tabs from capturing at once.
+- A browser-owned Web Lock (`xreels-reddit-exclusive-engine`) is shared with the unsave engine: two saved-listing tabs cannot capture at once, and Capture and Unsave never run together.
 
 Limits and unverified points:
 - The DOM selectors and the NSFW markers were written from old.reddit's markup and checked only against fixtures. They have not been run against a live account. Confirm on your own saved page before relying on the output.
@@ -147,6 +154,35 @@ Limits and unverified points:
 - Reddit has said it intends to restrict old.reddit.com to logged-in use and to curb abusive scraping. This section depends on that page continuing to render server-side. Automated access may breach Reddit's terms and can get the account restricted. Use it at your own risk.
 
 Tests for the pure logic are in `tests/reddit-saved.test.mjs`. The DOM and side panel paths were checked with a jsdom harness outside the repo.
+
+## Reddit · Unsave NSFW saved posts (removes saved posts on Reddit)
+
+**Reddit → Unsave** removes every over-18 post from the logged-in account's saved list, one at a time, and leaves SFW posts and saved comments alone. It is the Reddit counterpart of **Unsave all bookmarks** and keeps the same guarantees: a local backup is written before each removal, only an explicit success counts, completion is verified against the live list, and every run is a resumable checkpoint.
+
+1. Capture and export first if you want an archive with playable video URLs — the unsave backup keeps post data and links only.
+2. Stay logged in on `old.reddit.com` with the over-18 preference on, open `https://old.reddit.com/user/<your-name>/saved` in the active tab (reload once after installing), then **Reddit → Unsave → Unsave NSFW saved posts** and confirm. Keep the tab open; Pause/Stop are safe.
+3. Afterwards, **Backup JSON** downloads `reddit-unsave-backup.json`: a normal Reddit export (`source: "reddit-saved-nsfw"`, `posts[]` with `fullname`) that the XReels importer accepts, where each post also carries `discovered_at`, `unsaved_at` and `outcome`.
+
+### Discovery and execution
+
+- **Identity first.** Start reads `/api/me.json`: it must report a logged-in user whose name matches the saved list's owner, a modhash, and `over_18: true`. Otherwise the run refuses with `account-mismatch` (naming the signed-in user), `nsfw-hidden`, or `auth-unavailable`. With NSFW hidden, Reddit serves an empty list, which would look like completion — so that state can never complete a run.
+- **Discovery reads the live list**, not the captured library: the head page of `/user/<you>/saved/`, then the `next` links, with the capture's own 2.5–5 s page pacing. Only rows that are posts (`t3_`), marked over-18, and not promoted become targets. A login or over-18 wall, a page that is not a saved listing, or a 404 stops before anything is removed (`auth-error`, `schema-mismatch`, `listing-unavailable`).
+- **Backup before removal.** Each target is normalized (same record shape as the capture) and written to `redditUnsavePost.<account>.<id>` plus the `redditUnsaveBackup` index *before* it is queued. If that write fails, nothing is sent (`storage-error`); a queued id whose backup is missing is never sent either (`backup-missing`).
+- **Execution replays old.reddit's own form** — `POST /api/unsave` with `id=t3_<id>`, `executed=unsaved`, `uh=<modhash>` — same-origin, with your session cookies, one request at a time. No MAIN-world hook is needed, because the CSRF token comes from `/api/me.json` (with the page's `input[name=uh]` as fallback).
+- **Only Reddit's explicit success counts** (`{}`, `success: true`, or an empty `errors` list). HTML, `success: false`, unknown 200 bodies and other statuses are `unconfirmed`: the post stays queued and the run stops for review. 429 or `RATELIMIT` → `rate-limited`; 401/403, `USER_REQUIRED` or "please login" → `auth-error`; 5xx → `server-error`; 404 → `endpoint-unavailable`.
+- **Verification.** Removing posts shifts Reddit's pagination, so the head of the list is re-read after every batch, and the whole list is swept again when the queue is empty. Completion needs **two clean sweeps** with an 8 s settle between them, plus a final identity check (still logged in, same account, NSFW still visible) — reported as `verified-clean`. A post Reddit keeps listing after a confirmed removal is retried once (unsave is idempotent); if it is still there, the run pauses with `verification-needed` instead of claiming completion.
+
+### Pacing, recovery and account scope
+
+- Same `pacing.js` engine as the X engines: warm-up ramp, jittered gaps, wave breaks, a rate governor and backoff — tuned to about 14 removals per minute for Reddit's tighter web limits. Reddit's own `Retry-After` / `X-Ratelimit-Reset` / `ratelimit` hints are honoured when they exceed the computed backoff.
+- Rate limits back off and retry the same post without counting it removed and never trip the error breaker. Server and network errors retry with backoff; five consecutive failures stop the run (`too-many-errors`). An `auth-error` triggers up to two identity refreshes (a rotated modhash is picked up transparently) before stopping.
+- Pause and Stop wait for the in-flight request, then save the queue. Each run checkpoints after 1,500 attempts or 3 hours (`run-cap`); Start resumes. Checkpoints belong to one account (`account-changed`) and expire after 7 days (`session-expired`). The engine's heartbeat marks an interrupted run paused on reload; only the same tab and account auto-resume.
+- Storage keys: `redditUnsaveState`, `redditUnsaveSession`, `redditUnsaveBackup`, `redditUnsavePost.<account>.<id>`. Reset removes only these; the captured Reddit library and all X data are untouched, and Reset is refused while a run is live.
+- The side panel mirrors `redditUnsaveState` live, explains every stop reason in plain words, and never claims more than the checkpoint says.
+
+The same limits apply as for capture: the markup and the `/api/unsave` form were written from old.reddit's pages and verified against fixtures and a fake server, not a live account. Automated unsaving may breach Reddit's terms. Use it at your own risk.
+
+Tests: `tests/reddit-removal.test.mjs` (pure rules: request shape, outcome classification, retry hints, target extraction, DOM readers) and `tests/reddit-unsave.test.mjs` (the engine against a fake old.reddit: backup before removal, NSFW-only targeting, multi-page discovery, pause/stop/resume, unconfirmed and auth failures, rate limits, modhash rotation, scope guards, hidden-NSFW mid-run, sticky posts, reset scope, run cap).
 
 ## Design system
 
@@ -163,15 +199,17 @@ node --test xextension/tests/*.test.mjs
 Covered: bookmark capture and conservative removal parsing; Following-list parsing;
 pacing/governor/backoff; operation discovery and cache isolation; bridge single-flight
 requests; browser-owned exclusivity; backup-before-delete; pause/stop/resume; rate
-limits; account/route guards; session budgets; and chunked-store integrity.
+limits; account/route guards; session budgets; chunked-store integrity; Reddit saved-list
+parsing, video facts, unsave rules and the Reddit unsave engine against a fake server.
 
-Side panel browser tests (synthetic Chrome APIs; **no real X requests or mutations**):
+Side panel browser tests (synthetic Chrome APIs; **no real X or Reddit requests or mutations**):
 
 ```sh
 npm ci
 IMPECCABLE_BROWSER=/path/to/chrome node --test xextension/tests/popup.browser.mjs
 ```
 
-These check the 720px preferred and 600px capped frames, scrolling, four-tab
-keyboard navigation, confirmation/cancellation, live counters, pause/stop, and
-scoped accessibility in light/dark mode. Screenshots stay under `.audit/extension/`.
+These check the 720px preferred and 600px capped frames, scrolling, the site switcher
+and per-site keyboard navigation, confirmation/cancellation for both unsave engines,
+live counters and site signals, pause/stop, and scoped accessibility in light/dark
+mode. Screenshots stay under `.audit/extension/`.

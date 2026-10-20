@@ -47,6 +47,8 @@
   });
 
   const SAVED_URL = /^https:\/\/old\.reddit\.com\/user\/([A-Za-z0-9_-]{1,40})\/saved(?:[/?#]|$)/i;
+  const ORIGIN = "https://old.reddit.com";
+  const ME_PATH = "/api/me.json";
 
   /* ---------------------------------------------------------------------------
      URL and identity helpers
@@ -56,6 +58,28 @@
   function savedListingAccount(url) {
     const match = SAVED_URL.exec(String(url || ""));
     return match ? match[1] : null;
+  }
+
+  /** The head of an account's saved listing — the URL every fresh sweep starts from. */
+  function savedListingUrl(account) {
+    const name = String(account || "").trim();
+    return /^[A-Za-z0-9_-]{1,40}$/.test(name) ? ORIGIN + "/user/" + name + "/saved/" : null;
+  }
+
+  /**
+   * Who the session cookie belongs to, from /api/me.json. Logged-out sessions
+   * get `{}` back. `modhash` is Reddit's CSRF token for the web session, and
+   * `over18` mirrors the "I am over eighteen" preference: when it is off,
+   * Reddit silently drops NSFW rows from every listing, so an engine that
+   * saw none must not conclude there are none.
+   */
+  function parseIdentity(json) {
+    const data = json && typeof json === "object" && json.data && typeof json.data === "object" ? json.data : null;
+    const name = data && typeof data.name === "string" ? data.name.trim() : "";
+    if (!name) return { loggedIn: false, name: null, modhash: null, over18: null };
+    const modhash = typeof data.modhash === "string" && /^[A-Za-z0-9]{10,}$/.test(data.modhash) ? data.modhash : null;
+    const over18 = typeof data.over_18 === "boolean" ? data.over_18 : null;
+    return { loggedIn: true, name, modhash, over18 };
   }
 
   /** Resolve a "next" href against the current page; accept same-origin saved pages only. */
@@ -90,6 +114,17 @@
   }
 
   /**
+   * Promoted rows are ads interleaved into listings. They carry a real `t3_`
+   * fullname but were never saved by the user, so they are neither captured
+   * nor ever handed to the unsave engine.
+   */
+  function isPromotedRow(raw) {
+    const classes = String(raw.className || "").split(/\s+/);
+    if (classes.includes("promoted") || classes.includes("promotedlink")) return true;
+    return String(raw.promoted || "").toLowerCase() === "true";
+  }
+
+  /**
    * Decide what a row is. Returns one of:
    *   "nsfw-post" – keep
    *   "sfw-post"  – count only
@@ -100,6 +135,7 @@
     const fullname = String(raw.fullname || "");
     if (fullname.startsWith("t1_")) return "comment";
     if (!isPostFullname(fullname)) return "other";
+    if (isPromotedRow(raw)) return "other";
     return isNsfwRow(raw) ? "nsfw-post" : "sfw-post";
   }
 
@@ -408,11 +444,16 @@
     STATE_KEY,
     CHUNK_PREFIX,
     FILE_NAME,
+    ORIGIN,
+    ME_PATH,
     DEFAULT_PACING,
     savedListingAccount,
+    savedListingUrl,
+    parseIdentity,
     resolveNextUrl,
     isPostFullname,
     isNsfwRow,
+    isPromotedRow,
     classifyRow,
     classifyMedia,
     normalizePost,
