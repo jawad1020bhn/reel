@@ -161,3 +161,15 @@ test("a Reddit-free setup (file:// has no r-posts source) behaves exactly as bef
   assert.equal(importer.redditStatus().state, "unavailable");
   assert.deepEqual(ids(catalog.posts), ["1893", "1894"]);
 });
+
+test("every Reddit save is shown even when text-only X posts are hidden", async () => {
+  const withText = {
+    ...redditExport, count: 3,
+    posts: [...redditExport.posts,
+      { fullname: "t3_txt789", title: "Words only", subreddit: "NSFW", author: "eve", permalink: "/r/NSFW/comments/txt789/words/", url: "https://www.reddit.com/r/NSFW/comments/txt789/words/", score: 2, comments: 1, created_at: "2026-05-03T12:00:00.000Z", nsfw: true, thumbnail: "self", media: [] }],
+  };
+  const { importer, catalog } = setup({ redditText: JSON.stringify(withText) });
+  await importer.boot();
+  assert.ok(ids(catalog.posts).includes("t3_txt789"), "the text-only Reddit save is in the library");
+  assert.equal(importer.redditStatus().count, 3);
+});

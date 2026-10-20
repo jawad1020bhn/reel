@@ -115,3 +115,18 @@ test("the async pipeline (used by the importer) gives the same Reddit posts", as
   assert.equal(posts.length, 4);
   assert.ok(posts.every((p) => p.platform === "reddit"));
 });
+
+test("a link post's Reddit thumbnail becomes its still, and a post with no thumbnail stays text-only", () => {
+  const json = {
+    source: "reddit-saved-nsfw",
+    posts: [
+      { fullname: "t3_link01", title: "Clip from a site", subreddit: "NSFW", author: "dan", permalink: "/r/NSFW/comments/link01/clip/", url: "https://www.redgifs.com/watch/abc", thumbnail: "https://external-preview.redd.it/thumb-link01.jpeg?width=140", media: [], score: 3, comments: 0, created_at: "2026-05-03T12:00:00.000Z", nsfw: true },
+      { fullname: "t3_self02", title: "Just words", subreddit: "NSFW", author: "eve", permalink: "/r/NSFW/comments/self02/words/", url: "https://www.reddit.com/r/NSFW/comments/self02/words/", thumbnail: "self", media: [], score: 1, comments: 0, created_at: "2026-05-04T12:00:00.000Z", nsfw: true },
+    ],
+  };
+  const { posts } = normalize(json, { keepTextOnly: true });
+  assert.equal(posts[0].media.length, 1);
+  assert.equal(posts[0].media[0].kind, "photo");
+  assert.equal(posts[0].media[0].thumb, "https://external-preview.redd.it/thumb-link01.jpeg?width=140");
+  assert.equal(posts[1].media.length, 0);
+});

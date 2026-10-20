@@ -104,8 +104,11 @@ XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.po
     /** Loads the active library together with the Reddit posts. Reddit is always merged in,
         so switching or re-importing the X library never hides the Reddit saves. */
     async function activate(posts, source) {
-      const allowed = withoutDeleted(posts).concat(withoutDeleted(reddit.posts));
-      const list = prefs.get("keepTextOnly") ? allowed : allowed.filter((p) => p.media.length);
+      /* "Keep text-only posts" governs the X library only. Every Reddit save is shown, so the
+         library count matches data/r-posts.json. */
+      const xPosts = withoutDeleted(posts);
+      const xKept = prefs.get("keepTextOnly") ? xPosts : xPosts.filter((p) => p.media.length);
+      const list = xKept.concat(withoutDeleted(reddit.posts));
       progress("index", "Building your library index…");
       mark("catalog-index:start");
       await catalog.load(list, { ...source, reddit: reddit.status });
@@ -128,7 +131,8 @@ XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.po
           await storage.remove(KEY_REDDIT).catch(() => {});
           return;
         }
-        const fp = fingerprintOf(res.text);
+        // "v2" = adapter version: a change to how posts are normalised must invalidate the cache.
+        const fp = "v2:" + fingerprintOf(res.text);
         const cached = await storage.get(KEY_REDDIT).catch(() => null);
         if (cached && cached.fingerprint === fp && Array.isArray(cached.posts)) {
           reddit = { posts: cached.posts, status: status("ready", { count: cached.posts.length, fingerprint: fp, cached: true }) };

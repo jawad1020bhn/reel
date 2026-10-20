@@ -30,17 +30,19 @@ XR.define("core.adapters.reddit", ["core.adapters.registry", "core.util"], funct
   const isRedditHost = (url) => { try { return /(^|\.)(reddit\.com|redd\.it|redditmedia\.com)$/i.test(new URL(url).hostname); } catch { return true; } };
   const toTime = (value) => { const t = Date.parse(value); return Number.isFinite(t) ? t : 0; };
 
-  /** One still per post at most: the image itself, or the thumbnail for video/gallery. */
+  /** One still per post at most: the image itself, or Reddit's thumbnail. Link posts (redgifs,
+      external articles) and text posts carry a thumbnail too, so those still get a picture. */
   function mediaOf(p) {
     const list = Array.isArray(p.media) ? p.media : [];
     const direct = list.find((m) => m && m.kind === "image" && httpUrl(m.url));
     if (direct) return [{ kind: "photo", thumb: httpUrl(direct.url) }];
     const poster = httpUrl(p.thumbnail);
-    if (poster && list.some((m) => m && (m.kind === "video" || m.kind === "gallery"))) {
-      const video = list.some((m) => m && m.kind === "video");
-      return [{ kind: "photo", thumb: poster, alt: video ? "Reddit video (still image, open on Reddit to play)" : "Reddit gallery (first image, open on Reddit for all of it)" }];
-    }
-    return [];
+    if (!poster) return [];
+    const video = list.some((m) => m && m.kind === "video");
+    const gallery = list.some((m) => m && m.kind === "gallery");
+    const alt = video ? "Reddit video (still image, open on Reddit to play)"
+      : gallery ? "Reddit gallery (first image, open on Reddit for all of it)" : "";
+    return [{ kind: "photo", thumb: poster, alt }];
   }
 
   function normalize(json) {
