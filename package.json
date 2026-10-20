@@ -10,7 +10,7 @@
     "site:password": "node tools/set-site-password.mjs",
     "test:ui": "node --test tests/ui.test.mjs",
     "audit:ui": "bash tools/impeccable-audit.sh",
-    "test:unit": "node --test tests/loading.test.mjs tests/pull-to-shuffle.test.mjs tests/library-deletion.test.mjs tests/library-importer.test.mjs tests/reddit-source.test.mjs tests/reddit-import.test.mjs tests/catalog-sources.test.mjs"
+    "test:unit": "node --test tests/loading.test.mjs tests/pull-to-shuffle.test.mjs tests/library-deletion.test.mjs tests/library-importer.test.mjs tests/reddit-source.test.mjs tests/reddit-import.test.mjs tests/catalog-sources.test.mjs tests/activity-reddit-reset.test.mjs tests/smart-shuffle.test.mjs"
   },
   "devDependencies": {
     "axe-core": "4.11.1",

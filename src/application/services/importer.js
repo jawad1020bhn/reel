@@ -104,8 +104,11 @@ XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.po
     /** Loads the active library together with the Reddit posts. Reddit is always merged in,
         so switching or re-importing the X library never hides the Reddit saves. */
     async function activate(posts, source) {
-      const allowed = withoutDeleted(posts).concat(withoutDeleted(reddit.posts));
-      const list = prefs.get("keepTextOnly") ? allowed : allowed.filter((p) => p.media.length);
+      /* "Keep text-only posts" governs the X library only. Reddit saves without media were
+         already left out by loadReddit. */
+      const xPosts = withoutDeleted(posts);
+      const xKept = prefs.get("keepTextOnly") ? xPosts : xPosts.filter((p) => p.media.length);
+      const list = xKept.concat(withoutDeleted(reddit.posts));
       progress("index", "Building your library index…");
       mark("catalog-index:start");
       await catalog.load(list, { ...source, reddit: reddit.status });
@@ -128,7 +131,8 @@ XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.po
           await storage.remove(KEY_REDDIT).catch(() => {});
           return;
         }
-        const fp = fingerprintOf(res.text);
+        // "v2" = adapter version: a change to how posts are normalised must invalidate the cache.
+        const fp = "v3:" + fingerprintOf(res.text);
         const cached = await storage.get(KEY_REDDIT).catch(() => null);
         if (cached && cached.fingerprint === fp && Array.isArray(cached.posts)) {
           reddit = { posts: cached.posts, status: status("ready", { count: cached.posts.length, fingerprint: fp, cached: true }) };
@@ -137,8 +141,10 @@ XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.po
         progress("index", "Indexing Reddit posts…");
         const { result } = await normalizeInput(res.text, res.label);
         if (result.adapter !== "reddit") throw new Error(`${label} is not a Reddit export (found the ${result.adapter} format). Put the saved-posts file there instead.`);
-        await storage.set(KEY_REDDIT, { fingerprint: fp, posts: result.posts, adapter: result.adapter, at: Date.now() }).catch(() => {});
-        reddit = { posts: result.posts, status: status("ready", { count: result.posts.length, fingerprint: fp, cached: false }) };
+        // Reddit saves without media are left out: the library shows only saves with a picture.
+        const shown = result.posts.filter((p) => p.media.length);
+        await storage.set(KEY_REDDIT, { fingerprint: fp, posts: shown, adapter: result.adapter, at: Date.now() }).catch(() => {});
+        reddit = { posts: shown, status: status("ready", { count: shown.length, fingerprint: fp, cached: false }) };
       } catch (err) {
         console.warn("[importer] Reddit posts were not loaded", err);
         reddit = { posts: [], status: status("error", { error: err.message || String(err) }) };

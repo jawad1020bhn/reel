@@ -81,7 +81,10 @@ XR.define("core.query.engine", ["core.query.search", "core.util"], function (sea
    *   2. exponential-race sampling (the numerically stable form of Efraimidis–Spirakis):
    *      key = −ln(1 − rnd) / w, ascending — heavier posts float up but nothing is ever
    *      pinned, so every new seed is a genuinely new deck;
-   *   3. spread pass with O(1) checks (last-position maps, current kind-run): prefer no
+   *   3. video rule (hard, when possible): no more than five videos (short or long) in a
+   *      row while a photo, carousel, GIF or text post is left, and non-videos are paced
+   *      across the whole deck so they are not all used up at the start;
+   *   4. spread pass with O(1) checks (last-position maps, current kind-run): prefer no
    *      creator repeat within that creator's natural gap (SPREAD slots, tightened to
    *      total ÷ their post count for prolific accounts), no more than RUN posts of
    *      the same media kind in a row, and no shared lead hashtag within TAG_SPREAD
@@ -92,7 +95,7 @@ XR.define("core.query.engine", ["core.query.search", "core.util"], function (sea
    *      instead of abandoning the rest or stranding that creator in the tail.
    */
   function smartShuffle(items, seed, ctx) {
-    const SPREAD = 4, RUN = 3, TAG_SPREAD = 3, LOOK = 64, now = Date.now();
+    const SPREAD = 4, RUN = 3, TAG_SPREAD = 3, LOOK = 64, VIDEO_RUN = 5, now = Date.now();
     const rnd = util.seededRandom(seed || 1);
     const creatorCount = new Map();
     for (const p of items) creatorCount.set(p.author.username, (creatorCount.get(p.author.username) || 0) + 1);
@@ -119,12 +122,19 @@ XR.define("core.query.engine", ["core.query.search", "core.util"], function (sea
       .map((x) => x.p);
     const kindOf = (p) => {
       if (ctx.kindOf) return ctx.kindOf(p);
-      return p.media[0]?.kind === "photo" ? "photo" : "video";
+      if (!p.media.length) return "text";
+      return p.media.some((m) => m.kind === "video") ? "video" : "photo";
     };
+    /* "Video" means a playable clip (short or long). Photos, carousels, GIFs and text posts are all non-video. */
+    const isVideo = (p) => { const k = kindOf(p); return k === "short" || k === "long" || k === "video"; };
+    const imageTotal = items.filter((p) => !isVideo(p)).length;
     const tagOf = (p) => (p.hashtags && p.hashtags[0]) || "";
     const out = [], rest = keyed, total = items.length;
     const lastCreator = new Map(), lastTag = new Map(), placedCreator = new Map();
     let tailKind = null, tailRun = 0;
+    /* Videos may run at most VIDEO_RUN in a row: the next post is a non-video whenever one is left.
+       Non-videos are also paced across the whole deck (see `behind`), so they do not bunch up at the start. */
+    let videoRun = 0, imagesPlaced = 0;
     /* Soft-rule penalty for a candidate at the current tail: breaking a rule costs,
        breaking it worse costs more (a creator 1 slot back ≫ a creator 4 slots back),
        and an unbroken rule costs 0 — so the pick below trades rules off against each
@@ -146,16 +156,36 @@ XR.define("core.query.engine", ["core.query.search", "core.util"], function (sea
       if (tag) { const dt = pos - (lastTag.get(tag) ?? -Infinity); if (dt <= TAG_SPREAD) cost += TAG_SPREAD + 1 - dt; }
       return cost;
     };
+    /* First non-video in the deck (beyond the lookahead window), or -1 when none is left. */
+    const firstImage = () => { for (let i = 0; i < rest.length; i++) if (!isVideo(rest[i])) return i; return -1; };
     while (rest.length) {
       /* Cheapest candidate in the lookahead window; ties keep the weighted order.
          Costs can go negative (a creator behind fair share), so the whole window
          is scored — the first zero-cost candidate is not necessarily the best. */
-      let pick = 0, best = Infinity;
+      const imagesLeft = imagesPlaced < imageTotal;
+      /* images owed so far at this point of the deck: one is due when this reaches 1, which spreads
+         the non-videos evenly over the whole deck instead of bunching them at the start */
+      const behind = imageTotal ? (out.length * imageTotal) / total - imagesPlaced : 0;
+      const mustImage = imagesLeft && (videoRun >= VIDEO_RUN || behind >= 1);
+      /* ahead of the quota: keep the remaining non-videos for later, so the last images still reach the end of the deck */
+      const ahead = !mustImage && behind < 0;
+      let pick = -1, best = Infinity;
       const lim = Math.min(LOOK, rest.length);
-      for (let i = 0; i < lim; i++) {
-        const cost = penalty(rest[i]);
-        if (cost < best) { best = cost; pick = i; }
+      for (let pass = 0; pass < 2 && pick < 0; pass++) {
+        for (let i = 0; i < lim; i++) {
+          const c = rest[i];
+          if (mustImage && isVideo(c)) continue;
+          if (pass === 0 && ahead && !isVideo(c)) continue;   // second pass: nothing else fits, so allow it
+          const cost = penalty(c);
+          if (cost < best) { best = cost; pick = i; }
+        }
       }
+      /* The window may hold no non-video while one is owed: take the first non-video in the deck. */
+      if (mustImage) {
+        const fi = firstImage();
+        if (fi >= lim) { const cost = penalty(rest[fi]); if (cost < best) { best = cost; pick = fi; } }
+      }
+      if (pick < 0) pick = 0;
       const [chosen] = rest.splice(pick, 1);
       out.push(chosen);
       lastCreator.set(chosen.author.username, out.length - 1);
@@ -163,6 +193,7 @@ XR.define("core.query.engine", ["core.query.search", "core.util"], function (sea
       if (tagOf(chosen)) lastTag.set(tagOf(chosen), out.length - 1);
       const k = kindOf(chosen);
       if (k === tailKind) tailRun++; else { tailKind = k; tailRun = 1; }
+      if (isVideo(chosen)) videoRun++; else { videoRun = 0; imagesPlaced++; }
     }
     return out;
   }
