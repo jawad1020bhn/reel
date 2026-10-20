@@ -132,7 +132,7 @@ XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.po
           return;
         }
         // "v2" = adapter version: a change to how posts are normalised must invalidate the cache.
-        const fp = "v3:" + fingerprintOf(res.text);
+        const fp = "v4:" + fingerprintOf(res.text);
         const cached = await storage.get(KEY_REDDIT).catch(() => null);
         if (cached && cached.fingerprint === fp && Array.isArray(cached.posts)) {
           reddit = { posts: cached.posts, status: status("ready", { count: cached.posts.length, fingerprint: fp, cached: true }) };

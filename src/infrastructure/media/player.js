@@ -47,7 +47,12 @@ XR.define("infra.media.player", ["app.ports.mediaResolver"], function (resolver)
       rec.hlsRetries = 0;
       rec.hls.on(Hls.Events.ERROR, (_, data) => {
         if (!data.fatal) return;
-        const giveUp = () => { try { rec.hls.destroy(); } catch { /* ignore */ } rec.hls = null; video.dispatchEvent(new CustomEvent("xr:unplayable", { detail: { reason: data.details || data.type } })); };
+        const giveUp = () => {
+          try { rec.hls.destroy(); } catch { /* ignore */ }
+          rec.hls = null;
+          if (rec.hlsFirst && rec.idx < rec.sources.length) return hlsFailed(video, rec, false);
+          video.dispatchEvent(new CustomEvent("xr:unplayable", { detail: { reason: data.details || data.type } }));
+        };
         if (rec.hlsRetries++ >= 2) return giveUp();
         if (data.type === Hls.ErrorTypes.NETWORK_ERROR) setTimeout(() => rec.hls && rec.hls.startLoad(), 800 * rec.hlsRetries);
         else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) rec.hls.recoverMediaError();
@@ -59,44 +64,59 @@ XR.define("infra.media.player", ["app.ports.mediaResolver"], function (resolver)
     return false;
   }
 
+  /* HLS first for media flagged hlsFirst (Reddit: its sound is in the playlist), otherwise after
+     the listed sources. Every other item keeps the original order. */
   function tryNext(video, rec, resumeAfterHls = false) {
+    if (rec.hlsFirst && rec.hlsUrl && !rec.triedHls) return tryHls(video, rec, resumeAfterHls);
     while (rec.idx < rec.sources.length) {
       const s = rec.sources[rec.idx++];
       if (saveData() && s.bitrate > MAX_BITRATE_ON_SAVE_DATA && rec.idx < rec.sources.length) continue;
       video.src = s.url;
       return true;
     }
-    if (rec.hlsUrl && !rec.triedHls) {
-      rec.triedHls = true;
-      video.removeAttribute("src");
-      if (startHls(video, rec.hlsUrl, rec)) return true;
-      rec.awaitingHls = true;
-      rec.ready = loadHls().then((Hls) => {
-        if (registry.get(video) !== rec) return false;
-        rec.awaitingHls = false;
-        if (Hls && startHls(video, rec.hlsUrl, rec)) {
-          if (resumeAfterHls) video.play().catch(() => {});
-          return true;
-        }
-        video.dispatchEvent(new CustomEvent("xr:unplayable", { detail: { reason: "exhausted" } }));
-        return false;
-      }).catch(() => {
-        if (registry.get(video) === rec) {
-          rec.awaitingHls = false;
-          video.dispatchEvent(new CustomEvent("xr:unplayable", { detail: { reason: "exhausted" } }));
-        }
-        return false;
-      });
-      return true;
-    }
+    if (rec.hlsUrl && !rec.triedHls) return tryHls(video, rec, resumeAfterHls);
     rec.ready = Promise.resolve(false);
+    video.dispatchEvent(new CustomEvent("xr:unplayable", { detail: { reason: "exhausted" } }));
+    return false;
+  }
+
+  function tryHls(video, rec, resumeAfterHls) {
+    rec.triedHls = true;
+    video.removeAttribute("src");
+    if (startHls(video, rec.hlsUrl, rec)) return true;
+    rec.awaitingHls = true;
+    rec.ready = loadHls().then((Hls) => {
+      if (registry.get(video) !== rec) return false;
+      rec.awaitingHls = false;
+      if (Hls && startHls(video, rec.hlsUrl, rec)) {
+        if (resumeAfterHls) video.play().catch(() => {});
+        return true;
+      }
+      return hlsFailed(video, rec, resumeAfterHls);
+    }).catch(() => {
+      if (registry.get(video) === rec) {
+        rec.awaitingHls = false;
+        return hlsFailed(video, rec, resumeAfterHls);
+      }
+      return false;
+    });
+    return true;
+  }
+
+  /* HLS did not start: hlsFirst media falls back to its silent MP4s; the rest report unplayable. */
+  function hlsFailed(video, rec, resumeAfterHls) {
+    if (rec.hlsFirst && rec.idx < rec.sources.length) {
+      const started = tryNext(video, rec, false);
+      if (started && resumeAfterHls) video.play().catch(() => {});
+      return started;
+    }
     video.dispatchEvent(new CustomEvent("xr:unplayable", { detail: { reason: "exhausted" } }));
     return false;
   }
 
   function attach(video, media, opts = {}) {
     detach(video);
-    const rec = { sources: resolver.sources(media, opts), idx: 0, hls: null, hlsUrl: resolver.hls ? resolver.hls(media) : media.hls, triedHls: false, ready: null, media };
+    const rec = { sources: resolver.sources(media, opts), idx: 0, hls: null, hlsUrl: resolver.hls ? resolver.hls(media) : media.hls, hlsFirst: !!media.hlsFirst, triedHls: false, ready: null, media };
     rec.onError = () => {
       const err = video.error;
       // MEDIA_ERR_ABORTED (1) is caused by our own src swaps; ignore it.

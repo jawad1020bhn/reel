@@ -71,15 +71,26 @@ test("Reddit rows map to posts keyed by fullname, marked as Reddit, with the per
   assert.equal(photo.media[0].thumb, "https://i.redd.it/x1.jpg");
 });
 
-test("Reddit videos and galleries show a still and never a playable source they do not have", () => {
+test("a Reddit-hosted video plays through its HLS playlist (with sound); galleries stay stills", () => {
   const { posts } = normalize(redditExport, { keepTextOnly: true });
   const [, video, , gallery] = posts;
-  assert.equal(video.media[0].kind, "photo");
-  assert.equal(video.media[0].thumb, "https://b.thumbs.redditmedia.com/v.jpg");
-  assert.match(video.media[0].alt, /Reddit video/);
-  assert.deepEqual(video.media[0].sources, []);
+  assert.equal(video.media[0].kind, "video");
+  assert.equal(video.media[0].hls, "https://v.redd.it/vid999/HLSPlaylist.m3u8");
+  assert.equal(video.media[0].hlsFirst, true);
+  assert.deepEqual(video.media[0].sources.map((s) => s.url), [720, 480, 360, 240].map((h) => `https://v.redd.it/vid999/DASH_${h}.mp4`));
   assert.equal(gallery.media[0].kind, "photo");
   assert.match(gallery.media[0].alt, /Reddit gallery/);
+});
+
+test("a video link that is not a v.redd.it address stays a still, never a guessed stream", () => {
+  const json = {
+    source: "reddit-saved-nsfw",
+    posts: [{ fullname: "t3_odd001", title: "Odd", subreddit: "NSFW", author: "x", permalink: "/r/NSFW/comments/odd001/odd/", url: "https://example.com/v", thumbnail: "https://b.thumbs.redditmedia.com/o.jpg", media: [{ kind: "video", url: "https://example.com/v.mp4" }], score: 1, comments: 0, created_at: "2026-05-05T12:00:00.000Z", nsfw: true }],
+  };
+  const { posts } = normalize(json, { keepTextOnly: true });
+  assert.equal(posts[0].media[0].kind, "photo");
+  assert.equal(posts[0].media[0].hls, "");
+  assert.match(posts[0].media[0].alt, /Reddit video/);
 });
 
 test("text-only Reddit posts keep their external link and an explicit deleted author", () => {
