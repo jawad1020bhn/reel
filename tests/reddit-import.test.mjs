@@ -162,7 +162,7 @@ test("a Reddit-free setup (file:// has no r-posts source) behaves exactly as bef
   assert.deepEqual(ids(catalog.posts), ["1893", "1894"]);
 });
 
-test("every Reddit save is shown even when text-only X posts are hidden", async () => {
+test("Reddit saves without media are left out; the Reddit count is the number of saves with a picture", async () => {
   const withText = {
     ...redditExport, count: 3,
     posts: [...redditExport.posts,
@@ -170,6 +170,6 @@ test("every Reddit save is shown even when text-only X posts are hidden", async 
   };
   const { importer, catalog } = setup({ redditText: JSON.stringify(withText) });
   await importer.boot();
-  assert.ok(ids(catalog.posts).includes("t3_txt789"), "the text-only Reddit save is in the library");
-  assert.equal(importer.redditStatus().count, 3);
+  assert.ok(!ids(catalog.posts).includes("t3_txt789"), "the text-only Reddit save is not in the library");
+  assert.equal(importer.redditStatus().count, 2);
 });
