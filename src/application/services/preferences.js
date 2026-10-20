@@ -36,6 +36,7 @@ XR.define("app.prefs", ["app.ports.storage", "core.events", "core.domain.events"
     /* sources — switch each site's saves in or out of every list (data stays loaded) */
     showX: true,              // posts from the X library (data/x-posts.json, uploads…)
     showReddit: true,         // posts from data/r-posts.json
+    redditImagesOnly: false,  // with Reddit on: photos & galleries only, no Reddit videos
     /* data */
     dataPriority: "file",     // legacy (pre-1.1): migrated into the libraries index
     keepTextOnly: false,

@@ -89,10 +89,26 @@ XR.define("features.settings", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog",
       /* Updated in place when a toggle changes, so the explanation appears at once. */
       const note = h("p.muted.small", "Both sources are off, so nothing is shown. Turn one back on to see your saves.");
       note.hidden = !(!P("showX") && !P("showReddit"));
-      const onSource = (key) => (on) => { set(key)(on); note.hidden = !(!P("showX") && !P("showReddit")); };
+      /* Reddit's sub-option: keep its photos and galleries, drop its videos. It only means
+         something while Reddit posts are shown, so it follows the parent switch. */
+      const redditVideos = catalog.all.reduce((n, p) => n + (p.platform === "reddit" && model.hasVideo(p) ? 1 : 0), 0);
+      const imagesText = counts.reddit
+        ? (redditVideos
+          ? `Photos and galleries only — hides ${redditVideos === 1 ? "the 1 Reddit video" : dom.compact(redditVideos) + " Reddit videos"} in your library`
+          : "Photos and galleries only — your Reddit library has no videos right now")
+        : "Photos and galleries only — Reddit videos are kept out once a Reddit library is loaded";
+      const imagesToggle = W.toggle(P("redditImagesOnly"), set("redditImagesOnly"), { disabled: !P("showReddit") });
+      const imagesRow = W.row("Images only", imagesText, imagesToggle, { cls: "row-sub" });
+      imagesRow.setAttribute("aria-disabled", P("showReddit") ? "false" : "true");
+      const onSource = (key) => (on) => {
+        set(key)(on);
+        note.hidden = !(!P("showX") && !P("showReddit"));
+        if (key === "showReddit") { imagesToggle.setDisabled(!on); imagesRow.setAttribute("aria-disabled", on ? "false" : "true"); }
+      };
       return W.section("Sources", "Choose which saved posts appear in the app",
         W.row("Show X posts", xText, W.toggle(P("showX"), onSource("showX"))),
         W.row("Show Reddit posts", redditText, W.toggle(P("showReddit"), onSource("showReddit"))),
+        imagesRow,
         note);
     }
     function playback() {

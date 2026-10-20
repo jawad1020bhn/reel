@@ -118,6 +118,12 @@ kbd { display: inline-flex; align-items: center; justify-content: center; min-wi
 .row-desc { color: rgb(255 255 255 / 0.55); font-size: 12.5px; margin-top: 2px; }
 .row-control { flex: none; display: flex; align-items: center; gap: 8px; max-width: 60%; }
 .row-error .row-desc { color: var(--danger); font-family: var(--mono); font-size: 12px; }
+/* A sub-option sits under its parent row: inset, with a short guide line instead of the
+   full-width rule, so the hierarchy reads at a glance. Disabled rows stay legible. */
+.row-sub { margin-left: 14px; padding-left: 16px; border-top: 1px dashed var(--line); border-left: 2px solid var(--line); }
+.row-sub .row-label { font-size: 13px; }
+.row[aria-disabled="true"] .row-text { opacity: 0.5; }
+.switch.is-disabled { cursor: not-allowed; opacity: 0.5; }
 .panel { background: rgb(255 255 255 / 0.03); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 16px 18px; }
 .panel-title { font-size: 14px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
 .panel-foot { margin-top: 10px; }
