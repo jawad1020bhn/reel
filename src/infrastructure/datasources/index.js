@@ -2,10 +2,12 @@
 
    auto : <script src="data/posts.js"> injected at runtime (works on file://). Looks for
           window.XREELS_DATA, POSTS_DATA, POSTS, BOOKMARKS, xdashData. Falls back to
-          fetch("data/posts.json") when running over http(s).
+          fetch("data/x-posts.json") when running over http(s).
    file : File/Blob (drag-drop or picker). Reads .json and .js (window.X = {...}).
    text : pasted text (the importer parses it; this is a pass-through for symmetry).
-   url  : fetch(url) — http(s) only; blocked on file:// by the browser. */
+   url  : fetch(url) — http(s) only; blocked on file:// by the browser.
+   reddit : fetch("data/r-posts.json") — the Reddit saved-posts export, read next to the
+          X library on every boot. http(s) only, like data/x-posts.json. */
 XR.define("infra.datasources", [], function () {
   "use strict";
   const GLOBALS = ["XREELS_DATA", "POSTS_DATA", "POSTS", "BOOKMARKS", "xdashData", "DATA"];
@@ -50,10 +52,10 @@ XR.define("infra.datasources", [], function () {
       }
       if (!isFile() && typeof fetch === "function") {
         try {
-          const res = await fetch("data/posts.json", { cache: "no-store" });
+          const res = await fetch("data/x-posts.json", { cache: "no-store" });
           /* Keep the JSON as text until the importer checks its fingerprint. On a cache hit,
              this avoids parsing the full export just to discover that normalized posts exist. */
-          if (res.ok) return { text: await res.text(), label: "data/posts.json" };
+          if (res.ok) return { text: await res.text(), label: "data/x-posts.json" };
         } catch { /* absent */ }
       }
       return null;
@@ -115,6 +117,19 @@ XR.define("infra.datasources", [], function () {
     return result;
   }
 
-  const list = [auto, file, text, url];
+  const reddit = {
+    id: "reddit", kind: "reddit", label: "data/r-posts.json",
+    available: () => !isFile() && typeof fetch === "function",
+    async load() {
+      try {
+        const res = await fetch("data/r-posts.json", { cache: "no-store" });
+        // A missing file is normal (no Reddit export yet), so it is reported as absent, not as an error.
+        if (res.ok) return { text: await res.text(), label: "data/r-posts.json" };
+      } catch { /* absent or unreachable */ }
+      return null;
+    },
+  };
+
+  const list = [auto, file, text, url, reddit];
   return { get: (kind) => list.find((s) => s.kind === kind || s.id === kind) || null, all: () => list.slice(), GLOBALS, deletionState, deletePost, clearGlobals: () => { for (const g of GLOBALS) try { delete window[g]; } catch { /* non-configurable */ } } };
 });

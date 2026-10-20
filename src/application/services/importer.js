@@ -1,7 +1,9 @@
 /* app.importer — how posts get into the catalog, and the registry of *libraries*.
 
    Sources (DataSourcePort implementations live in infra.datasources):
-     auto   : data/posts.js (script tag) → data/posts.json (http only)
+     auto   : data/posts.js (script tag) → data/x-posts.json (http only)
+     reddit : data/r-posts.json (http only). Read on every boot and merged into the
+              catalog beside the active X library; never stored inside an X library.
      file   : a File dropped/picked by the user
      text   : JSON pasted by the user
      url    : a remote JSON (http contexts only)
@@ -19,10 +21,16 @@ XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.po
     "use strict";
     const KEY_AUTO = "xreels.dataset.auto.v1";       // cache of the normalised data/posts.js
     const KEY_INDEX = "xreels.datasets.v1";          // libraries index
+    const KEY_REDDIT = "xreels.dataset.reddit.v1";   // cache of the normalised data/r-posts.json
     const keyFor = (id) => `xreels.dataset.${id}.v1`;
     const deletedIds = new Set();
     const withoutDeleted = (posts) => posts.filter((p) => !deletedIds.has(String(p.id)));
     const WORKER_MIN = 3000;                         // posts; below this the main thread is fine
+    /** Reddit posts sit beside the X library. Only X posts are ever written into a library. */
+    const isReddit = (p) => p.platform === "reddit";
+    /** The active X library as loaded now (deleted posts removed, Reddit excluded). */
+    const libraryPosts = () => (catalog.all || []).filter((p) => !isReddit(p));
+    let reddit = { posts: [], status: { id: "reddit", label: "data/r-posts.json", count: 0, state: "unavailable" } };
 
     const progress = (phase, message, extra = {}) => events.bus.emit(EV.DATASET_PROGRESS, { phase, message, ...extra });
     const mark = (name) => diag.mark(`importer:${name}`);
@@ -44,7 +52,7 @@ XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.po
     /** All libraries, auto first. */
     async function libraries() {
       await loadIndex();
-      const auto = { id: "auto", label: "data/posts.js", builtin: true, count: catalog.source?.id === "auto" ? catalog.size : (await storage.get(KEY_AUTO).catch(() => null))?.posts?.length || 0 };
+      const auto = { id: "auto", label: "data/posts.js", builtin: true, count: catalog.source?.id === "auto" ? libraryPosts().length : (await storage.get(KEY_AUTO).catch(() => null))?.posts?.length || 0 };
       return [auto, ...index.items.map((d) => ({ ...d, builtin: false }))];
     }
     const activeId = async () => (await loadIndex()).active;
@@ -79,26 +87,62 @@ XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.po
     }
     /** {added, missing, changed, same, missingIds, addedIds} relative to what is loaded now. */
     function diffAgainstCatalog(posts) {
+      const current = libraryPosts();
+      const currentIds = new Set(current.map((p) => p.id));
       const incoming = new Map(posts.map((p) => [p.id, p]));
       const addedIds = [], missingIds = [], changedIds = [];
       let same = 0;
-      for (const p of posts) if (!catalog.post(p.id)) addedIds.push(p.id);
-      for (const p of catalog.posts) {
+      for (const p of posts) if (!currentIds.has(p.id)) addedIds.push(p.id);
+      for (const p of current) {
         const q = incoming.get(p.id);
         if (!q) { missingIds.push(p.id); continue; }
         if (q.text !== p.text || q.media.length !== p.media.length || (q.metrics.likes || 0) !== (p.metrics.likes || 0)) changedIds.push(p.id); else same++;
       }
-      return { added: addedIds.length, missing: missingIds.length, changed: changedIds.length, same, addedIds, missingIds, changedIds, empty: catalog.size === 0 };
+      return { added: addedIds.length, missing: missingIds.length, changed: changedIds.length, same, addedIds, missingIds, changedIds, empty: current.length === 0 };
     }
 
+    /** Loads the active library together with the Reddit posts. Reddit is always merged in,
+        so switching or re-importing the X library never hides the Reddit saves. */
     async function activate(posts, source) {
-      const allowed = withoutDeleted(posts);
+      const allowed = withoutDeleted(posts).concat(withoutDeleted(reddit.posts));
       const list = prefs.get("keepTextOnly") ? allowed : allowed.filter((p) => p.media.length);
       progress("index", "Building your library index…");
       mark("catalog-index:start");
-      await catalog.load(list, source);
+      await catalog.load(list, { ...source, reddit: reddit.status });
       mark("catalog-index:end");
       return catalog.source;
+    }
+
+    /* ------------------------------------------------------------ reddit -- */
+    /** Reads data/r-posts.json. Never throws: a broken Reddit file must not stop the X library
+        from opening. Its state is kept for Settings to explain. */
+    async function loadReddit() {
+      const src = sources.get("reddit");
+      const label = src?.label || "data/r-posts.json";
+      const status = (state, extra = {}) => ({ id: "reddit", label, count: 0, state, ...extra });
+      if (!src?.available()) { reddit = { posts: [], status: status("unavailable") }; return; }
+      try {
+        const res = await src.load();
+        if (!res) {
+          reddit = { posts: [], status: status("missing") };
+          await storage.remove(KEY_REDDIT).catch(() => {});
+          return;
+        }
+        const fp = fingerprintOf(res.text);
+        const cached = await storage.get(KEY_REDDIT).catch(() => null);
+        if (cached && cached.fingerprint === fp && Array.isArray(cached.posts)) {
+          reddit = { posts: cached.posts, status: status("ready", { count: cached.posts.length, fingerprint: fp, cached: true }) };
+          return;
+        }
+        progress("index", "Indexing Reddit posts…");
+        const { result } = await normalizeInput(res.text, res.label);
+        if (result.adapter !== "reddit") throw new Error(`${label} is not a Reddit export (found the ${result.adapter} format). Put the saved-posts file there instead.`);
+        await storage.set(KEY_REDDIT, { fingerprint: fp, posts: result.posts, adapter: result.adapter, at: Date.now() }).catch(() => {});
+        reddit = { posts: result.posts, status: status("ready", { count: result.posts.length, fingerprint: fp, cached: false }) };
+      } catch (err) {
+        console.warn("[importer] Reddit posts were not loaded", err);
+        reddit = { posts: [], status: status("error", { error: err.message || String(err) }) };
+      }
     }
 
     /* --------------------------------------------------------- auto path -- */
@@ -152,6 +196,7 @@ XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.po
         events.bus.emit(EV.DATASET_ERROR, { error: err });
         return activate([], { id: "none", label: "No data", error: err.message });
       }
+      await loadReddit();
       const steps = index.active && index.active !== "auto" ? [() => loadLibrary(index.active), loadAuto] : [loadAuto];
       let lastError = null;
       for (const step of steps) {
@@ -181,7 +226,11 @@ XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.po
           }
         } catch { /* next */ }
       }
-      const source = await activate([], { id: "none", label: "No data", error: lastError ? String(lastError.message || lastError) : "" });
+      /* No X library, but Reddit posts exist: show them as the source instead of "No data". */
+      const error = lastError ? String(lastError.message || lastError) : "";
+      const source = await activate([], reddit.posts.length
+        ? { id: "reddit", label: reddit.status.label, error }
+        : { id: "none", label: "No data", error });
       mark("boot:end");
       return source;
     }
@@ -200,9 +249,9 @@ XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.po
       const mode = opts.mode || (opts.merge ? "merge" : "replace");
       await refreshDeletions();
       let posts = withoutDeleted(an.posts);
-      if (mode === "merge" && catalog.size) {
+      if (mode === "merge" && libraryPosts().length) {
         const seen = new Set(posts.map((p) => p.id));
-        posts = [...posts, ...withoutDeleted(catalog.posts).filter((p) => !seen.has(p.id))];
+        posts = [...posts, ...withoutDeleted(libraryPosts()).filter((p) => !seen.has(p.id))];
       }
       let id = index.active && index.active !== "auto" ? index.active : "imported";
       if (mode === "new") id = "lib-" + util.uid();
@@ -254,13 +303,14 @@ XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.po
     }
     let deleting = false;
     async function deletePost(id, password) {
+      if (reddit.posts.some((p) => p.id === String(id))) throw new Error("Reddit posts are not in the shared X data file, so they can't be deleted here. Hide them instead.");
       if (deleting) throw new Error("Another deletion is in progress. Please wait.");
       deleting = true;
       try {
         const result = await sources.deletePost(String(id), password);
         // Only apply locally AFTER the server confirms the durable Git commit.
         for (const deleted of result.deletedIds) deletedIds.add(deleted);
-        const posts = withoutDeleted(catalog.posts), source = { ...catalog.source };
+        const posts = withoutDeleted(catalog.all), source = { ...catalog.source };
         await catalog.load(posts, source);
         events.bus.emit(EV.POST_DELETED, { id: String(id) });
         // Purge cached copies too. Even if storage fails, the shared ledger
@@ -291,6 +341,7 @@ XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.po
     return {
       boot, analyze, commit, importFile, importText, importUrl, diffAgainstCatalog,
       libraries, activeId, switchTo, renameLibrary, removeLibrary, forgetImported, clearCache, reload,
-      deletionReady, deletePost, exportPosts, fingerprintOf, KEY_AUTO, KEY_INDEX, keyFor,
+      deletionReady, deletePost, exportPosts, fingerprintOf, KEY_AUTO, KEY_INDEX, KEY_REDDIT, keyFor,
+      libraryPosts, redditStatus: () => reddit.status,
     };
   });

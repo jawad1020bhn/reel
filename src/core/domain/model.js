@@ -36,6 +36,7 @@
    @property {{id:string,username:string,name:string,text:string,url:string}|null} quoted
    @property {{sensitive:boolean,reply:boolean,repostedBy:string}} flags
    @property {string}  source      adapter id
+   @property {'x'|'reddit'} platform where the post came from (missing = 'x', for older caches)
    @property {string}  haystack    lowercase search blob (built by catalog)
 */
 XR.define("core.domain.model", ["core.util"], function (util) {
@@ -106,9 +107,13 @@ XR.define("core.domain.model", ["core.util"], function (util) {
         repostedBy: partial.flags?.repostedBy || "",
       },
       source: partial.source || "unknown",
+      platform: partial.platform === "reddit" ? "reddit" : "x",
       haystack: "",
     };
   }
+
+  /** Human name of the site a post came from, for menus and links. */
+  const platformLabel = (post) => (post && post.platform === "reddit" ? "Reddit" : "X");
 
   /* ----------------------------------------------------- classification -- */
   const hasMedia = (post) => post.media.length > 0;
@@ -140,7 +145,7 @@ XR.define("core.domain.model", ["core.util"], function (util) {
   }
 
   return {
-    SHORT_MAX_SECONDS, KINDS, createMedia, createPost, haystack,
+    SHORT_MAX_SECONDS, KINDS, createMedia, createPost, haystack, platformLabel,
     hasMedia, isCarousel, primary, hasVideo, isGif, duration, isShort, isLong, orientation, kindOf,
   };
 });

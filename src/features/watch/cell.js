@@ -1,7 +1,7 @@
 /* features.watch.cell — renders one post as a full-screen cell for the Watch feed.
    createCell(post, env) → { el, post, activate(), deactivate(), destroy(), fit(mode), carousel: {next, prev}|null, seekBy(s), togglePlay(), handle }
    env: { playback, media, prefs, catalog, onEnded(), onVideoEnded(), onProgress(t,d), onTap(), onOpenCreator(u), onTag(t), onUnplayable(), fitMode() } */
-XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu", "core.util", "core.events", "core.domain.events"], function (dom, icons, W, menu, util, events, EV) {
+XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu", "core.util", "core.events", "core.domain.events", "core.domain.model"], function (dom, icons, W, menu, util, events, EV, model) {
   "use strict";
   const h = dom.h;
 
@@ -185,7 +185,7 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu",
       h("div.cell-unplayable-actions",
         W.btn("Next", { icon: "arrowDown", kind: "primary", onClick: (e) => { e.stopPropagation(); env.onNext?.(); } }),
         W.btn("Retry", { icon: "refresh", onClick: (e) => { e.stopPropagation(); el.classList.remove("is-unplayable"); env.onRetry?.(post); } }),
-        W.btn("Open on X", { icon: "external", onClick: (e) => { e.stopPropagation(); env.onOpenX?.(post); } }),
+        W.btn(`Open on ${model.platformLabel(post)}`, { icon: "external", onClick: (e) => { e.stopPropagation(); env.onOpenX?.(post); } }),
         W.btn("Hide post", { icon: "eyeOff", onClick: (e) => { e.stopPropagation(); env.onHide?.(post); } })));
     stage.appendChild(unplayable);
 

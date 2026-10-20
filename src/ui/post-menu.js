@@ -19,13 +19,14 @@ XR.define("ui.postMenu", ["ui.menu", "ui.dialog", "ui.dom", "app.actions", "app.
         ...(post.hashtags.slice(0, 3).map((t) => ({ label: "#" + t, icon: "hash", run: () => actions.goTag(t) }))),
         { sep: true },
         actions.canShare() ? { label: "Share…", icon: "share", run: () => actions.share(post) } : null,
-        { label: "Open on X", icon: "external", run: () => actions.openOnX(post) },
+        { label: actions.openLabel(post), icon: "external", run: () => actions.openOnX(post) },
         { label: "Copy link", icon: "link", run: () => actions.copyLink(post) },
         post.text ? { label: "Copy caption", icon: "copy", run: () => actions.copyText(post) } : null,
         post.media.length ? { label: post.media.length > 1 ? "Open media file (1st)" : "Open media file", icon: "download", run: () => actions.download(post, opts.mediaIndex || 0) } : null,
         { sep: true },
         { label: hidden ? "Unhide" : "Hide from library", icon: "eyeOff", danger: !hidden, run: () => actions.hide(post) },
-        { label: "Delete from library", icon: "trash", danger: true, run: () => deletePermanently(post) },
+        // Shared deletion edits only the X data file, so Reddit posts can be hidden but not deleted.
+        post.platform === "reddit" ? null : { label: "Delete from library", icon: "trash", danger: true, run: () => deletePermanently(post) },
         ...(opts.extra || []),
       ];
     }

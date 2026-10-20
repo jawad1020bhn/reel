@@ -141,7 +141,7 @@ XR.define("ui.tile", ["ui.dom", "ui.icons", "ui.preview"], function (dom, icons,
         el.classList.toggle("is-starred", ctx.isStarred(post.id));
         const dead = !!(ctx.isUnavailable && ctx.isUnavailable(post.id));
         el.classList.toggle("is-unavailable", dead);
-        if (dead) { flagBadge.style.display = ""; flagBadge.replaceChildren(icons.icon("alert", 10), "gone"); flagBadge.title = "This media is no longer available on X"; }
+        if (dead) { flagBadge.style.display = ""; flagBadge.replaceChildren(icons.icon("alert", 10), "gone"); flagBadge.title = `This media is no longer available on ${post.platform === "reddit" ? "Reddit" : "X"}`; }
         else if (!(media && media.posterOnly)) flagBadge.style.display = "none";
         const dup = ctx.isDuplicate && ctx.isDuplicate(post.id);
         el.classList.toggle("is-dup", !!dup);

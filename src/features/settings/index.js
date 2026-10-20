@@ -9,6 +9,7 @@ XR.define("features.settings", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog",
 
     const SECTIONS = [
       ["appearance", "Appearance", "grid"],
+      ["sources", "Sources", "layers"],
       ["playback", "Playback", "play"],
       ["privacy", "Privacy", "shield"],
       ["data", "Data", "database"],
@@ -24,7 +25,7 @@ XR.define("features.settings", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog",
         h("div.settings-nav-foot",
           W.btn("Reset preferences", { size: "sm", onClick: async () => { if (await dialog.confirm("Reset all preferences to defaults?")) { prefs.reset(); render(); } } }),
           h("p.muted.small", "Changes save instantly in this browser.")));
-      const body = h("div.settings-body", mark(appearance(), "appearance"), mark(playback(), "playback"), mark(privacy(), "privacy"), mark(data(), "data"), mark(about(), "about"));
+      const body = h("div.settings-body", mark(appearance(), "appearance"), mark(sources(), "sources"), mark(playback(), "playback"), mark(privacy(), "privacy"), mark(data(), "data"), mark(about(), "about"));
       page.append(h("div.settings-cols", nav, body));
       host.appendChild(page);
       observeSections(body, nav);
@@ -69,6 +70,31 @@ XR.define("features.settings", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog",
         W.row("Reduce motion", "", W.segmented([{ value: "system", label: "System" }, { value: "on", label: "On" }, { value: "off", label: "Off" }], P("reduceMotion"), set("reduceMotion"))),
         W.row("Start on", "", W.segmented([{ value: "discover", label: "Discover" }, { value: "library", label: "Library" }, { value: "watch", label: "Watch" }], P("landing"), set("landing"))));
     }
+    /* Which sites appear in the app. Turning one off hides its posts everywhere
+       (rails, search, library, creators, counts); the posts stay loaded, so turning it
+       back on is instant and needs no re-import. */
+    function sources() {
+      const counts = catalog.countByPlatform();
+      const rd = importer.redditStatus();
+      const xFrom = catalog.source?.library?.label || catalog.source?.label;
+      const xText = counts.x
+        ? `${dom.compact(counts.x)} saved posts${xFrom && catalog.source?.id !== "reddit" && catalog.source?.id !== "none" ? " from " + xFrom : ""}`
+        : "No X library loaded. Import one on the Import page.";
+      const redditText = {
+        ready: `${dom.compact(counts.reddit)} saved posts from ${rd.label}`,
+        missing: `No ${rd.label} found. Save your Reddit export there as ${rd.label.split("/").pop()} and reload.`,
+        error: `Could not read ${rd.label}: ${rd.error || "unknown error"}`,
+        unavailable: `Reddit posts are read from ${rd.label} over http(s). Not available when the app is opened from a file.`,
+      }[rd.state] || "";
+      /* Updated in place when a toggle changes, so the explanation appears at once. */
+      const note = h("p.muted.small", "Both sources are off, so nothing is shown. Turn one back on to see your saves.");
+      note.hidden = !(!P("showX") && !P("showReddit"));
+      const onSource = (key) => (on) => { set(key)(on); note.hidden = !(!P("showX") && !P("showReddit")); };
+      return W.section("Sources", "Choose which saved posts appear in the app",
+        W.row("Show X posts", xText, W.toggle(P("showX"), onSource("showX"))),
+        W.row("Show Reddit posts", redditText, W.toggle(P("showReddit"), onSource("showReddit"))),
+        note);
+    }
     function playback() {
       return W.section("Playback", "How the feed behaves while you watch",
         W.row("Tiles open in", "Auto sends videos to the Watch feed, photos & albums to the Viewer", W.segmented([{ value: "auto", label: "Auto" }, { value: "viewer", label: "Viewer" }, { value: "watch", label: "Watch feed" }], P("tileOpens"), set("tileOpens"))),
@@ -100,7 +126,7 @@ XR.define("features.settings", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog",
         W.row("Auto-lock", "Lock again after the tab has been hidden for this long (0 = only on launch)", W.numberInput(P("lockMinutes"), set("lockMinutes"), { min: 0, max: 600, suffix: "min" })),
         W.row("Blur thumbnails", "Grids and rails are blurred until you hover or tap (shift+B)", W.toggle(P("blur"), set("blur"))),
         W.row("Discreet tab", "Neutral title and icon in the browser tab", W.toggle(P("discreet"), set("discreet"))),
-        W.row("Hide sensitive posts", "Posts X marked as sensitive are kept out of every list", W.toggle(P("hideSensitive"), set("hideSensitive"))));
+        W.row("Hide sensitive posts", "Posts X marked as sensitive, and NSFW Reddit posts, are kept out of every list", W.toggle(P("hideSensitive"), set("hideSensitive"))));
     }
     async function setPin() {
       const pin = await dialog.prompt("Choose a PIN (4–8 digits). There is no recovery: forgetting it means erasing local data.", { title: "Set a PIN", type: "password", placeholder: "••••", ok: "Next" });
@@ -134,9 +160,9 @@ XR.define("features.settings", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog",
         W.row("Your activity", `${c.seen} seen · ${c.starred} starred · ${c.hidden} hidden · ${c.collections} collections · ${c.progress} in progress`, h("div.row-btns",
           W.btn("Export", { icon: "download", title: "Save stars, collections, history as JSON", onClick: () => platform.download(JSON.stringify(activity.exportState(), null, 1), `saves-activity-${new Date().toISOString().slice(0, 10)}.json`) }),
           W.btn("Restore", { icon: "upload", onClick: restoreActivity }))),
-        W.row("Export library", "The normalised posts as JSON (re-importable) or as a ready data/posts.js", h("div.row-btns",
-          W.btn("JSON", { icon: "download", onClick: () => platform.download(importer.exportPosts(catalog.posts), "posts.saves.json") }),
-          W.btn("posts.js", { icon: "download", onClick: () => platform.download(importer.exportPosts(catalog.posts, { asScript: true }), "posts.js") }))),
+        W.row("Export library", "The X library as JSON (re-importable) or as a ready data/posts.js. Reddit posts are read from data/r-posts.json and are not exported here.", h("div.row-btns",
+          W.btn("JSON", { icon: "download", onClick: () => platform.download(importer.exportPosts(importer.libraryPosts()), "posts.saves.json") }),
+          W.btn("posts.js", { icon: "download", onClick: () => platform.download(importer.exportPosts(importer.libraryPosts(), { asScript: true }), "posts.js") }))),
         W.row("Storage", est, h("div.row-btns",
           W.btn("Reset preferences", { onClick: async () => { if (await dialog.confirm("Reset all preferences to defaults?")) { prefs.reset(); render(); } } }),
           W.btn("Erase everything", { icon: "trash", kind: "danger", onClick: async () => { if (await dialog.confirm("Erase stars, collections, history, PIN, imported posts and preferences from this browser? data/posts.js is not affected.", { ok: "Erase", danger: true })) { await lock.forceReset(); await activity.resetAll(); await storage.clear(); location.reload(); } } }))),

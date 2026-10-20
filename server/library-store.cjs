@@ -45,8 +45,8 @@ function configuration(env) {
   if (values.every((v) => !v)) return null;
   if (values.some((v) => !v) || env.LIBRARY_DELETE_PASSWORD.length < 16) throw fail(503, "Permanent deletion is not configured. See DEPLOY.md.");
   if (!/^[\w.-]+\/[\w.-]+$/.test(env.LIBRARY_GITHUB_REPOSITORY)) throw fail(503, "The library repository setting is invalid.");
-  const path = env.LIBRARY_DATA_PATH || "data/posts.json";
-  if (!["data/posts.json", "data/posts.js"].includes(path)) throw fail(503, "The library data path must be data/posts.json or data/posts.js.");
+  const path = env.LIBRARY_DATA_PATH || "data/x-posts.json";
+  if (!["data/x-posts.json", "data/posts.js"].includes(path)) throw fail(503, "The library data path must be data/x-posts.json or data/posts.js.");
   // A preview must never silently mutate the production branch.
   if (env.VERCEL_ENV === "preview" && env.LIBRARY_GITHUB_BRANCH !== env.VERCEL_GIT_COMMIT_REF) throw fail(503, "Deletion is disabled for this preview branch.");
   return { token: env.LIBRARY_GITHUB_TOKEN, repository: env.LIBRARY_GITHUB_REPOSITORY, branch: env.LIBRARY_GITHUB_BRANCH, password: env.LIBRARY_DELETE_PASSWORD, path };
