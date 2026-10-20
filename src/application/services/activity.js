@@ -29,6 +29,14 @@ XR.define("app.activity", ["app.ports.storage", "core.events", "core.domain.even
       const stored = await storage.get(KEY);
       if (stored && typeof stored === "object") data = { ...EMPTY(), ...stored };
     } catch (err) { console.warn("[activity] load failed", err); }
+    /* One-time reset. Reddit saves are new in this release, so any "unavailable" mark on a
+       Reddit save (id "t3_…") was written by a health check while Reddit's images were still
+       blocked by the content policy. Clear those marks once; a later check re-marks real dead ones. */
+    if (data.redditMarksReset !== "v3") {
+      for (const id of Object.keys(data.unavailable || {})) if (String(id).startsWith("t3_")) delete data.unavailable[id];
+      data.redditMarksReset = "v3";
+      dirty = true; persist();
+    }
     return data;
   }
 
