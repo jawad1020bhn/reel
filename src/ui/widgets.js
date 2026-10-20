@@ -18,10 +18,14 @@ XR.define("ui.widgets", ["ui.dom", "ui.icons", "core.i18n"], function (dom, icon
     el.set = (v) => { value = v; render(); };
     return el;
   }
-  function toggle(checked, onChange, { label = "" } = {}) {
+  function toggle(checked, onChange, { label = "", disabled = false } = {}) {
     const input = h("input", { type: "checkbox", checked: !!checked, onchange: () => onChange(input.checked) });
     const el = h("label.switch", input, h("span.switch-track", h("span.switch-thumb")), label ? h("span.switch-label", t(label)) : null);
     el.set = (v) => { input.checked = !!v; };
+    /* A switch that depends on another one (a sub-option) greys out instead of vanishing,
+       so the option stays discoverable; its value is kept for when the parent comes back. */
+    el.setDisabled = (v) => { input.disabled = !!v; el.classList.toggle("is-disabled", !!v); el.setAttribute("aria-disabled", v ? "true" : "false"); };
+    if (disabled) el.setDisabled(true);
     return el;
   }
   function select(options, value, onChange, { cls = "" } = {}) {

@@ -56,8 +56,14 @@ XR.define("app.catalog", ["core.domain.model", "core.query.engine", "core.rankin
     /** Build indexes off to the side, then publish them atomically. Very large libraries
         yield between chunks so the browser can paint the splash and process input; if a
         newer library load starts, the older build quietly abandons its partial maps. */
-    /** Whether a post's site is switched on in Settings. Only an explicit `false` hides it. */
-    const isShown = (p) => (p.platform === "reddit" ? prefs.get("showReddit") !== false : prefs.get("showX") !== false);
+    /** Whether a post's site is switched on in Settings. Only an explicit `false` hides it.
+        Reddit has one sub-switch: "Images only" keeps its photos and galleries and drops
+        every Reddit post that carries a video. X is never affected by it. */
+    const isShown = (p) => {
+      if (p.platform !== "reddit") return prefs.get("showX") !== false;
+      if (prefs.get("showReddit") === false) return false;
+      return !(prefs.get("redditImagesOnly") === true && model.hasVideo(p));
+    };
 
     async function load(input, source) {
       const version = ++loadVersion;
@@ -186,8 +192,9 @@ XR.define("app.catalog", ["core.domain.model", "core.query.engine", "core.rankin
       return util.uniq([...sameKind, ...same]).slice(0, limit);
     }
 
-    /* Re-filter when a site is switched on or off in Settings. Only those two keys matter. */
-    const visibilityKey = () => `${prefs.get("showX") !== false}|${prefs.get("showReddit") !== false}`;
+    /* Re-filter when a site is switched on or off in Settings, or Reddit's "Images only"
+       sub-switch changes. Only those three keys matter. */
+    const visibilityKey = () => `${prefs.get("showX") !== false}|${prefs.get("showReddit") !== false}|${prefs.get("redditImagesOnly") === true}`;
     let shownKey = visibilityKey();
     events.bus.on(EV.PREFS_CHANGED, () => {
       const key = visibilityKey();
