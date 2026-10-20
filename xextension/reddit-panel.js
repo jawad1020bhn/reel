@@ -236,5 +236,13 @@
     readStored().then(render);
   });
 
+  /* The side panel persists across tabs: re-check whether the active tab is a saved listing. */
+  if (chrome.tabs.onActivated) chrome.tabs.onActivated.addListener(() => { refresh(); });
+  if (chrome.tabs.onUpdated) {
+    chrome.tabs.onUpdated.addListener((_tabId, info) => {
+      if (info.url || info.status === "complete") refresh();
+    });
+  }
+
   refresh();
 })();

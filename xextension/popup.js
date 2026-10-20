@@ -1,5 +1,5 @@
 /* =============================================================================
-   X Bookmarks Exporter · Popup
+   X Bookmarks Exporter · Side panel
    Material Design 3 Expressive
 
    Colour, tokens, and interactions come from dashboard/m3e/*. This file owns only
@@ -1521,7 +1521,21 @@
     el.versionBadge.textContent = "v1.4.0 · M3E";
   }
 
+  /* The side panel stays open while the user moves between tabs, so the
+     context hint (and which engine can start) must follow the active tab. */
+  function followActiveTab() {
+    if (chrome.tabs.onActivated) {
+      chrome.tabs.onActivated.addListener(() => { renderTabHint(); });
+    }
+    if (chrome.tabs.onUpdated) {
+      chrome.tabs.onUpdated.addListener((_tabId, info) => {
+        if (info.url || info.status === "complete") renderTabHint();
+      });
+    }
+  }
+
   async function init() {
+    followActiveTab();
     /* Show the skeleton only while the first storage read is in flight. */
     el.stats.classList.add("skeleton");
     await Promise.all([loadTheme(), renderTabHint(), loadState()]);
@@ -1536,7 +1550,7 @@
     else if (!captureLive && tabContext?.onFollowing && !tabContext?.onBookmarks) selectTab("unfollow");
     else selectTab("capture");
 
-    log("Popup ready.");
+    log("Side panel ready.");
   }
 
   init();

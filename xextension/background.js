@@ -2,7 +2,7 @@
    Service worker
 
    Owns the toolbar badge — the extension's smallest surface, and the only part
-   of the UI visible when the popup is closed. It has to obey the same design
+   of the UI visible when the side panel is closed. It has to obey the same design
    system as everything else, so the badge colour is derived from the live
    theme rather than hard-coded ad-hoc hexes.
 
@@ -16,6 +16,12 @@
    ============================================================================= */
 
 const THEME_KEY = "bmPopupTheme";
+
+/* The UI lives in the browser's side panel (manifest: side_panel). Clicking the
+   toolbar icon opens it. Set on every worker start, so it survives updates. */
+if (chrome.sidePanel && chrome.sidePanel.setPanelBehavior) {
+  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
+}
 
 /** Brand badge colours — keep in lockstep with dashboard/m3e/color.js defaults. */
 const BADGE = {
@@ -74,7 +80,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 });
 
 // Keep the badge honest even when the change came from somewhere else
-// (a reset from the popup, another window, or a sync).
+// (a reset from the side panel, another window, or a sync).
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "local" && (changes.xBookmarkMeta || changes.xBookmarks || changes[THEME_KEY])) refreshBadge();
 });

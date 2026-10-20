@@ -2,11 +2,13 @@
   "manifest_version": 3,
   "name": "X Bookmarks Exporter",
   "version": "1.4.0",
+  "minimum_chrome_version": "116",
   "description": "Verified bookmark capture, paced unfollowing, and resumable unsave-all with local backups.",
   "permissions": [
     "storage",
     "unlimitedStorage",
-    "downloads"
+    "downloads",
+    "sidePanel"
   ],
   "host_permissions": [
     "https://x.com/*",
@@ -16,8 +18,10 @@
     "service_worker": "background.js"
   },
   "action": {
-    "default_popup": "popup.html",
     "default_title": "X Bookmarks Exporter"
+  },
+  "side_panel": {
+    "default_path": "popup.html"
   },
   "content_scripts": [
     {
