@@ -1,10 +1,12 @@
 /* =============================================================================
-   X Bookmarks Exporter · Side panel
+   XReels Exporter · Side panel
    Material Design 3 Expressive
 
-   Colour, tokens, and interactions come from dashboard/m3e/*. This file owns only
-   popup behaviour: mirroring capture state into the UI, driving the transport
-   controls, and exporting.
+   Colour, tokens, and interactions come from dashboard/m3e/*. This file owns the
+   panel chrome (site switcher, tablists, header hint, log, dialog, snackbar) and
+   the X engines: mirroring capture state into the UI, driving the transport
+   controls, and exporting. The Reddit panels live in reddit-panel.js and
+   reddit-unsave-panel.js and reach the shared chrome through window.XPanel.
 
    The popup↔content-script protocol is unchanged:
       tabs.sendMessage {type: start|pause|stop|panic|reset|getState}
@@ -135,9 +137,12 @@
 
   const el = {
     tabHint:        $("#tabHint"),
-    tablist:        $(".tabs"),
-    tabs:           Array.from(document.querySelectorAll(".tab")),
+    tablists:       Array.from(document.querySelectorAll(".tabs[role='tablist']")),
+    tabs:           Array.from(document.querySelectorAll(".tab[role='tab']")),
     panels:         Array.from(document.querySelectorAll(".panel[data-panel]")),
+    sites:          Array.from(document.querySelectorAll(".site[data-site]")),
+    siteDots:       { x: $("#siteXDot"), reddit: $("#siteRedditDot") },
+    siteMetas:      { x: $("#siteXMeta"), reddit: $("#siteRedditMeta") },
     popupBody:      $("#popupBody"),
     captureDot:     $("#captureDot"),
     unfollowDot:    $("#unfollowDot"),
@@ -472,6 +477,7 @@
   }
 
   function renderExportHint() {
+    setSiteMeta("x", { count: captureCount, noun: "bookmark", empty: "Bookmarks" });
     if (!captureCount) {
       el.exportHint.textContent = "Nothing captured yet.";
       el.exportJson.disabled = true;
@@ -678,33 +684,66 @@
   const isBookmarksUrl = (url) => /^https:\/\/x\.com\/i\/bookmarks(?:[/?#]|$)/i.test(String(url || ""));
   const isFollowingUrl = (url) => /^https:\/\/x\.com\/[^/]+\/following(?:[/?#]|$)/i.test(String(url || ""));
   const isXUrl = (url) => /^https?:\/\/(?:www\.)?x\.com\//i.test(String(url || ""));
+  const isRedditUrl = (url) => /^https?:\/\/(?:old\.|www\.)?reddit\.com\//i.test(String(url || ""));
+  const redditSavedAccount = (url) => {
+    const match = /^https:\/\/old\.reddit\.com\/user\/([^/?#]+)\/saved(?:[/?#]|$)/i.exec(String(url || ""));
+    return match ? decodeURIComponent(match[1]) : "";
+  };
 
   /* ---------------------------------------------------------------------------
-     6b · Tab navigation
-     Four panels, one visible. Implemented as a real tablist (roving tabindex,
-     arrow/Home/End keys) rather than four show/hide buttons, so the structure
-     survives a screen reader and the keyboard.
+     6b · Navigation
+     Two sites, each with its own job tablist; one panel visible. The site row
+     is a pressed-button group, each tablist a real tablist (roving tabindex,
+     arrow/Home/End keys), so the structure survives a screen reader and the
+     keyboard. Each site remembers its last view, so switching back to X after
+     checking on Reddit lands where you were.
      --------------------------------------------------------------------------- */
 
-  const TAB_IDS = ["capture", "unfollow", "unsave", "export"];
+  const SITES = {
+    x:      { tabs: ["capture", "unfollow", "unsave", "export"], view: "capture" },
+    reddit: { tabs: ["reddit-capture", "reddit-unsave", "reddit-export"], view: "reddit-capture" },
+  };
+  const siteOf = (view) => Object.keys(SITES).find((site) => SITES[site].tabs.includes(view)) || "x";
+  let activeSite = "x";
   let activeView = "capture";
   let tabContext = null;
+  const contextListeners = [];
+  const siteCounts = { x: 0, reddit: 0 };
 
-  /** Mark a tab with a live signal: running pulses, paused squares off. */
+  /** Mark a tab (or site) with a live signal: running pulses, paused squares off. */
   function setTabSignal(dot, state) {
     if (!dot) return;
     dot.hidden = !state;
     dot.dataset.state = state || "";
-    const tab = dot.closest(".tab");
-    if (!tab) return;
-    if (state) {
-      tab.setAttribute(
-        "aria-label",
-        tab.dataset.label + (state === "paused" ? ", paused" : ", running")
-      );
-    } else {
-      tab.removeAttribute("aria-label");
+    const owner = dot.closest(".tab, .site");
+    if (owner) {
+      if (state) {
+        owner.setAttribute(
+          "aria-label",
+          owner.dataset.label + (state === "paused" ? ", paused" : ", running")
+        );
+      } else {
+        owner.removeAttribute("aria-label");
+      }
     }
+    /* The site card aggregates its tabs: any run pulses, otherwise a pause shows. */
+    if (owner && owner.classList.contains("tab")) {
+      const site = owner.dataset.site || "x";
+      const states = Array.from(document.querySelectorAll(`.tabs[data-site="${site}"] .tab__dot`)).map((d) => d.dataset.state || "");
+      setTabSignal(el.siteDots[site], states.includes("running") ? "running" : states.includes("paused") ? "paused" : "");
+    }
+  }
+
+  /** The site card's second line: what is in the local library for that site. */
+  function setSiteMeta(site, { count = 0, noun = "post", empty = "" } = {}) {
+    siteCounts[site] = Number(count) || 0;
+    const meta = el.siteMetas[site];
+    if (!meta) return;
+    if (!meta.dataset.empty) meta.dataset.empty = empty || meta.textContent; // the markup's idle label
+    meta.textContent = siteCounts[site]
+      ? siteCounts[site].toLocaleString() + " " + noun + (siteCounts[site] === 1 ? "" : "s")
+      : empty || meta.dataset.empty;
+    if (activeSite === site) updateTabHint();
   }
 
   /** Header hint follows the active tab — each surface needs a different tab. */
@@ -717,6 +756,18 @@
       text = captureCount
         ? captureCount.toLocaleString() + (captureCount === 1 ? " post" : " posts") + " in your local library"
         : "Local library — nothing captured yet";
+    } else if (activeView === "reddit-export") {
+      const n = siteCounts.reddit;
+      text = n
+        ? n.toLocaleString() + (n === 1 ? " NSFW saved post" : " NSFW saved posts") + " in your Reddit library"
+        : "Reddit library — nothing captured yet";
+    } else if (tabContext && activeSite === "reddit") {
+      if (tabContext.onRedditSaved) {
+        text = (activeView === "reddit-unsave" ? "Unsave NSFW posts from u/" : "Ready — saved list of u/") + tabContext.redditAccount;
+      } else {
+        text = "Open old.reddit.com/user/<you>/saved to " + (activeView === "reddit-unsave" ? "unsave" : "capture");
+        warn = true;
+      }
     } else if (tabContext) {
       if (activeView === "unsave") {
         text = tabContext.onBookmarks ? "Unsave from your X bookmarks" : "Open x.com/i/bookmarks to unsave";
@@ -740,11 +791,28 @@
     el.tabHint.classList.toggle("is-warn", warn);
   }
 
+  /** Show one site's tablist and its remembered view. */
+  function selectSite(site, { focus = false } = {}) {
+    if (!SITES[site]) site = "x";
+    activeSite = site;
+    for (const button of el.sites) button.setAttribute("aria-pressed", String(button.dataset.site === site));
+    for (const list of el.tablists) list.hidden = list.dataset.site !== site;
+    selectTab(SITES[site].view, { focus });
+  }
+
   function selectTab(id, { focus = false } = {}) {
-    if (!TAB_IDS.includes(id)) id = "capture";
+    const site = siteOf(id);
+    if (!SITES[site].tabs.includes(id)) id = SITES[site].tabs[0];
+    if (site !== activeSite) {
+      SITES[site].view = id;
+      selectSite(site, { focus });
+      return;
+    }
     activeView = id;
+    SITES[site].view = id;
 
     for (const tab of el.tabs) {
+      if (tab.dataset.site !== site) continue;
       const selected = tab.dataset.tab === id;
       tab.setAttribute("aria-selected", String(selected));
       tab.tabIndex = selected ? 0 : -1;
@@ -756,33 +824,47 @@
   }
 
   function wireTabs() {
+    for (const button of el.sites) {
+      button.addEventListener("click", () => selectSite(button.dataset.site));
+    }
     for (const tab of el.tabs) {
       tab.addEventListener("click", () => selectTab(tab.dataset.tab));
     }
-    if (!el.tablist) return;
-    el.tablist.addEventListener("keydown", (event) => {
-      const index = TAB_IDS.indexOf(activeView);
-      let next = null;
-      if (event.key === "ArrowRight") next = (index + 1) % TAB_IDS.length;
-      else if (event.key === "ArrowLeft") next = (index - 1 + TAB_IDS.length) % TAB_IDS.length;
-      else if (event.key === "Home") next = 0;
-      else if (event.key === "End") next = TAB_IDS.length - 1;
-      if (next === null) return;
-      event.preventDefault();
-      selectTab(TAB_IDS[next], { focus: true });
-    });
+    for (const list of el.tablists) {
+      list.addEventListener("keydown", (event) => {
+        const ids = SITES[list.dataset.site || "x"].tabs;
+        const index = Math.max(0, ids.indexOf(activeView));
+        let next = null;
+        if (event.key === "ArrowRight") next = (index + 1) % ids.length;
+        else if (event.key === "ArrowLeft") next = (index - 1 + ids.length) % ids.length;
+        else if (event.key === "Home") next = 0;
+        else if (event.key === "End") next = ids.length - 1;
+        if (next === null) return;
+        event.preventDefault();
+        selectTab(ids[next], { focus: true });
+      });
+    }
   }
 
   /** Tell the user, up front, which engine this tab can drive. */
   async function renderTabHint() {
     const tab = await activeTab();
+    const redditAccount = tab ? redditSavedAccount(tab.url) : "";
     tabContext = {
+      tabId: tab ? tab.id : null,
+      url: tab ? tab.url || "" : "",
       onBookmarks: !!(tab && isBookmarksUrl(tab.url)),
       onFollowing: !!(tab && isFollowingUrl(tab.url)),
       onX: !!(tab && isXUrl(tab.url)),
+      onReddit: !!(tab && isRedditUrl(tab.url)),
+      onRedditSaved: !!redditAccount,
+      redditAccount,
     };
     el.primaryBtn.dataset.ready = String(tabContext.onBookmarks);
     updateTabHint();
+    for (const listener of contextListeners) {
+      try { listener(tabContext); } catch (error) { console.warn("[popup] context listener failed", error); }
+    }
     return tabContext;
   }
 
@@ -1022,9 +1104,7 @@
       const entries = keys.map((key) => records[key]);
       if (entries.some((entry) => !entry)) throw new Error("Backup records are missing; refusing a partial export.");
       const data = { export_version: 1, source: "x-bookmarks-unsave-backup", account_id: meta.accountId, exported_at: new Date().toISOString(), count: entries.length, bookmarks: entries };
-      const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
-      try { await chrome.downloads.download({ url, filename: "x-unsave-backup.json", saveAs: true }); }
-      finally { setTimeout(() => URL.revokeObjectURL(url), 60000); }
+      await downloadFile("x-unsave-backup.json", JSON.stringify(data, null, 2));
       log("Downloaded x-unsave-backup.json.");
     } catch (error) { snackbar.show(error.message || "Could not export the unsave backup.", { error: true }); }
   });
@@ -1216,6 +1296,28 @@
 
   let exportInProgress = false;
 
+  /**
+   * Save text as a file through the downloads API. A Blob URL is bounded and
+   * fast; the anchor path also supports older Chromium builds whose downloads
+   * API rejects extension-created blobs.
+   */
+  async function downloadFile(filename, content, mime = "application/json") {
+    const blobUrl = URL.createObjectURL(new Blob([content], { type: `${mime};charset=utf-8` }));
+    try {
+      await chrome.downloads.download({ url: blobUrl, filename, saveAs: true });
+    } catch (downloadError) {
+      const anchor = document.createElement("a");
+      anchor.href = blobUrl;
+      anchor.download = filename;
+      anchor.hidden = true;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      log("Used browser download fallback: " + String(downloadError?.message || downloadError), "warn");
+    }
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 5 * 60 * 1000);
+  }
+
   async function runExport(format, filename, incremental = false) {
     if (exportInProgress) return;
     exportInProgress = true;
@@ -1228,22 +1330,7 @@
         : format === "csv" ? "text/csv"
           : format === "md" ? "text/markdown"
             : format === "jsonl" ? "application/x-ndjson" : "application/json";
-      const blobUrl = URL.createObjectURL(new Blob([content], { type: `${mime};charset=utf-8` }));
-      try {
-        await chrome.downloads.download({ url: blobUrl, filename, saveAs: true });
-      } catch (downloadError) {
-        // A Blob URL is bounded and fast; the anchor path also supports older
-        // Chromium builds whose downloads API rejects extension-created blobs.
-        const anchor = document.createElement("a");
-        anchor.href = blobUrl;
-        anchor.download = filename;
-        anchor.hidden = true;
-        document.body.appendChild(anchor);
-        anchor.click();
-        anchor.remove();
-        log("Used browser download fallback: " + String(downloadError?.message || downloadError), "warn");
-      }
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 5 * 60 * 1000);
+      await downloadFile(filename, content, mime);
       await setLastExportTime(Date.now());
       snackbar.show("Exported " + filename + (incremental ? " (incremental)" : ""));
       log("Downloaded " + filename + (incremental ? " [incremental]" : "") + ".");
@@ -1293,22 +1380,7 @@
         count: entries.length,
         accounts: entries,
       };
-      const blobUrl = URL.createObjectURL(
-        new Blob([JSON.stringify(payload)], { type: "application/json;charset=utf-8" })
-      );
-      try {
-        await chrome.downloads.download({ url: blobUrl, filename: "x-unfollow-backup.json", saveAs: true });
-      } catch (downloadError) {
-        const anchor = document.createElement("a");
-        anchor.href = blobUrl;
-        anchor.download = "x-unfollow-backup.json";
-        anchor.hidden = true;
-        document.body.appendChild(anchor);
-        anchor.click();
-        anchor.remove();
-        log("Used browser download fallback: " + String(downloadError?.message || downloadError), "warn");
-      }
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 5 * 60 * 1000);
+      await downloadFile("x-unfollow-backup.json", JSON.stringify(payload));
       snackbar.show("Backup exported (" + entries.length.toLocaleString() + " accounts).");
       log("Downloaded x-unfollow-backup.json.");
     } catch (error) {
@@ -1518,7 +1590,7 @@
     const manifestVersion = chrome.runtime.getManifest().version;
     el.versionBadge.textContent = `v${manifestVersion} · M3E`;
   } catch {
-    el.versionBadge.textContent = "v1.4.0 · M3E";
+    el.versionBadge.textContent = "v1.6.0 · M3E";
   }
 
   /* The side panel stays open while the user moves between tabs, so the
@@ -1534,20 +1606,47 @@
     }
   }
 
+  /* The Reddit panels (reddit-panel.js, reddit-unsave-panel.js) share this
+     chrome instead of growing their own: one log, one snackbar, one dialog,
+     one notion of "which tab is active". */
+  window.XPanel = {
+    log, snackbar, confirmDialog, setTabSignal, setStat: setUfStat, setSiteMeta, selectSite, selectTab,
+    download: downloadFile,
+    getContext: () => tabContext,
+    onContext: (listener) => { contextListeners.push(listener); if (tabContext) listener(tabContext); },
+    refreshContext: renderTabHint,
+  };
+
+  async function redditStates() {
+    try {
+      const got = await chrome.storage.local.get({ redditCaptureState: null, redditUnsaveState: null });
+      return { capture: got.redditCaptureState, unsave: got.redditUnsaveState };
+    } catch {
+      return { capture: null, unsave: null };
+    }
+  }
+
   async function init() {
     followActiveTab();
     /* Show the skeleton only while the first storage read is in flight. */
     el.stats.classList.add("skeleton");
-    await Promise.all([loadTheme(), renderTabHint(), loadState()]);
+    const [, , , reddit] = await Promise.all([loadTheme(), renderTabHint(), loadState(), redditStates()]);
     el.stats.classList.remove("skeleton");
 
-    /* Open on the surface that matters right now: a live engine first, then
-       the X page the user is actually looking at. */
+    /* Open on the surface that matters right now: a live engine first (X
+       engines, then Reddit), then whatever page the user is actually on. */
     const captureLive = currentState?.status === "capturing" || currentState?.status === "paused";
     const unfollowLive = ["running", "navigating", "paused"].includes(ufState?.status);
-    if (["running", "paused", "stopped_by_error"].includes(usState?.status) && !captureLive && !unfollowLive) selectTab("unsave");
-    else if (unfollowLive && !captureLive) selectTab("unfollow");
-    else if (!captureLive && tabContext?.onFollowing && !tabContext?.onBookmarks) selectTab("unfollow");
+    const unsaveLive = ["running", "paused", "stopped_by_error"].includes(usState?.status);
+    const redditUnsaveLive = ["running", "paused", "stopped_by_error"].includes(reddit.unsave?.status);
+    const redditCaptureLive = ["running", "paused"].includes(reddit.capture?.status);
+    if (captureLive) selectTab("capture");
+    else if (unfollowLive) selectTab("unfollow");
+    else if (unsaveLive) selectTab("unsave");
+    else if (redditUnsaveLive) selectTab("reddit-unsave");
+    else if (redditCaptureLive) selectTab("reddit-capture");
+    else if (tabContext?.onRedditSaved || tabContext?.onReddit) selectTab("reddit-capture");
+    else if (tabContext?.onFollowing && !tabContext?.onBookmarks) selectTab("unfollow");
     else selectTab("capture");
 
     log("Side panel ready.");

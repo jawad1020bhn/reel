@@ -1,4 +1,4 @@
-/* Popup UI regressions with a fake Chrome API, synthetic counts and NO X access.
+/* Popup UI regressions with a fake Chrome API, synthetic counts and NO X or Reddit access.
  * IMPECCABLE_BROWSER=/path/to/chrome node --test xextension/tests/popup.browser.mjs */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -27,13 +27,14 @@ before(async () => {
   browser = await puppeteer.launch({ executablePath: process.env.IMPECCABLE_BROWSER, headless: true, args: ["--no-sandbox", "--disable-dev-shm-usage"] });
 });
 after(async () => { await browser?.close(); if (server) await new Promise((done) => server.close(done)); });
-async function popup(t, height = 720, dark = false, width = 420) {
+const REDDIT_SAVED = "https://old.reddit.com/user/jawad/saved/";
+async function popup(t, height = 720, dark = false, width = 420, tabUrl = "https://x.com/i/bookmarks") {
   const page = await browser.newPage(); t.after(() => page.isClosed() ? undefined : page.close());
   await page.setViewport({ width, height, deviceScaleFactor: 1 });
   await page.emulateMediaFeatures([{ name: "prefers-reduced-motion", value: "reduce" }]);
   const errors = []; page.on("pageerror", (error) => errors.push(error.message));
   t.after(() => assert.deepEqual(errors, [], "no popup runtime errors"));
-  await page.evaluateOnNewDocument((dark) => {
+  await page.evaluateOnNewDocument((dark, tabUrl) => {
     const values = { bmPopupTheme: dark ? "dark" : "light" }, changed = [], runtime = [];
     window.commands = [];
     const emit = (key, value) => { const oldValue = values[key]; values[key] = value; changed.forEach((fn) => fn({ [key]: { oldValue, newValue: value } }, "local")); };
@@ -47,25 +48,34 @@ async function popup(t, height = 720, dark = false, width = 420) {
         async remove(keys) { for (const key of Array.isArray(keys) ? keys : [keys]) { delete values[key]; changed.forEach((fn) => fn({ [key]: { newValue: undefined } }, "local")); } },
       }, onChanged: { addListener: (fn) => changed.push(fn) } },
       runtime: { getManifest: () => ({ version: "1.4.0" }), sendMessage: async () => {}, onMessage: { addListener: (fn) => runtime.push(fn) } },
-      tabs: { query: async () => [{ id: 7, url: "https://x.com/i/bookmarks" }], sendMessage: async (_tab, msg) => {
+      tabs: { query: async () => [{ id: 7, url: tabUrl }], sendMessage: async (_tab, msg) => {
+        // Probes are not commands: the Reddit panels ask the tab for its state on every context change.
+        if (msg.type === "reddit:getState") return { ok: true, state: values.redditCaptureState || null, loggedIn: true };
+        if (msg.type === "reddit-unsave:get-state") return { ok: true, state: values.redditUnsaveState || null, account: "jawad", loggedIn: true, live: false };
         window.commands.push(msg.type);
         const status = { "unsave-start": "running", "unsave-pause": "paused", "unsave-stop": "stopped_by_user" }[msg.type];
         if (status) emit("xUnsaveState", { status, updatedAt: new Date().toISOString(), stats: { pending: 123, unsaved: 17, failed: 0, perMin: 19 } });
         if (msg.type === "unsave-reset") emit("xUnsaveState", null);
+        const reddit = { "reddit-unsave:start": "running", "reddit-unsave:pause": "paused", "reddit-unsave:stop": "stopped_by_user" }[msg.type];
+        if (reddit) emit("redditUnsaveState", { status: reddit, account: "jawad", updatedAt: new Date().toISOString(), stats: { pending: 41, unsaved: 3, failed: 0, perMin: 11, sweeps: 1 } });
+        if (msg.type === "reddit-unsave:reset") emit("redditUnsaveState", null);
         return { ok: true };
       } }, downloads: { download: async () => 1 },
     };
     window.updateUnsave = (state) => emit("xUnsaveState", state);
-  }, dark);
+  }, dark, tabUrl);
   await page.goto(origin + "/popup.html");
   await page.waitForFunction(() => document.querySelector("#logPreview").textContent.includes("Side panel ready"));
   return page;
 }
 
-test("four accessible tabs and a taller scrolling Unsave panel fit both preferred and Chrome-capped heights", async (t) => {
+const visibleTabs = (page) => page.$$eval('[role="tab"]', (els) => els.filter((el) => !el.closest("[hidden]")).length);
+
+test("four accessible X tabs and a taller scrolling Unsave panel fit both preferred and Chrome-capped heights", async (t) => {
   for (const height of [720, 600]) {
     const page = await popup(t, height, height === 600);
-    assert.equal(await page.$$eval('[role="tab"]', (els) => els.length), 4);
+    assert.equal(await visibleTabs(page), 4);
+    assert.equal(await page.$eval("#siteX", (el) => el.getAttribute("aria-pressed")), "true");
     await page.click("#tabUnsave");
     assert.equal(await page.$eval("#panelUnsave", (el) => el.hidden), false);
     const metrics = await page.evaluate(() => {
@@ -90,16 +100,26 @@ test("four accessible tabs and a taller scrolling Unsave panel fit both preferre
 test("side panel reflows across narrow, default and wide widths without horizontal overflow", async (t) => {
   for (const width of [300, 400, 760]) {
     const page = await popup(t, 800, false, width);
-    const metrics = await page.evaluate(() => ({
+    const measure = () => page.evaluate(() => ({
       overflow: document.documentElement.scrollWidth > innerWidth,
-      tabs: document.querySelectorAll('[role="tab"]').length,
+      tabs: [...document.querySelectorAll('[role="tab"]')].filter((el) => !el.closest("[hidden]")).length,
       footer: document.querySelector(".popup__foot").getBoundingClientRect().bottom <= innerHeight,
-      tabsFit: [...document.querySelectorAll('[role="tab"]')].every((el) => el.scrollWidth <= el.clientWidth + 1),
+      tabsFit: [...document.querySelectorAll('[role="tab"]')].filter((el) => !el.closest("[hidden]")).every((el) => el.scrollWidth <= el.clientWidth + 1),
+      sitesFit: [...document.querySelectorAll(".site")].every((el) => el.scrollWidth <= el.clientWidth + 1),
     }));
+    const metrics = await measure();
     assert.equal(metrics.overflow, false, `no horizontal overflow at ${width}px`);
-    assert.equal(metrics.tabs, 4, "four tabs at every width");
+    assert.equal(metrics.tabs, 4, "four X tabs at every width");
     assert.equal(metrics.footer, true, `footer stays visible at ${width}px`);
     assert.equal(metrics.tabsFit, true, `tab labels are not clipped at ${width}px`);
+    assert.equal(metrics.sitesFit, true, `site cards are not clipped at ${width}px`);
+    await page.click("#siteReddit");
+    const reddit = await measure();
+    assert.equal(reddit.tabs, 3, "three Reddit tabs at every width");
+    assert.equal(reddit.overflow, false, `no horizontal overflow on Reddit at ${width}px`);
+    assert.equal(reddit.tabsFit, true, `Reddit tab labels are not clipped at ${width}px`);
+    await page.screenshot({ path: resolve(SHOTS, `sidepanel-reddit-${width}.png`) });
+    await page.click("#siteX");
     await page.click("#tabExport");
     const exportScrolls = await page.evaluate(() => { const b = document.querySelector("#popupBody"); return b.scrollHeight > b.clientHeight; });
     assert.equal(exportScrolls, true, `Export tab scrolls inside the panel at ${width}px`);
@@ -134,4 +154,40 @@ test("Unsave requires confirmation; cancellation sends nothing; pause/stop and l
   await page.click("#usStopBtn");
   await page.waitForFunction(() => document.querySelector("#unsaveStatus").dataset.status === "stopped_by_user");
   assert.deepEqual(await page.evaluate(() => window.commands), ["unsave-start", "unsave-pause", "unsave-start", "unsave-stop"]);
+});
+
+test("Reddit opens on its own tabs when the saved list is active; Unsave requires confirmation and mirrors the engine", async (t) => {
+  const page = await popup(t, 720, false, 420, REDDIT_SAVED);
+  assert.equal(await page.$eval("#siteReddit", (el) => el.getAttribute("aria-pressed")), "true", "Reddit is selected for a Reddit tab");
+  assert.equal(await visibleTabs(page), 3);
+  assert.equal(await page.$eval("#panelRedditCapture", (el) => el.hidden), false);
+  assert.match(await page.$eval("#tabHint", (el) => el.textContent), /u\/jawad/);
+  await page.click("#tabRedditUnsave");
+  assert.equal(await page.$eval("#panelRedditUnsave", (el) => el.hidden), false);
+  await page.evaluate(axe.source);
+  const results = await page.evaluate(() => window.axe.run("#panelRedditUnsave", { runOnly: { type: "rule", values: ["button-name", "color-contrast", "aria-valid-attr-value"] } }));
+  assert.deepEqual(results.violations.map((v) => v.id), []);
+  await page.click("#ruStartBtn");
+  await page.waitForSelector('#dialog[data-open="true"]');
+  assert.match(await page.$eval("#dialogContent", (el) => el.textContent), /SFW posts and saved comments are left alone/);
+  await page.screenshot({ path: resolve(SHOTS, "reddit-unsave-confirm.png") });
+  await page.click('#dialog [data-act="cancel"]');
+  assert.deepEqual(await page.evaluate(() => window.commands), [], "cancel never starts the engine");
+  await page.click("#ruStartBtn");
+  await page.waitForSelector('#dialog[data-open="true"]', { visible: true });
+  await page.waitForFunction(() => getComputedStyle(document.querySelector("#dialog")).opacity === "1");
+  await page.click('#dialog [data-act="ok"]');
+  await page.waitForFunction(() => document.querySelector("#ruDone").textContent === "3");
+  assert.deepEqual(await page.evaluate(() => window.commands), ["reddit-unsave:start"]);
+  assert.equal(await page.$eval("#rdUnsaveDot", (el) => el.hidden), false, "the Unsave tab signals the run");
+  assert.equal(await page.$eval("#siteRedditDot", (el) => el.dataset.state), "running", "the Reddit site card signals the run too");
+  await page.click("#siteX");
+  assert.equal(await page.$eval("#siteRedditDot", (el) => el.hidden), false, "the signal stays visible from the X side");
+  await page.click("#siteReddit");
+  assert.equal(await page.$eval("#panelRedditUnsave", (el) => el.hidden), false, "Reddit remembers its last view");
+  await page.click("#ruPauseBtn");
+  await page.waitForFunction(() => document.querySelector("#ruStartLabel").textContent === "Resume unsaving");
+  assert.equal(await page.$eval("#siteRedditDot", (el) => el.dataset.state), "paused");
+  await page.screenshot({ path: resolve(SHOTS, "reddit-unsave-paused.png") });
+  assert.deepEqual(await page.evaluate(() => window.commands), ["reddit-unsave:start", "reddit-unsave:pause"]);
 });

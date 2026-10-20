@@ -66,9 +66,9 @@ async function refreshBadge() {
   }
   await chrome.action.setTitle({
     title: count
-      ? "X Bookmarks Exporter — " + count.toLocaleString() +
+      ? "XReels Exporter — " + count.toLocaleString() +
         (count === 1 ? " post captured" : " posts captured")
-      : "X Bookmarks Exporter",
+      : "XReels Exporter",
   });
 }
 

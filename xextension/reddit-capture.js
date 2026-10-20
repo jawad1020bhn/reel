@@ -17,13 +17,15 @@
   "use strict";
 
   const S = globalThis.XRedditSaved;
+  const D = globalThis.XRedditDom;   // shared DOM readers (reddit-dom.js)
   const RV = globalThis.XRedditVideo; // the v2 video-facts module (reddit-video.js)
-  if (!S || typeof chrome === "undefined" || !chrome.runtime) return;
+  if (!S || !D || typeof chrome === "undefined" || !chrome.runtime) return;
 
   const account = S.savedListingAccount(location.href);
   if (!account) return; // not the saved listing: nothing to do on this page
 
-  const LOCK_NAME = "xreels-reddit-saved-capture";
+  /* One Reddit engine at a time: capture and unsave share the site's lock. */
+  const LOCK_NAME = (globalThis.XEngineLock && XEngineLock.REDDIT_LOCK) || "xreels-reddit-exclusive-engine";
   const store = S.createStore(chrome.storage.local);
   const control = { pause: false, stop: false };
   let running = false;
@@ -71,54 +73,28 @@
 
   /** Logged-in signal: old.reddit adds `loggedin` to <body>. Rows on the page are the fallback. */
   function looksLoggedIn() {
-    return !!(document.body && document.body.classList.contains("loggedin"));
+    return D.looksLoggedIn(document);
   }
 
-  /* ---------------------------------------------------------------------------
-     DOM reading
-     --------------------------------------------------------------------------- */
+  /* DOM reading is shared with the unsave engine (reddit-dom.js). */
+  const readRows = (doc) => D.readRows(doc);
+  const nextHref = (doc) => D.nextHref(doc);
 
-  function absoluteRedditUrl(value) {
-    const text = String(value || "").trim();
-    if (!text) return "";
-    if (text.startsWith("//")) return "https:" + text;
-    if (text.startsWith("/")) return "https://www.reddit.com" + text;
-    return text;
-  }
-
-  /** Read one `.thing` row into the plain object reddit-saved.js expects. */
-  function readRow(el) {
-    const attr = (name) => el.getAttribute(name) || "";
-    const titleEl = el.querySelector("a.title");
-    const thumbEl = el.querySelector(".thumbnail img");
-    const timeEl = el.querySelector("time[datetime]");
-    let timestamp = Number(attr("data-timestamp")) || 0;
-    if (!timestamp && timeEl) timestamp = Date.parse(timeEl.getAttribute("datetime")) || 0;
-    return {
-      fullname: attr("data-fullname"),
-      className: el.className,
-      nsfw: attr("data-nsfw"),
-      title: titleEl ? titleEl.textContent : "",
-      subreddit: attr("data-subreddit"),
-      author: attr("data-author"),
-      permalink: attr("data-permalink"),
-      url: absoluteRedditUrl(attr("data-url")),
-      domain: attr("data-domain"),
-      score: attr("data-score"),
-      comments: attr("data-comments-count"),
-      timestamp,
-      thumbnail: thumbEl ? absoluteRedditUrl(thumbEl.getAttribute("src")) : "",
-      isGallery: attr("data-is-gallery"),
-    };
-  }
-
-  function readRows(doc) {
-    return Array.from(doc.querySelectorAll(".thing")).map(readRow);
-  }
-
-  function nextHref(doc) {
-    const link = doc.querySelector('a[rel~="next"]');
-    return link ? link.getAttribute("href") : null;
+  /**
+   * Who the session belongs to, from /api/me.json. A fresh capture refuses to
+   * start for a logged-out session, for a different account than the listing's
+   * owner, or while the "I am over eighteen" preference is off — Reddit hides
+   * every NSFW row in that state, so a capture would silently find nothing.
+   * Returns null when the probe itself fails (the run then relies on the page).
+   */
+  async function probeIdentity() {
+    try {
+      const res = await fetch(location.origin + S.ME_PATH, { credentials: "include", cache: "no-store", headers: { Accept: "application/json" } });
+      if (res.status !== 200) return null;
+      return S.parseIdentity(await res.json());
+    } catch {
+      return null;
+    }
   }
 
   /* ---------------------------------------------------------------------------
@@ -154,7 +130,9 @@
           return { error: "Reddit sent the page to a login or age-check screen. Log in and enable NSFW content, then Start again." };
         }
         const html = await res.text();
-        return { doc: new DOMParser().parseFromString(html, "text/html") };
+        const doc = new DOMParser().parseFromString(html, "text/html");
+        if (!D.isListing(doc)) return { error: "Reddit returned a page that is not a saved listing. Reload old.reddit.com and check that you are still logged in." };
+        return { doc };
       }
       if (verdict === "retry" && attempt < maxRetries) {
         await sleep(S.computeBackoff(attempt));
@@ -287,6 +265,19 @@
           await setState({ status: "error", error: "Log in to old.reddit.com, then reload this saved page." });
           return;
         }
+        const who = await probeIdentity();
+        if (who && !who.loggedIn) {
+          await setState({ status: "error", error: "Log in to old.reddit.com, then reload this saved page." });
+          return;
+        }
+        if (who && who.loggedIn && who.name.toLowerCase() !== account.toLowerCase()) {
+          await setState({ status: "error", error: "You are logged in as u/" + who.name + ", but this is u/" + account + "'s saved page. Open your own saved page." });
+          return;
+        }
+        if (who && who.over18 === false) {
+          await setState({ status: "error", error: "Reddit is hiding NSFW posts. Turn on \"I am over eighteen years old and willing to view adult content\" in your Reddit preferences, then Start again." });
+          return;
+        }
         doc = document;
       }
 
@@ -341,21 +332,23 @@
 
   const pacer = S.createPacer({ rng: Math.random });
 
-  /** Start or resume. A Web Lock keeps two open saved-listing tabs from running at once. */
-  function startRun(mode) {
+  /**
+   * Start or resume. The browser-owned Web Lock is shared with the unsave
+   * engine, so neither two capturing tabs nor a capture and an unsave can run
+   * against the same session at once. The lease is held for the whole run and
+   * released when it pauses, stops, finishes or the tab goes away.
+   */
+  async function startRun(mode) {
     if (running) return { ok: false, error: "Already capturing." };
-    const launch = (lock) => {
-      if (!lock) {
-        setState({ status: "error", error: "Another tab is already capturing Reddit saved posts." });
-        return;
-      }
-      return run(mode);
-    };
-    if (navigator.locks && navigator.locks.request) {
-      navigator.locks.request(LOCK_NAME, { ifAvailable: true }, launch);
-    } else {
-      launch(true);
+    let release = null;
+    if (globalThis.XEngineLock) {
+      release = await XEngineLock.acquire(LOCK_NAME);
+      if (!release) return { ok: false, error: "Another Reddit engine (capture or unsave) is already running. Stop it first." };
+    } else if (!navigator.locks) {
+      return { ok: false, error: "This browser cannot guarantee a single run. Update Chrome." };
     }
+    running = true; // claim synchronously so a double-click cannot start two runs
+    run(mode).finally(() => { if (release) release(); });
     return { ok: true };
   }
 
@@ -369,7 +362,7 @@
         return { ok: true, state, loggedIn: looksLoggedIn() };
 
       case "reddit:start": {
-        const started = startRun(state.nextUrl && state.account === account ? "resume" : "fresh");
+        const started = await startRun(state.nextUrl && state.account === account ? "resume" : "fresh");
         return { ...started, state };
       }
 
@@ -415,7 +408,7 @@
           error: "Capture was interrupted when the page was closed or reloaded. Start to resume.",
         });
         if (navigator.locks && navigator.locks.request) {
-          // The lock is free only if no other tab is mid-run; then this record is stale.
+          // The lock is free only if no other Reddit engine is mid-run; then this record is stale.
           navigator.locks.request(LOCK_NAME, { ifAvailable: true }, (lock) => (lock ? markInterrupted() : undefined));
         } else {
           await markInterrupted();

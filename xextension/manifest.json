@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "X Bookmarks Exporter",
-  "version": "1.5.0",
+  "name": "XReels Exporter",
+  "version": "1.6.0",
   "minimum_chrome_version": "116",
-  "description": "Verified bookmark capture, paced unfollowing, and resumable unsave-all with local backups.",
+  "description": "X and Reddit, one side panel: verified bookmark and saved-post capture, paced unfollowing, and resumable unsave engines with local backups.",
   "permissions": [
     "storage",
     "unlimitedStorage",
@@ -19,7 +19,7 @@
     "service_worker": "background.js"
   },
   "action": {
-    "default_title": "X Bookmarks Exporter"
+    "default_title": "XReels Exporter"
   },
   "side_panel": {
     "default_path": "popup.html"
@@ -58,9 +58,14 @@
         "https://old.reddit.com/*"
       ],
       "js": [
+        "engine-lock.js",
+        "pacing.js",
+        "reddit-dom.js",
         "reddit-saved.js",
+        "reddit-removal.js",
         "reddit-video.js",
-        "reddit-capture.js"
+        "reddit-capture.js",
+        "reddit-unsave.js"
       ],
       "run_at": "document_idle"
     }
