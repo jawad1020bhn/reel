@@ -93,6 +93,60 @@ test("a video link that is not a v.redd.it address stays a still, never a guesse
   assert.match(posts[0].media[0].alt, /Reddit video/);
 });
 
+/* ------------------------------------------------------- export v2 (CMAF) -- */
+
+const v2Export = {
+  export_version: 2, source: "reddit-saved-nsfw", count: 1,
+  posts: [{
+    fullname: "t3_cmaf01", title: "A clip", subreddit: "NSFW_GIF", author: "bob",
+    permalink: "/r/NSFW_GIF/comments/cmaf01/clip/", url: "https://v.redd.it/cmaf01",
+    score: 5, comments: 0, created_at: "2026-05-02T12:00:00.000Z", nsfw: true,
+    thumbnail: "https://b.thumbs.redditmedia.com/v.jpg",
+    media: [{
+      kind: "video", url: "https://v.redd.it/cmaf01",
+      hls: "https://v.redd.it/cmaf01/HLSPlaylist.m3u8",
+      duration: 41.83, width: 1280, height: 720,
+      files: [
+        { url: "https://v.redd.it/cmaf01/CMAF_720.mp4", height: 720, verified: true },
+        { url: "https://v.redd.it/cmaf01/CMAF_220.mp4", height: 220, verified: false },
+      ],
+      audio: "https://v.redd.it/cmaf01/CMAF_AUDIO_64.mp4",
+    }],
+    captured_at: CAPTURED,
+  }],
+};
+
+test("an export v2 video plays its captured file ladder first, with the audio track beside it", () => {
+  const { posts } = normalize(v2Export, { keepTextOnly: true });
+  const m = posts[0].media[0];
+  assert.equal(m.kind, "video");
+  assert.equal(m.hls, "https://v.redd.it/cmaf01/HLSPlaylist.m3u8");
+  assert.equal(m.hlsFirst, false, "the real files come first; the master is the last resort");
+  assert.deepEqual(m.sources.map((s) => s.url), ["https://v.redd.it/cmaf01/CMAF_720.mp4", "https://v.redd.it/cmaf01/CMAF_220.mp4"]);
+  assert.deepEqual(m.sources.map((s) => s.bitrate), [720000, 220000]);
+  assert.equal(m.audio, "https://v.redd.it/cmaf01/CMAF_AUDIO_64.mp4");
+  assert.equal(m.duration, 41.83);
+  assert.equal(m.width, 1280);
+  assert.equal(m.height, 720);
+});
+
+test("an export v2 video without an audio track is silent, not broken", () => {
+  const json = structuredClone(v2Export);
+  delete json.posts[0].media[0].audio;
+  const { posts } = normalize(json, { keepTextOnly: true });
+  assert.equal(posts[0].media[0].audio, "");
+  assert.equal(posts[0].media[0].hlsFirst, false);
+});
+
+test("a v2 record whose file list is empty falls back to the legacy ladder, never to nothing", () => {
+  const json = structuredClone(v2Export);
+  json.posts[0].media[0].files = [];
+  const { posts } = normalize(json, { keepTextOnly: true });
+  const m = posts[0].media[0];
+  assert.equal(m.hlsFirst, true, "no files → the master playlist is the only hope again");
+  assert.deepEqual(m.sources.map((s) => s.url), [720, 480, 360, 240].map((h) => `https://v.redd.it/cmaf01/DASH_${h}.mp4`));
+});
+
 test("text-only Reddit posts keep their external link and an explicit deleted author", () => {
   const { posts } = normalize(redditExport, { keepTextOnly: true });
   const text = posts[2];

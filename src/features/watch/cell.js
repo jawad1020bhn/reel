@@ -84,6 +84,7 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu",
     }
 
     /* ------------------------------------------------------------- media -- */
+    let lastTriedEl = null; // the unplayable card's URL line, filled by xr:unplayable below
     function videoNode(m, { primary = true } = {}) {
       const video = h("video.cell-video", { preload: "none", disablePictureInPicture: true, controlsList: "nodownload" });
       const hd = playback.wire(video, m, {
@@ -101,9 +102,11 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu",
       video.addEventListener("loadedmetadata", metadata);
       video.addEventListener("durationchange", metadata);
       video.addEventListener("progress", () => { try { if (handle === hd && video.buffered.length && Number.isFinite(video.duration) && video.duration > 0) progressBuffer.style.width = (video.buffered.end(video.buffered.length - 1) / video.duration * 100) + "%"; } catch { /* not buffered yet */ } });
-      video.addEventListener("xr:unplayable", () => {
+      video.addEventListener("xr:unplayable", (e) => {
         failedVideos.add(video);
         if (handle !== hd) return;
+        const url = e?.detail?.url || "";
+        if (url && lastTriedEl) lastTriedEl.textContent = "Last tried: " + url.replace(/^https?:\/\//, "").slice(0, 90);
         syncControls();
         /* keep the frame's poster as a still so the stage reads as a lost clip,
            not a hole in the layout */
@@ -112,6 +115,15 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu",
           if (still) stage.appendChild(h("img.cell-still", { src: still, alt: m.alt || "", "aria-hidden": "true", draggable: false }));
         }
         env.onUnplayable?.(post, m);
+      });
+      /* The silent-video path: Reddit blocked every audio candidate, playback continues muted. */
+      video.addEventListener("xr:audio-unavailable", () => {
+        if (handle !== hd) return;
+        el.classList.add("is-quiet");
+        if (!stage.querySelector(".cell-quiet")) {
+          stage.appendChild(h("button.cell-quiet", { type: "button", title: "Open on Reddit for sound", onclick: (e) => { e.stopPropagation(); env.onOpenX?.(post); } },
+            icons.icon("mute", 14), h("span", "No sound — Reddit blocked this audio track")));
+        }
       });
       if (primary) handle = hd;
       return { video, hd };
@@ -181,12 +193,22 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu",
     stage.appendChild(h("div.cell-gradient"));
     if (post.media.some((m) => m.kind !== "photo")) el.append(bar);
     syncControls();
-    const unplayable = h("div.cell-unplayable", icons.icon("alert", 28), h("p", "This video can't be played — it may have been deleted on X."),
+    /* The card says what actually happened, per platform, and shows the last URL the
+       player tried — the difference between "gone" and "blocked" is actionable. */
+    const isReddit = post.platform === "reddit";
+    const legacyReddit = isReddit && m0 && m0.kind === "video" && !m0.audio && (m0.sources || []).every((s) => /\/DASH_\d+\.mp4$/.test(s.url));
+    const unplayableText = legacyReddit
+      ? "This video was saved before rich video capture existed. Capture Reddit again with the updated extension and re-import the export to make it playable."
+      : isReddit
+        ? "Reddit refused to serve this video."
+        : "This video can't be played — it may have been deleted on X.";
+    const unplayable = h("div.cell-unplayable", icons.icon("alert", 28), h("p", unplayableText), h("p.cell-unplayable-url"),
       h("div.cell-unplayable-actions",
         W.btn("Next", { icon: "arrowDown", kind: "primary", onClick: (e) => { e.stopPropagation(); env.onNext?.(); } }),
         W.btn("Retry", { icon: "refresh", onClick: (e) => { e.stopPropagation(); el.classList.remove("is-unplayable"); env.onRetry?.(post); } }),
         W.btn(`Open on ${model.platformLabel(post)}`, { icon: "external", onClick: (e) => { e.stopPropagation(); env.onOpenX?.(post); } }),
         W.btn("Hide post", { icon: "eyeOff", onClick: (e) => { e.stopPropagation(); env.onHide?.(post); } })));
+    lastTriedEl = unplayable.querySelector(".cell-unplayable-url");
     stage.appendChild(unplayable);
 
     function updateProgress(t, d) {

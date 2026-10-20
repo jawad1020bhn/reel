@@ -13,6 +13,7 @@
    @property {string}  [poster]
    @property {{url:string,type:string,bitrate?:number}[]} sources  best-first video ladder
    @property {string}  [hls]
+   @property {string}  [audio]   synced sound track URL (Reddit CMAF: the files are video-only)
    @property {number}  width
    @property {number}  height
    @property {number}  aspect    width / height (1 when unknown)
@@ -63,6 +64,7 @@ XR.define("core.domain.model", ["core.util"], function (util) {
       sources,
       hls: partial.hls || "",
       hlsFirst: !!partial.hlsFirst && !!partial.hls,   // play the HLS stream before the listed sources
+      audio: typeof partial.audio === "string" ? partial.audio : "",   // synced sound track, played beside the (silent) sources
       width, height, aspect,
       duration: Math.max(0, util.toNumber(partial.duration)),
       alt: partial.alt || "",

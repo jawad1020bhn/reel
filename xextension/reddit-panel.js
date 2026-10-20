@@ -10,6 +10,7 @@
   "use strict";
 
   const S = globalThis.XRedditSaved;
+  const RV = globalThis.XRedditVideo;
   if (!S || typeof chrome === "undefined" || !chrome.storage) return;
 
   const $ = (selector) => document.querySelector(selector);
@@ -26,6 +27,8 @@
     stopBtn: $("#rdStopBtn"),
     resetBtn: $("#rdResetBtn"),
     exportBtn: $("#rdExport"),
+    mediaBtn: $("#rdMediaBtn"),
+    mediaLabel: $("#rdMediaLabel"),
     hint: $("#rdHint"),
   };
   if (!el.startBtn || !el.exportBtn) return;
@@ -45,12 +48,38 @@
   let resetArmed = false;
   let resetTimer = null;
   let busy = false;
+  let videos = { ready: 0, enriched: 0 }; // stored videos with captured (playable) file URLs
+  let media = { status: "idle" };         // the background's download progress
 
   const fmt = (value) => Number(value || 0).toLocaleString();
 
   async function readStored() {
     const got = await chrome.storage.local.get([S.STATE_KEY, S.META_KEY]);
     stored = { state: got[S.STATE_KEY] || null, meta: got[S.META_KEY] || null };
+  }
+
+  /** Cached per-render: how many stored videos carry verified file URLs, and
+      the background's download progress. readAll() only runs when meta changed. */
+  let readMetaCount = -1;
+  async function readVideoStats() {
+    const count = stored.meta ? stored.meta.count || 0 : 0;
+    if (count !== readMetaCount || count === 0) {
+      readMetaCount = count;
+      videos = { ready: 0, enriched: 0 };
+      if (RV && count) {
+        try {
+          const posts = await S.createStore(chrome.storage.local).readAll();
+          for (const post of posts) {
+            const entry = (post.media || []).find((m) => m && m.kind === "video");
+            if (!entry) continue;
+            videos.enriched++;
+            if (RV.planDownloads(post).video) videos.ready++;
+          }
+        } catch { /* storage hiccup: the button just stays disabled */ }
+      }
+    }
+    const got = await chrome.storage.local.get({ redditMediaDownloads: { status: "idle" } });
+    media = got.redditMediaDownloads || { status: "idle" };
   }
 
   async function probeTab() {
@@ -127,14 +156,29 @@
     el.resetBtn.querySelector("span").textContent = resetArmed ? "Confirm reset" : "Reset";
     el.exportBtn.disabled = busy || saved === 0;
 
+    if (el.mediaBtn) {
+      const downloading = media.status === "running";
+      el.mediaLabel.textContent = downloading
+        ? `Downloading ${fmt(media.done || 0)} / ${fmt(media.total || 0)}…`
+        : media.status === "done" && (media.done || 0) > 0
+          ? `Downloaded ${fmt(media.done)} file${media.done === 1 ? "" : "s"} — again`
+          : `Download videos (${fmt(videos.ready)})`;
+      el.mediaBtn.disabled = busy || downloading || saved === 0 || !videos.ready;
+      el.mediaBtn.title = videos.ready
+        ? "Saves the video + audio files into Downloads/xreels-media/. Copy that folder next to the app's index.html and set it as the Local media folder in Settings, then Reddit videos play with sound offline."
+        : "No stored videos with captured file URLs yet — run a capture first (enrichment happens during capture).";
+    }
+
     el.hint.textContent = saved
       ? fmt(saved) + (saved === 1 ? " NSFW post" : " NSFW posts") + " ready to export" +
-        (meta && meta.account ? " from u/" + meta.account : "") + ". Media is stored as links."
+        (meta && meta.account ? " from u/" + meta.account : "") + "." +
+        (videos.enriched ? " " + fmt(videos.enriched) + " video" + (videos.enriched === 1 ? "" : "s") + " captured with playable URLs." : " Media is stored as links.")
       : "Only over-18 posts are kept. Media is stored as links, not files.";
   }
 
   async function refresh() {
     await Promise.all([readStored(), probeTab()]);
+    await readVideoStats();
     render();
   }
 
@@ -230,10 +274,40 @@
     setTimeout(() => URL.revokeObjectURL(url), 60000);
   }));
 
+  el.mediaBtn && el.mediaBtn.addEventListener("click", () => withBusy(async () => {
+    notice = null;
+    if (!RV) { notice = "Video support is unavailable in this build."; return; }
+    const posts = await S.createStore(chrome.storage.local).readAll();
+    const items = [];
+    const seen = new Set();
+    for (const post of posts) {
+      const plan = RV.planDownloads(post);
+      for (const file of [plan.video, plan.audio]) {
+        if (!file || seen.has(file.filename)) continue;
+        seen.add(file.filename);
+        items.push(file);
+      }
+    }
+    if (!items.length) { notice = "No downloadable video files in the captured posts. Run a fresh capture first."; return; }
+    try {
+      const res = await chrome.runtime.sendMessage({ type: "reddit:downloadMedia", items });
+      if (!res || (!res.ok && !res.downloaded)) notice = (res && res.error) || "The downloads were refused.";
+      else if (res.failed && res.failed.length) notice = res.downloaded + " downloaded, " + res.failed.length + " failed.";
+    } catch {
+      notice = "Could not reach the background worker for downloads.";
+    }
+    await readVideoStats();
+  }));
+
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
+    if (changes.redditMediaDownloads) {
+      media = { ...media, ...changes.redditMediaDownloads.newValue };
+      render();
+      return;
+    }
     if (!changes[S.STATE_KEY] && !changes[S.META_KEY]) return;
-    readStored().then(render);
+    readStored().then(() => readVideoStats()).then(render);
   });
 
   /* The side panel persists across tabs: re-check whether the active tab is a saved listing. */

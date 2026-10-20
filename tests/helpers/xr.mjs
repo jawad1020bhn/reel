@@ -17,8 +17,10 @@ export function createXR() {
     },
     provide(name, api) { modules.set(name, { deps: [], factory: () => api, api: null }); },
   };
-  const load = (file) => {
-    runInNewContext(readFileSync(new URL(`../../${file}`, import.meta.url), "utf8"), { XR, console, URL, setTimeout, clearTimeout, CustomEvent, navigator });  // browsers provide these; a bare VM context does not
+  const load = (file, extraGlobals = {}) => {
+    // Browsers provide these; a bare VM context does not. `extraGlobals` lets a test
+    // add more (e.g. a fake `document` for the playback audio-track tests).
+    runInNewContext(readFileSync(new URL(`../../${file}`, import.meta.url), "utf8"), { XR, console, URL, setTimeout, clearTimeout, CustomEvent, navigator, ...extraGlobals });  // browsers provide these; a bare VM context does not
   };
   return { XR, load };
 }

@@ -221,7 +221,7 @@ test("export: envelope matches the documented shape", () => {
     scan: { pages: 3, rows: 70, nsfwKept: 2, sfwSkipped: 60, commentsSkipped: 8 },
   });
   assert.deepEqual(Object.keys(out), ["export_version", "exported_at", "source", "account", "count", "scan", "posts"]);
-  assert.equal(out.export_version, 1);
+  assert.equal(out.export_version, 2); // v2: video media carry captured CMAF files + audio
   assert.equal(out.source, "reddit-saved-nsfw");
   assert.equal(out.account, "jawad");
   assert.equal(out.count, 2);

@@ -132,9 +132,9 @@ XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.po
           return;
         }
         // The prefix is the adapter version: a change to how posts are normalised must
-        // invalidate the cache. "v5" = Reddit videos carry hls + hlsFirst + DASH fallbacks;
-        // caches written by the earlier "v4" builds keep replaying their stale posts.
-        const fp = "v5:" + fingerprintOf(res.text);
+        // invalidate the cache. "v6" = Reddit videos carry captured CMAF files + an audio
+        // track; "v5" caches would keep the HLS-first posts without the file ladder.
+        const fp = "v6:" + fingerprintOf(res.text);
         const cached = await storage.get(KEY_REDDIT).catch(() => null);
         if (cached && cached.fingerprint === fp && Array.isArray(cached.posts)) {
           reddit = { posts: cached.posts, status: status("ready", { count: cached.posts.length, fingerprint: fp, cached: true }) };
