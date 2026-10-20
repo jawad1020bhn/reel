@@ -79,8 +79,9 @@ is exactly why the site password is a separate, deployment-wide thing.
 
 **Any other static host** (Netlify, Cloudflare Pages, GitHub Pages, S3, nginx)
 works the same way: upload the folder, serve `index.html` at the root. Only
-`file://` and `https://` are supported (the app fetches `data/posts.json`
-over http and never over `file://`).
+`file://` and `https://` are supported (the app fetches `data/x-posts.json`
+and `data/r-posts.json` over http and never over `file://`; on `file://` use
+Import instead).
 
 ---
 
@@ -91,11 +92,12 @@ with the digest in `site.config.js`. It stops casual visitors, and it keeps
 the app from booting (or fetching the dataset) before the password is typed.
 
 **It does not protect the static files.** On a static host every file is a
-public URL, so anybody who knows the path can fetch `data/posts.json` directly
+public URL, so anybody who knows the path can fetch `data/x-posts.json` directly
 — the prompt never runs for them. If that matters, do one of these:
 
-1. **Keep the export out of the deployment.** `data/posts.json` is your real
-   bookmark dump; if it is committed, the deployment publishes it. Add it to
+1. **Keep the export out of the deployment.** `data/x-posts.json` is your real
+   bookmark dump, and `data/r-posts.json` (Reddit saves) is private too; if either
+   is committed, the deployment publishes it. Add it to
    `.vercelignore` (CLI deploys) or to your repo's ignore rules, and import the
    file in the browser instead (drag & drop it on the Import screen).
 2. **Use a real server-side gate.** On Vercel: *Settings → Authentication* for
@@ -168,7 +170,7 @@ In the project's **Settings → Environment Variables**, configure these as
 | `LIBRARY_GITHUB_REPOSITORY` | Repository containing the live dataset, in `owner/repository` form. |
 | `LIBRARY_GITHUB_BRANCH` | Exact branch that owns the live dataset. Set explicitly; no implicit default. It must permit the function's commits. |
 | `LIBRARY_DELETE_PASSWORD` | A separate strong deletion password, **at least 16 characters**. You enter this in the app when confirming deletion; the server verifies it. It is not the browser PIN or the public site-password hash. |
-| `LIBRARY_DATA_PATH` | Optional; defaults to `data/posts.json`. Set `data/posts.js` if that is the actual source. Only these two paths are accepted. |
+| `LIBRARY_DATA_PATH` | Optional; defaults to `data/x-posts.json`. Set `data/posts.js` if that is the actual source. Only these two paths are accepted. The file was called `data/posts.json` before; if you set that path explicitly, change it to `data/x-posts.json`. Reddit posts in `data/r-posts.json` cannot be deleted through this server. |
 
 Then **redeploy**. Use a supported Node.js runtime (Node 22 recommended). Keep
 `api/library.js` and `server/library-store.cjs` in the deployment. Configure

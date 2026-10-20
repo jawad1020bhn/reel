@@ -45,6 +45,7 @@ window.XREELS_MANIFEST = {
     "src/core/adapters/twitter-web-exporter.js",
     "src/core/adapters/chrome-extension.js",
     "src/core/adapters/api-v2.js",
+    "src/core/adapters/reddit.js",
     "src/core/adapters/xreels.js",
     "src/core/adapters/generic.js",
     "src/core/query/search.js",

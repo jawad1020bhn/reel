@@ -277,7 +277,7 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.postMenu",
               h("div.viewer-unplayable",
                 icons.icon("alert", 26),
                 h("span", "Video cannot play in browser. "),
-                h("a.link", { href: post.url, target: "_blank", rel: "noopener" }, "Open on X"))
+                h("a.link", { href: post.url, target: "_blank", rel: "noopener" }, actions.openLabel(post)))
             );
           });
 
@@ -729,7 +729,7 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.postMenu",
       b("arrowup", () => step(-1), "");
       b("s", () => { const p = current(); if (p) actions.star(p); }, "Star");
       b("c", () => { const p = current(); if (p) actions.addToCollection(p.id); }, "Add to collection");
-      b("o", () => { const p = current(); if (p) actions.openOnX(p); }, "Open on X");
+      b("o", () => { const p = current(); if (p) actions.openOnX(p); }, "Open original post");
       b("w", () => { close(false); actions.watch(S.ids, S.index, { label: S.label }); }, "Watch from here");
       b("space", () => { if (S.handle) S.handle.toggle(); }, "Play / pause");
       b("m", () => playback.toggleMuted(), "Mute / unmute");

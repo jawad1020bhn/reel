@@ -6,7 +6,7 @@ const { createHandler, removePost, parseData, ledgerIds } = store;
 const PASSWORD = "test-only-delete-password";
 const env = { LIBRARY_GITHUB_TOKEN: "test-only-token", LIBRARY_GITHUB_REPOSITORY: "test/library", LIBRARY_GITHUB_BRANCH: "test-branch", LIBRARY_DELETE_PASSWORD: PASSWORD };
 const ledgerPath = "data/deleted-posts.js";
-const datasetPath = "data/posts.json";
+const datasetPath = "data/x-posts.json";
 
 // Immutable Git snapshots and compare-and-swap ref updates; never contacts GitHub.
 function fakeGit() {

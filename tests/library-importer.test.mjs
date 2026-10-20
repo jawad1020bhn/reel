@@ -17,11 +17,12 @@ function setup({ deletedIds = [], imported = false, unavailable = false, enabled
   const catalog = {
     posts: [], source: { id: "none" },
     get size() { return this.posts.length; },
+    get all() { return this.posts; },
     post(id) { return this.posts.find((p) => p.id === id); },
     async load(posts, meta) { this.posts = posts; this.source = { ...meta, count: posts.length }; return this.source; },
   };
   const sources = {
-    get: () => ({ available: () => true, load: async () => ({ json: { posts: all }, label: "test data" }) }),
+    get: (kind) => (kind === "reddit" ? null : { available: () => true, load: async () => ({ json: { posts: all }, label: "test data" }) }),
     deletionState: async () => { if (unavailable) throw new Error("shared deletion service unavailable"); return { enabled, deletedIds }; },
     deletePost: async (id) => { if (unavailable) throw new Error("write failed"); return { deleted: true, id, deletedIds: [...deletedIds, id] }; },
   };

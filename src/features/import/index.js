@@ -20,7 +20,7 @@ XR.define("features.import", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog", "
               h("span.dropzone-title", "Drop your export here"),
               h("span.dropzone-sub", ".json or .js — or click to choose a file"),
               h("input", { id: "xr-file", type: "file", accept: ".json,.js,.txt,application/json,text/javascript", style: { display: "none" }, onchange: (e) => { const f = e.target.files[0]; if (f) analyzeFile(f); } })),
-            h("p.muted.small", "Accepts xdash, twitter-web-exporter, bookmark extensions, X API v2 and saves exports. ",
+            h("p.muted.small", "Accepts xdash, twitter-web-exporter, bookmark extensions, X API v2, saves exports and Reddit saved posts. ",
               h("button.link.link-btn", { onclick: showFormats }, "See accepted formats")))),
           card("paste", "Paste JSON", "Copy the export's content and paste it here.", (() => {
             const ta = h("textarea.input.import-paste", { placeholder: '{"export_version":1,"bookmarks":[…]}  or  window.XREELS_DATA = {…};', rows: 6, spellcheck: false });
@@ -30,11 +30,12 @@ XR.define("features.import", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog", "
             h("ol.steps",
               h("li", "Open ", h("code", "data/posts.template.js"), " for the exact format."),
               h("li", "Save your export as ", h("code", "data/posts.js"), " starting with ", h("code", "window.XREELS_DATA = "), " and ending with ", h("code", ";")),
-              h("li", "Reload. The file is cached until its content changes.")),
+              h("li", "Reload. The file is cached until its content changes."),
+              h("li", "Reddit saves: save the Reddit export as ", h("code", "data/r-posts.json"), " and reload. It is shown beside your X library, and Settings → Sources turns each one on or off.")),
             h("div.row-btns",
               W.btn("Re-read data/posts.js", { icon: "refresh", onClick: async () => { splashless(async () => { await importer.reload(); }); } }),
               catalog.size ? W.btn("Download current as posts.js", { icon: "download", title: "Writes a ready-to-use data/posts.js from what is loaded now", onClick: () => platform.download(importer.exportPosts(catalog.posts, { asScript: true }), "posts.js") }) : null),
-            sources.get("url")?.available() ? h("div.row-btns", (() => { const inp = h("input.input", { placeholder: "https://…/posts.json", style: { flex: 1 } }); return h("div.url-row", inp, W.btn("Fetch", { icon: "download", onClick: () => inp.value && analyze(() => importer.importUrl(inp.value.trim())) })); })()) : h("p.muted.small", "URL import is unavailable on file:// — use upload or paste."))),
+            sources.get("url")?.available() ? h("div.row-btns", (() => { const inp = h("input.input", { placeholder: "https://…/x-posts.json", style: { flex: 1 } }); return h("div.url-row", inp, W.btn("Fetch", { icon: "download", onClick: () => inp.value && analyze(() => importer.importUrl(inp.value.trim())) })); })()) : h("p.muted.small", "URL import is unavailable on file:// — use upload or paste."))),
         ),
         h("div.import-preview"));
       host.appendChild(page);
@@ -55,6 +56,7 @@ XR.define("features.import", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog", "
           h("p.muted", "saves detects the shape of the file for you. If detection fails, the first lines are usually enough to add an adapter."),
           row("xdash", "POSTS.json from the xdash exporter", "bookmarks[]"),
           row("twitter-web-exporter", "The bookmarks JSON this extension saves", "tweets[] · data[]"),
+          row("Reddit saved (NSFW)", "data/r-posts.json from the Reddit capture extension", "posts[] · t3_ ids"),
           row("X bookmark extensions", "Chrome exports that dump tweet-like objects", "any array"),
           row("X API v2", "Raw /2/tweets payloads with includes", "data[] · includes"),
           row("saves", "A library exported from Settings → Export library", "posts[]"),

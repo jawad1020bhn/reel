@@ -13,12 +13,14 @@ XR.define("app.actions", ["app.activity", "app.catalog", "app.feedContext", "app
       return on;
     }
     const openOnX = (post) => platform.openExternal(post.url);
+    /** Menu label for opening the original post on the site it came from. */
+    const openLabel = (post) => `Open on ${model.platformLabel(post)}`;
     async function copyLink(post) { const ok = await platform.copy(post.url); toast(ok ? "Link copied" : "Couldn't copy — " + post.url, ok ? "success" : "error"); }
     async function copyText(post) { const ok = await platform.copy(post.rawText || post.text); toast(ok ? "Caption copied" : "Couldn't copy", ok ? "success" : "error"); }
     const canShare = () => typeof platform.canShare === "function" ? platform.canShare() : false;
     async function share(post) {
       const url = post.url || "";
-      const data = { title: post.author?.name ? `${post.author.name} on X` : "saves", text: post.text ? post.text.slice(0, 280) : "", url };
+      const data = { title: post.author?.name ? `${post.author.name} on ${model.platformLabel(post)}` : "saves", text: post.text ? post.text.slice(0, 280) : "", url };
       const ok = await platform.share(data);
       /* A cancelled share sheet also resolves false; only fall back when the API is absent. */
       if (!ok && !canShare()) { const copied = await platform.copy(url); toast(copied ? "Link copied" : "Couldn't share", copied ? "success" : "error"); }
@@ -56,5 +58,5 @@ XR.define("app.actions", ["app.activity", "app.catalog", "app.feedContext", "app
       watch(picked.map((p) => p.id), 0, { label: "Shuffle" });
     }
 
-    return { star, hide, openOnX, copyLink, copyText, canShare, share, download, watch, view, open, goCreator, goTag, goCollection, goLibrary, addToCollection, shufflePlay, toast };
+    return { star, hide, openOnX, openLabel, copyLink, copyText, canShare, share, download, watch, view, open, goCreator, goTag, goCollection, goLibrary, addToCollection, shufflePlay, toast };
   });

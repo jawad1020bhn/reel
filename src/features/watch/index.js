@@ -560,7 +560,7 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
       b("h", () => { S.cells.get(S.index)?.seekBy(-10); flash("−10s"); }, "Seek −10s");
       b("s", () => toggleStar(), "Star");
       b("c", () => { const p = current(); if (p) actions.addToCollection(p.id); }, "Add to collection");
-      b("o", () => { const p = current(); if (p) actions.openOnX(p); }, "Open on X");
+      b("o", () => { const p = current(); if (p) actions.openOnX(p); }, "Open original post");
       b("m", () => playback.toggleMuted(), "Mute / unmute");
       b("i", () => toggleInfo(), "Caption & details");
       b("x", () => cycleFit(), "Fit / fill");

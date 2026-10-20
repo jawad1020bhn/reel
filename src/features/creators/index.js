@@ -75,7 +75,7 @@ XR.define("features.creators", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry"
         W.avatar(media.avatar({ author: { avatar: c.avatar } }, 120), c.name, 88),
         h("div.creator-head-text",
           h("h1.page-title", c.name),
-          h("p.muted", "@" + c.username, " · ", h("a.link.creator-x", { href: `https://x.com/${c.username}`, target: "_blank", rel: "noopener" }, "profile on X", icons.icon("external", 12))),
+          h("p.muted", "@" + c.username, " · ", h("a.link.creator-x", { href: c.platform === "reddit" ? `https://www.reddit.com/user/${encodeURIComponent(c.username)}` : `https://x.com/${c.username}`, target: "_blank", rel: "noopener" }, c.platform === "reddit" ? "profile on Reddit" : "profile on X", icons.icon("external", 12))),
           h("div.creator-stats", W.stat(c.count, "saved"), W.stat(c.videos, "videos"), W.stat(c.photos, "photos"), W.stat(dom.compact(c.likes), "likes total"), W.stat(`${Math.round(seen / Math.max(1, c.count) * 100)}%`, "seen"), W.stat(dom.relative(c.lastSavedAt), "last saved"))),
         h("div.creator-actions",
           W.btn("Watch all", { icon: "play", kind: "primary", onClick: () => actions.watch(ids, 0, { label: "@" + c.username, spec }) }),

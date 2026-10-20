@@ -31,8 +31,11 @@ XR.define("app.prefs", ["app.ports.storage", "core.events", "core.domain.events"
     blur: false,              // blur stills until hover/tap
     seenDim: true,            // dim tiles you already opened
     discreet: false,          // neutral tab title + icon
-    hideSensitive: false,     // hide posts flagged sensitive by X
+    hideSensitive: false,     // hide posts flagged sensitive (X), or NSFW (Reddit)
     lockMinutes: 0,           // auto-lock after N minutes hidden (0 = only on launch)
+    /* sources — switch each site's saves in or out of every list (data stays loaded) */
+    showX: true,              // posts from the X library (data/x-posts.json, uploads…)
+    showReddit: true,         // posts from data/r-posts.json
     /* data */
     dataPriority: "file",     // legacy (pre-1.1): migrated into the libraries index
     keepTextOnly: false,

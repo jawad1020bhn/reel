@@ -1,11 +1,17 @@
 /* app.catalog — the in-memory library: posts, media, creators, indexes, queries.
    It owns nothing about *where* data comes from (see app.importer) or what the
-   user did with it (see app.activity); it composes both into query results. */
+   user did with it (see app.activity); it composes both into query results.
+
+   Two lists: `all` holds every loaded post (X and Reddit); `posts` is the shown subset,
+   after the Settings toggles Show X posts / Show Reddit posts. Every query, rail and
+   count reads `posts`, so hiding a source is one filter here. Toggling rebuilds the
+   indexes from `all`, so nothing is re-imported or lost. */
 XR.define("app.catalog", ["core.domain.model", "core.query.engine", "core.ranking.rails", "core.util", "core.events", "core.domain.events", "app.activity", "app.prefs"],
   function (model, engine, rails, util, events, EV, activity, prefs) {
     "use strict";
 
     const state = {
+      all: /** @type {Post[]} */ ([]),
       posts: /** @type {Post[]} */ ([]),
       byId: new Map(),
       mediaById: new Map(),
@@ -50,8 +56,12 @@ XR.define("app.catalog", ["core.domain.model", "core.query.engine", "core.rankin
     /** Build indexes off to the side, then publish them atomically. Very large libraries
         yield between chunks so the browser can paint the splash and process input; if a
         newer library load starts, the older build quietly abandons its partial maps. */
-    async function load(posts, source) {
+    /** Whether a post's site is switched on in Settings. Only an explicit `false` hides it. */
+    const isShown = (p) => (p.platform === "reddit" ? prefs.get("showReddit") !== false : prefs.get("showX") !== false);
+
+    async function load(input, source) {
       const version = ++loadVersion;
+      const posts = input.filter(isShown);
       const shouldYield = posts.length >= 3000;
       const byId = new Map(), mediaById = new Map(), creators = new Map(), hashtags = new Map();
       const months = new Map(), savedMonths = new Map();
@@ -62,8 +72,9 @@ XR.define("app.catalog", ["core.domain.model", "core.query.engine", "core.rankin
         for (const m of p.media) mediaById.set(m.id, m);
         const u = p.author.username;
         let c = creators.get(u);
-        if (!c) { c = { username: u, name: p.author.name, avatar: p.author.avatar, id: p.author.id, count: 0, videos: 0, photos: 0, lastSavedAt: 0, likes: 0, ids: [] }; creators.set(u, c); }
+        if (!c) { c = { username: u, name: p.author.name, avatar: p.author.avatar, id: p.author.id, platform: p.platform || "x", count: 0, videos: 0, photos: 0, lastSavedAt: 0, likes: 0, ids: [] }; creators.set(u, c); }
         c.count++; c.ids.push(p.id); c.likes += p.metrics.likes;
+        if (c.platform !== (p.platform || "x")) c.platform = "x";  // same handle on both sites: profile link falls back to X
         if (model.hasVideo(p)) c.videos++; else if (p.media.length) c.photos++;
         if (p.savedAt > c.lastSavedAt) { c.lastSavedAt = p.savedAt; c.avatar = p.author.avatar || c.avatar; c.name = p.author.name || c.name; }
         for (const t of p.hashtags) hashtags.set(t, (hashtags.get(t) || 0) + 1);
@@ -78,7 +89,7 @@ XR.define("app.catalog", ["core.domain.model", "core.query.engine", "core.rankin
       const duplicates = await indexDuplicates(posts, version, shouldYield);
       if (!duplicates || version !== loadVersion) return null;
       Object.assign(state, {
-        posts, byId, mediaById, creators, hashtags,
+        all: input, posts, byId, mediaById, creators, hashtags,
         months: toList(months), savedMonths: toList(savedMonths),
         dupOf: duplicates.dupOf, dupGroups: duplicates.dupGroups,
         source: { ...source, count: posts.length, loadedAt: Date.now() }, ready: true,
@@ -140,6 +151,13 @@ XR.define("app.catalog", ["core.domain.model", "core.query.engine", "core.rankin
     const buildRails = (opts) => rails.build(state.posts, ctx, opts);
     const spotlight = (opts) => rails.spotlight(state.posts, ctx, opts);
 
+    /** Loaded posts per site, ignoring the Settings toggles (for Settings counts). */
+    function countByPlatform() {
+      let x = 0, reddit = 0;
+      for (const p of state.all) { if (p.platform === "reddit") reddit++; else x++; }
+      return { x, reddit };
+    }
+
     /** Headline numbers for Discover footer and Insights. */
     function stats() {
       let videos = 0, photos = 0, gifs = 0, carousels = 0, seconds = 0, textOnly = 0, likes = 0, shorts = 0, longs = 0;
@@ -168,10 +186,23 @@ XR.define("app.catalog", ["core.domain.model", "core.query.engine", "core.rankin
       return util.uniq([...sameKind, ...same]).slice(0, limit);
     }
 
+    /* Re-filter when a site is switched on or off in Settings. Only those two keys matter. */
+    const visibilityKey = () => `${prefs.get("showX") !== false}|${prefs.get("showReddit") !== false}`;
+    let shownKey = visibilityKey();
+    events.bus.on(EV.PREFS_CHANGED, () => {
+      const key = visibilityKey();
+      if (key === shownKey) return;
+      shownKey = key;
+      if (state.ready) load(state.all, state.source).catch(() => {});
+    });
+
     return {
-      load, query, facets, describe, post, media, postsByIds, creator, creators, topHashtags, buildRails, spotlight, stats, related, ctx, duplicatesOf, shuffle,
+      load, query, facets, describe, post, media, postsByIds, creator, creators, topHashtags, buildRails, spotlight, stats, related, ctx, duplicatesOf, shuffle, countByPlatform,
       get dupGroups() { return state.dupGroups; },
+      /** Shown posts (after the Settings toggles). */
       get posts() { return state.posts; },
+      /** Every loaded post, including hidden sites. Used for imports, exports and deletes. */
+      get all() { return state.all; },
       get months() { return state.months; },
       get savedMonths() { return state.savedMonths; },
       get source() { return state.source; },

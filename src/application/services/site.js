@@ -16,7 +16,7 @@
    Nothing is stored: every load of the page asks for the password again.
 
    Honesty note (see DEPLOY.md): a client-side gate stops casual visitors.
-   The static files of a deployment — including data/posts.json — are still
+   The static files of a deployment — including data/x-posts.json — are still
    public URLs. For real protection use a server-side gate (Vercel
    Authentication / Deployment Protection / WAF) and keep the export out of
    the deployment. */

@@ -132,6 +132,8 @@ What is kept: posts only (`t3_`), and only rows marked NSFW (the `over18` class 
 
 Export shape: `{ export_version: 1, exported_at, source: "reddit-saved-nsfw", account, count, scan: {pages, rows, nsfw_kept, sfw_skipped, comments_skipped}, posts: [...] }`.
 
+To show these posts in the XReels app, rename the file to `r-posts.json` and place it in the app's `data/` folder (next to `x-posts.json`). The app reads it on every load over http(s). The **Settings → Sources** toggles hide or show Reddit and X posts separately.
+
 Behaviour:
 - Pages are paced 2.5–5 s apart, with a longer 8–20 s break every 8–14 pages. A 429 or 5xx response is retried with jittered backoff (30 s doubling, capped at 5 min). A login or age-check redirect stops the run with a message.
 - Pause and Stop keep the position, and Start resumes from the next unprocessed page. Reset clears every captured post; it is refused while a run is live.
