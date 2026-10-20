@@ -76,7 +76,8 @@ test("a Reddit-hosted video plays through its HLS playlist (with sound); galleri
   const [, video, , gallery] = posts;
   assert.equal(video.media[0].kind, "video");
   assert.equal(video.media[0].hls, "https://v.redd.it/vid999/HLSPlaylist.m3u8");
-  assert.deepEqual(video.media[0].sources, []);
+  assert.equal(video.media[0].hlsFirst, true);
+  assert.deepEqual(video.media[0].sources.map((s) => s.url), [720, 480, 360, 240].map((h) => `https://v.redd.it/vid999/DASH_${h}.mp4`));
   assert.equal(gallery.media[0].kind, "photo");
   assert.match(gallery.media[0].alt, /Reddit gallery/);
 });

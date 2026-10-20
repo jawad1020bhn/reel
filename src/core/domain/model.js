@@ -62,6 +62,7 @@ XR.define("core.domain.model", ["core.util"], function (util) {
       poster: partial.poster || (kind === "photo" ? partial.thumb : "") || "",
       sources,
       hls: partial.hls || "",
+      hlsFirst: !!partial.hlsFirst && !!partial.hls,   // play the HLS stream before the listed sources
       width, height, aspect,
       duration: Math.max(0, util.toNumber(partial.duration)),
       alt: partial.alt || "",

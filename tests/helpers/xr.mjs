@@ -18,7 +18,7 @@ export function createXR() {
     provide(name, api) { modules.set(name, { deps: [], factory: () => api, api: null }); },
   };
   const load = (file) => {
-    runInNewContext(readFileSync(new URL(`../../${file}`, import.meta.url), "utf8"), { XR, console, URL, setTimeout, clearTimeout });  // browsers provide these; a bare VM context does not
+    runInNewContext(readFileSync(new URL(`../../${file}`, import.meta.url), "utf8"), { XR, console, URL, setTimeout, clearTimeout, CustomEvent, navigator });  // browsers provide these; a bare VM context does not
   };
   return { XR, load };
 }

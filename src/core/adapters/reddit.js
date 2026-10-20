@@ -30,10 +30,12 @@ XR.define("core.adapters.reddit", ["core.adapters.registry", "core.util"], funct
   const isRedditHost = (url) => { try { return /(^|\.)(reddit\.com|redd\.it|redditmedia\.com)$/i.test(new URL(url).hostname); } catch { return true; } };
   const toTime = (value) => { const t = Date.parse(value); return Number.isFinite(t) ? t : 0; };
 
-  /* A Reddit-hosted video is "https://v.redd.it/<id>". Reddit serves it as HLS (with sound) at
-     <id>/HLSPlaylist.m3u8; the silent DASH_<h>.mp4 files are not used, because the player would
-     try them before HLS. Only this exact shape is accepted. */
+  /* A Reddit-hosted video is "https://v.redd.it/<id>". Its sound is in the HLS playlist
+     <id>/HLSPlaylist.m3u8, so that is played first (hlsFirst). The DASH_<h>.mp4 files are
+     video-only: they are the silent fallback, and the muted hover preview uses the lowest one.
+     Only this exact URL shape is accepted. */
   const videoBase = (url) => { const m = String(url || "").match(/^https:\/\/v\.redd\.it\/([A-Za-z0-9]+)\/?$/); return m ? "https://v.redd.it/" + m[1] : ""; };
+  const SILENT_LADDER = [720, 480, 360, 240];
 
   /** One still per post at most: the image itself, or Reddit's thumbnail. Link posts (redgifs,
       external articles) and text posts carry a thumbnail too, so those still get a picture. */
@@ -43,7 +45,11 @@ XR.define("core.adapters.reddit", ["core.adapters.registry", "core.util"], funct
     if (direct) return [{ kind: "photo", thumb: httpUrl(direct.url) }];
     const poster = httpUrl(p.thumbnail);
     const playable = list.find((m) => m && m.kind === "video" && videoBase(m.url));
-    if (playable) return [{ kind: "video", thumb: poster, poster, hls: videoBase(playable.url) + "/HLSPlaylist.m3u8", alt: "" }];
+    if (playable) {
+      const base = videoBase(playable.url);
+      const sources = SILENT_LADDER.map((h) => ({ url: `${base}/DASH_${h}.mp4`, type: "video/mp4", bitrate: h * 1000 }));
+      return [{ kind: "video", thumb: poster, poster, hls: base + "/HLSPlaylist.m3u8", hlsFirst: true, sources, alt: "" }];
+    }
     if (!poster) return [];
     const video = list.some((m) => m && m.kind === "video");
     const gallery = list.some((m) => m && m.kind === "gallery");
