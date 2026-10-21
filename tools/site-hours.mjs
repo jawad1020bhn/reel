@@ -25,6 +25,7 @@ const A = XR.resolve("core.availability");
 
 /* ---- inputs ---------------------------------------------------------- */
 const config = readSiteConfig();
+if (config.closed) { console.log("\n  This library is closed (closed: true in site.config.js). There are no opening hours — there is no opening.\n"); process.exit(0); }
 const schedule = A.normalize(config.availability);
 const seedOverride = valueOf("--seed");
 const seed = seedOverride ?? (schedule.seed || config.hash || config.title || "saves");

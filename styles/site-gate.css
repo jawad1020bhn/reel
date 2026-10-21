@@ -48,6 +48,10 @@ html.is-site-gated { overflow: hidden; }
 .site-msg.is-calm { color: var(--fg-2); }
 .site-sub.is-closed, .site-header-note.is-closed { color: var(--warning); }
 .site-gate.is-closing .site-lock { color: var(--warning); border-color: rgb(255 181 71 / 0.35); }
+/* Closed for good: the same quiet entrance, nothing to type. */
+.site-gate.is-closed-for-good .site-sub { margin-bottom: 12px; }
+.site-gate.is-closed-for-good .site-help { margin: 0; }
+.site-gate.is-closed-for-good .site-lock { color: var(--fg-2); }
 .site-card[aria-busy="true"] .site-msg { color: var(--fg-2); }
 .site-footer { padding-top: 20px; border-top: 1px solid var(--line); font-size: 10px; }
 .site-card.shake { animation: site-shake 350ms var(--ease); }

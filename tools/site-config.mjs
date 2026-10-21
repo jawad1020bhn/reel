@@ -15,12 +15,13 @@ export const DEFAULT_AVAILABILITY = { enabled: false, seed: "", graceMinutes: 5 
 
 /** The current config, or an empty one when the file is missing or unreadable. */
 export function readSiteConfig() {
-  if (!existsSync(FILE)) return { salt: "", hash: "", hint: "", title: "saves", availability: { ...DEFAULT_AVAILABILITY } };
+  if (!existsSync(FILE)) return { closed: false, closedNotice: "", salt: "", hash: "", hint: "", title: "saves", availability: { ...DEFAULT_AVAILABILITY } };
   const window = {};
   try { runInNewContext(readFileSync(FILE, "utf8"), { window }); } catch { /* fall through to the empty config */ }
   const c = window.XREELS_SITE && typeof window.XREELS_SITE === "object" ? window.XREELS_SITE : {};
   const a = c.availability && typeof c.availability === "object" ? c.availability : {};
   return {
+    closed: c.closed === true, closedNotice: String(c.closedNotice || ""),
     salt: String(c.salt || ""), hash: String(c.hash || ""), hint: String(c.hint || ""), title: String(c.title || "saves"),
     availability: {
       enabled: a.enabled === true || a.enabled === "on" || a.enabled === 1,
@@ -30,7 +31,28 @@ export function readSiteConfig() {
   };
 }
 
-const TEMPLATE = (c) => `/* saves — the password of this deployment.
+const CLOSED_TEMPLATE = (c) => `/* saves — this deployment is CLOSED.
+
+   \`closed: true\` closes the library everywhere, including a local file://
+   copy: nothing boots, no passcode is asked, no data is fetched. There is no
+   passcode that reopens it. Reopening would mean editing this file, setting
+   a password again (npm run site:password -- "…" --reopen) and adding a
+   dataset again — all of which were removed on purpose.
+
+   The fields below are kept so the file stays a valid config; see DEPLOY.md
+   for what each one meant when the library was open. */
+window.XREELS_SITE = {
+  closed: true,
+  closedNotice: ${JSON.stringify(c.closedNotice || "This library has been closed by its owner.")},
+  salt: ${JSON.stringify(c.salt)},
+  hash: ${JSON.stringify(c.hash)},
+  hint: ${JSON.stringify(c.hint)},
+  title: ${JSON.stringify(c.title)},
+  availability: { enabled: ${c.availability.enabled ? "true" : "false"}, seed: ${JSON.stringify(c.availability.seed)}, graceMinutes: ${c.availability.graceMinutes} },
+};
+`;
+
+const TEMPLATE = (c) => c.closed ? CLOSED_TEMPLATE(c) : `/* saves — the password of this deployment.
 
    Empty salt + hash  → no site password: the app opens straight away
                          (this is what a local, double-clicked copy wants).
@@ -51,6 +73,7 @@ const TEMPLATE = (c) => `/* saves — the password of this deployment.
      graceMinutes  minutes to finish after a window closes (0–30)
    Switch with:  npm run site:password -- --hours on|off   ·  preview:  npm run site:hours */
 window.XREELS_SITE = {
+  closed: false,
   salt: ${JSON.stringify(c.salt)},
   hash: ${JSON.stringify(c.hash)},
   hint: ${JSON.stringify(c.hint)},

@@ -179,7 +179,29 @@ XR.define("shell.siteGate", ["ui.dom", "ui.icons", "app.site"], function (dom, i
   /* Asked on every load: the unlock is never persisted, so there is nothing to
      check first. The promise settles only when the passcode has been accepted.
      shell.availability calls it again with { reason: "closed" } when a window ends. */
+  /** The library is closed: a quiet notice, no passcode field, and a promise that
+      never settles — so shell.app never boots and never fetches a dataset. */
+  function showClosed() {
+    if (el) return;
+    mode = "closed-for-good";
+    const card = h("section.site-card.site-card--closed", { "aria-labelledby": "site-heading" },
+      h("div.site-lock", { "aria-hidden": "true" }, icons.icon("lock", 22)),
+      h("h1.site-title#site-heading", "Closed."),
+      h("p.site-sub", site.closedNotice()),
+      h("p.site-help", "Nothing is loaded here any more. There is no passcode for this screen."));
+    el = h("div.site-gate.is-closed-for-good", { role: "dialog", "aria-modal": "true", "aria-labelledby": "site-heading" },
+      h("header.site-header", h("div.site-brand", h("span.site-wordmark", site.title())), h("span.site-header-note.is-closed", icons.icon("lock", 13), "Closed")),
+      h("main.site-entry", h("div.site-intro", { "aria-hidden": "true" }, h("p.site-statement", "The end.")), card),
+      h("footer.site-footer", h("span", "CLOSED BY ITS OWNER."), h("span", "SAVES")));
+    el.addEventListener("keydown", (e) => e.stopPropagation());
+    document.body.appendChild(el);
+    document.documentElement.classList.add("is-site-gated", "is-site-closed");
+    el.tabIndex = -1; el.focus({ preventScroll: true });
+    document.title = `${site.title()} — closed`;
+  }
+
   async function ensure(opts = {}) {
+    if (site.isClosed()) { showClosed(); return new Promise(() => {}); }
     if (!site.applies()) return true;
     if (el && release) return new Promise((resolve) => { const prev = release; release = (v) => { prev?.(v); resolve(v); }; });
     show(opts);
@@ -187,5 +209,5 @@ XR.define("shell.siteGate", ["ui.dom", "ui.icons", "app.site"], function (dom, i
   }
 
   const isShown = () => !!el;
-  return { ensure, show, hide, isShown };
+  return { ensure, show, showClosed, hide, isShown };
 });
