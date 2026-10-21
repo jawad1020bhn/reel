@@ -57,6 +57,87 @@ local, double-clicked copy wants.
 
 ---
 
+## 2b. Opening hours — a password that does not work all the time
+
+The site password can be given **opening hours**: a calendar that decides, for
+every minute of every day, whether the password is accepted. The point is to
+make the library *not* available all the time — a self-discipline tool, built
+so that it cannot be reasoned around in the moment.
+
+```bash
+npm run site:password -- --hours on               # the password only works inside its windows
+npm run site:password -- --hours off              # back to "works around the clock"
+npm run site:password -- --hours on --seed "autumn"   # reshuffle the calendar, keep the password
+npm run site:password -- --grace 3                # minutes to finish after a window closes (0–30, default 5)
+npm run site:hours                                # preview: this month, today's windows, the status right now
+npm run site:hours -- --month 2026-11 --day 2026-11-03
+```
+
+This writes an `availability` block into `site.config.js`; redeploy for it to
+take effect:
+
+```
+availability: { enabled: true, seed: "", graceMinutes: 5 },
+```
+
+### The calendar
+
+Everything is computed from a seed and the clock — nothing is stored, nothing
+is random at run time, so a reload, another browser or another device all get
+the same answer. The seed is the password digest unless `seed` is set, so **a
+new password is a new calendar**, and a `seed` reshuffles it without touching
+the password.
+
+**The month.** Each month has *working days* (the password works that day) and
+*off days*:
+
+| week | days | working days |
+|---|---|---|
+| 1 | 1–7 | 4 |
+| 2 | 8–14 | 3 |
+| 3 | 15–21 | 3 |
+| 4 | 22–end of month (29–31 included) | 2 |
+
+Which days are picked never settles into a pattern: at most two working days in
+a row (never three — also across weeks and months), no evenly spaced days inside
+a week (no 1-3-5-7, no 9-11-13), no four evenly spaced working days anywhere in
+the month, and two neighbouring weeks never reuse the same weekdays.
+
+**The day.** Every day hands 20 % of its hours (288 minutes) to the other side:
+
+- a **working day** has 288 minutes of *blackout*, when the password fails;
+- an **off day** has 288 minutes of *windows*, the only time the password works.
+
+Those minutes are scattered into 10–15 windows of 12–30 minutes each — **never
+more than 30 minutes** — at least 30 minutes apart and never touching midnight,
+so two days can never merge into one long window. Where they fall is weighted
+by the time of day: blackouts prefer the evening and access windows prefer
+waking hours, so the library is least available when it is most tempting.
+
+### What the visitor sees
+
+- The gate says whether the library is **open** or **closed right now**, and
+  keeps that line true while it is on screen.
+- The right password at the wrong time is answered calmly — *"That's the right
+  passcode, but the library is closed right now — it opens again later today"*
+  — with only a coarse hint (within the hour / in a few hours / later today /
+  tomorrow), enough to stop refreshing, not enough to plan around.
+- Inside the app, when the current window closes, a countdown toast gives the
+  grace (default 5 minutes) to finish, then playback pauses and the gate comes
+  back as **"Closing time."** The password works again when the next window
+  opens. A closed laptop lid or a background tab cannot stretch a window: the
+  clock is re-read on every return and an overdue grace locks immediately.
+
+### Honesty
+
+The calendar runs on the **device clock, in the device's time zone**. It is a
+commitment device, not a security boundary: whoever controls the clock controls
+the calendar, and the schedule can always be previewed with `npm run site:hours`.
+A local `file://` copy never has a site password, so it has no opening hours
+either.
+
+---
+
 ## 3. Deploy to Vercel
 
 **From the dashboard:** import the repository → *Framework Preset: Other* →
@@ -120,6 +201,9 @@ password does not un-publish an export that was pushed before.
 | The prompt asks for the wrong password | The digest in `site.config.js` is for a different password. Re-run `npm run site:password -- "…"` and redeploy. |
 | The prompt never appears although a hash is set | `site.config.js` was not published (check `https://<your-site>/site.config.js` in the browser — it must show a `hash`). |
 | The visitor is asked again after every reload | Expected: nothing about the unlock is stored, so each load asks for the password. |
+| The right password is refused with "the library is closed right now" | Opening hours are on (`availability.enabled: true` in `site.config.js`). Check the calendar with `npm run site:hours`; switch it off with `npm run site:password -- --hours off` and redeploy. |
+| The app locked itself with "Closing time." | The current window ended and the grace ran out. The password works again when the next window opens — `npm run site:hours` shows when. |
+| The calendar changed after I rotated the password | Expected: without a `seed`, the calendar is derived from the password digest. Set `--seed "…"` to pin it independently of the password. |
 | The PIN I set locally is not asked on the site | Expected: the PIN lives in the local browser, the site password is the deployment-wide one. |
 | The app is blank / a red error page | A file failed to load — the error page names the file and line. Check the deploy log and that `src/`, `styles/`, `vendor/` and `site.config.js` were all published. |
 
