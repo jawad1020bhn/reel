@@ -1,27 +1,19 @@
-/* saves — the password of this deployment.
+/* saves — this deployment is CLOSED.
 
-   Empty salt + hash  → no site password: the app opens straight away
-                         (this is what a local, double-clicked copy wants).
-   Filled in           → every visitor of this deployment must type the
-                         password before the app opens.
+   `closed: true` closes the library everywhere, including a local file://
+   copy: nothing boots, no passcode is asked, no data is fetched. There is no
+   passcode that reopens it. Reopening would mean editing this file, setting
+   a password again (npm run site:password -- "…" --reopen) and adding a
+   dataset again — all of which were removed on purpose.
 
-   Set it with:   npm run site:password -- "your password"
-   Read more in:  DEPLOY.md
-
-   Only the salted SHA-256 digest lives here — never the password itself.
-   The digest is read by src/application/services/site.js and checked by
-   src/shell/site-gate.js.
-
-   availability — the opening hours of the password (src/core/availability.js):
-     enabled       true → the password only works inside its windows
-     seed          "" → the calendar is derived from the hash above (a new
-                   password = a new calendar); any text reshuffles it on its own
-     graceMinutes  minutes to finish after a window closes (0–30)
-   Switch with:  npm run site:password -- --hours on|off   ·  preview:  npm run site:hours */
+   The fields below are kept so the file stays a valid config; see DEPLOY.md
+   for what each one meant when the library was open. */
 window.XREELS_SITE = {
-  salt: "32c3d98620c3cf3248d9338a3679bf9e",
-  hash: "a512804f1371c3ecd8a4e9fa011de83b3991f848d78f2648d70babfc01ac0e54",
+  closed: true,
+  closedNotice: "This library has been closed by its owner.",
+  salt: "",
+  hash: "",
   hint: "",
   title: "saves",
-  availability: { enabled: true, seed: "", graceMinutes: 5 },
+  availability: { enabled: false, seed: "", graceMinutes: 5 },
 };

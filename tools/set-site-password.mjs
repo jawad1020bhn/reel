@@ -18,6 +18,10 @@
      node tools/set-site-password.mjs --hours on --seed "autumn"   # reshuffle the calendar without a new password
      node tools/set-site-password.mjs --grace 3           # minutes to finish after a window closes (0–30)
 
+   A closed library (\`closed: true\` in site.config.js) refuses all of this.
+   Only \`--reopen\` — typed on purpose, together with a new password — opens it
+   again, and it still has no data.
+
    Re-run it and redeploy for a change to take effect. */
 import { createHash, randomBytes } from "node:crypto";
 import { readSiteConfig, writeSiteConfig } from "./site-config.mjs";
@@ -26,6 +30,7 @@ const argv = process.argv.slice(2);
 const flags = new Set(argv.filter((a) => a.startsWith("--")));
 const valueOf = (flag) => { const i = argv.indexOf(flag); return i >= 0 ? argv[i + 1] : undefined; };
 const TAKES_VALUE = new Set(["--hint", "--hours", "--seed", "--grace"]);
+const REOPEN = flags.has("--reopen");
 const positional = argv.filter((a, i) => !a.startsWith("--") && !TAKES_VALUE.has(argv[i - 1]));
 
 function fail(message) {
@@ -34,8 +39,17 @@ function fail(message) {
 }
 
 const current = readSiteConfig();
+if (current.closed && !REOPEN) {
+  fail("This library is closed (closed: true in site.config.js). Nothing here reopens it.\n    If you really mean to reopen it, read DEPLOY.md first, then run again with a new password and --reopen.");
+}
+if (REOPEN && !current.closed) fail("--reopen only applies to a closed library.");
 const next = { ...current, availability: { ...current.availability } };
 const notes = [];
+if (REOPEN) {
+  if (!(positional[0] ?? process.env.XREELS_SITE_PASSWORD)) fail("Reopening needs a new password: npm run site:password -- \"new password\" --reopen");
+  next.closed = false; next.closedNotice = "";
+  notes.push("library REOPENED — it has no dataset; import one in the browser or add data files again");
+}
 
 /* ---- opening hours --------------------------------------------------- */
 const hours = valueOf("--hours");

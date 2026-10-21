@@ -30,6 +30,13 @@ XR.define("app.site", ["app.ports.platform", "core.availability"], function (pla
   "use strict";
 
   const config = () => (typeof window !== "undefined" && window.XREELS_SITE) || {};
+  /* ------------------------------------------------------------- closed -- */
+  /** `closed: true` in site.config.js: the library is closed by its owner.
+      Nothing boots, no passcode is asked, no data is fetched — everywhere,
+      including a local file:// copy. There is no passcode that reopens it;
+      reopening means editing the file, setting a password and adding data again. */
+  const isClosed = () => config().closed === true;
+  const closedNotice = () => String(config().closedNotice || "This library has been closed by its owner.");
   const salt = () => String(config().salt || "");
   const isEnabled = () => { const c = config(); return !!(c.hash || c.password); };
   /** A local file:// copy is private by definition — the gate is for deployments. */
@@ -86,5 +93,5 @@ XR.define("app.site", ["app.ports.platform", "core.availability"], function (pla
   }
   async function verify(password, now) { return (await check(password, now)).ok; }
 
-  return { config, isEnabled, applies, isLocalFile, hint, title, salt, digest, expected, check, verify, schedule, scheduled, seed, graceMinutes, status, phase };
+  return { config, isClosed, closedNotice, isEnabled, applies, isLocalFile, hint, title, salt, digest, expected, check, verify, schedule, scheduled, seed, graceMinutes, status, phase };
 });

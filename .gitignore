@@ -6,6 +6,9 @@ build/
 # user data (private library, never commit)
 data/posts.js
 data/*.local.js
+data/x-posts.json
+data/r-posts.json
+data/*.json
 
 # OS / editor / temp
 .DS_Store
