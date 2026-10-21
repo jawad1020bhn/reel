@@ -44,6 +44,10 @@ html.is-site-gated { overflow: hidden; }
 .site-submit:disabled { opacity: 0.65; cursor: progress; }
 .site-reveal:focus-visible, .site-submit:focus-visible { outline: 2px solid var(--fg); outline-offset: 4px; }
 .site-msg { min-height: 40px; margin: 12px 0 0; font-size: 13px; line-height: 1.5; color: #ff8a92; }
+/* Opening hours: a closed library is a fact, not a mistake — muted, no shake. */
+.site-msg.is-calm { color: var(--fg-2); }
+.site-sub.is-closed, .site-header-note.is-closed { color: var(--warning); }
+.site-gate.is-closing .site-lock { color: var(--warning); border-color: rgb(255 181 71 / 0.35); }
 .site-card[aria-busy="true"] .site-msg { color: var(--fg-2); }
 .site-footer { padding-top: 20px; border-top: 1px solid var(--line); font-size: 10px; }
 .site-card.shake { animation: site-shake 350ms var(--ease); }
