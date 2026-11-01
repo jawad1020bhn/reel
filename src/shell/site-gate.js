@@ -3,7 +3,9 @@
    The deployment passcode is numeric; keep it a string so leading zeros survive.
    With opening hours on, the gate says whether the library is open right now
    and answers the right passcode at the wrong time calmly — no shake, no
-   "wrong passcode" — with a coarse idea of when it opens again. */
+   "wrong passcode" — with a coarse idea of when it opens again. The right
+   passcode entered seven times in a row (site.config.js `forceTries`) forces
+   the door for a while; the count is shown from the second time on. */
 XR.define("shell.siteGate", ["ui.dom", "ui.icons", "app.site"], function (dom, icons, site) {
   "use strict";
   const h = dom.h;
@@ -15,6 +17,7 @@ XR.define("shell.siteGate", ["ui.dom", "ui.icons", "app.site"], function (dom, i
   const again = (s) => AGAIN[site.phase(s)] || AGAIN.later;
   function statusCopy(s) {
     if (!site.scheduled()) return { open: true, sub: "Your library is one passcode away.", note: "Passcode required" };
+    if (s.forced) return { open: true, sub: `Forced open for another ${Math.max(1, Math.ceil(s.remaining))} min. Your passcode works.`, note: "Open now" };
     if (s.open) return { open: true, sub: mode === "closed" ? "That window has ended — but the library is open again. Your passcode works." : "The library is open right now. Your passcode works.", note: "Open now" };
     return { open: false, sub: `${mode === "closed" ? "That window has ended" : "The library is closed right now"} — ${again(s)}`, note: "Closed right now" };
   }
@@ -81,7 +84,9 @@ XR.define("shell.siteGate", ["ui.dom", "ui.icons", "app.site"], function (dom, i
     if (!verdict.ok) {
       setBusy(false);
       if (verdict.reason === "closed") {
-        fail(`That's the right passcode, but the library is closed right now — ${again(verdict.status)}`, { calm: true });
+        // The right passcode, again: say so briefly and count — the door gives way at `tries`.
+        if (verdict.streak > 1) fail(`Still closed — ${again(verdict.status)} (${verdict.streak} of ${verdict.tries})`, { calm: true });
+        else fail(`That's the right passcode, but the library is closed right now — ${again(verdict.status)}`, { calm: true });
         refreshStatus();
         input.focus();
       } else {

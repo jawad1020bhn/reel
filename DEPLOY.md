@@ -109,6 +109,8 @@ npm run site:password -- --hours on               # the password only works insi
 npm run site:password -- --hours off              # back to "works around the clock"
 npm run site:password -- --hours on --seed "autumn"   # reshuffle the calendar, keep the password
 npm run site:password -- --grace 3                # minutes to finish after a window closes (0–30, default 5)
+npm run site:password -- --force-tries 7          # right passwords in a row that force a closed library open (0 = never)
+npm run site:password -- --force-minutes 30       # how long a forced opening lasts (1–30)
 npm run site:hours                                # preview: this month, today's windows, the status right now
 npm run site:hours -- --month 2026-11 --day 2026-11-03
 ```
@@ -117,7 +119,7 @@ This writes an `availability` block into `site.config.js`; redeploy for it to
 take effect:
 
 ```
-availability: { enabled: true, seed: "", graceMinutes: 5 },
+availability: { enabled: true, seed: "", graceMinutes: 5, forceTries: 7, forceMinutes: 30 },
 ```
 
 ### The calendar
@@ -168,11 +170,35 @@ waking hours, so the library is least available when it is most tempting.
   opens. A closed laptop lid or a background tab cannot stretch a window: the
   clock is re-read on every return and an overdue grace locks immediately.
 
+### Forcing it open
+
+There is exactly one way through a closed door: **the right password, seven
+times in a row** (`forceTries`, default 7). Each entry is answered the same calm
+way; from the second one the gate counts — *"Still closed — it opens again
+later today. (2 of 7)"* — and the seventh opens the library.
+
+- **In a row** means consecutive: a wrong password starts the count over, and so
+  does a window opening in between (that entry is just a normal entry).
+- A forced opening is a **forced window of 30 minutes** (`forceMinutes`, 1–30 —
+  never longer than a real window). It behaves like any other window: a toast
+  says *"Forced open — the library closes again in 30 min"*, the usual grace
+  follows when it ends, then **"Closing time."** If the calendar is still closed
+  by then, it takes seven more.
+- The forced window is remembered **on that device only, for its own duration**
+  (one `localStorage` key), so a reload or a relaunched home-screen app inside
+  it asks for the password once, not seven times. Another device sees nothing.
+  A stored deadline further away than a forced window can be — a clock set
+  back, a tampered value — is dropped.
+- `--force-tries 0` switches forcing off: a closed library then stays closed
+  until the next window, whatever is typed.
+
 ### Honesty
 
 The calendar runs on the **device clock, in the device's time zone**. It is a
 commitment device, not a security boundary: whoever controls the clock controls
-the calendar, and the schedule can always be previewed with `npm run site:hours`.
+the calendar, the schedule can always be previewed with `npm run site:hours`,
+and the door can be forced with enough patience (above) — that is the one
+deliberate exception to "nothing is stored".
 A local `file://` copy never has a site password, so it has no opening hours
 either.
 

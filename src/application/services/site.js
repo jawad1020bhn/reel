@@ -21,6 +21,15 @@
    module). The right passcode at the wrong time is refused with the reason
    "closed"; nothing is stored, the clock alone decides.
 
+   Forcing it open: the one way through a closed door is the right passcode
+   entered `forceTries` times in a row (default 7). A wrong passcode, or a
+   window opening in between, starts the count over. The 7th entry opens a
+   *forced window* of `forceMinutes` (default 30) that behaves like any other
+   window: it closes, the grace runs, "Closing time." comes back. The forced
+   window is remembered on this device (localStorage) for its own duration
+   only, so a reload or a PWA relaunch inside it asks for the passcode once,
+   not seven times.
+
    Honesty note (see DEPLOY.md): a client-side gate stops casual visitors.
    The static files of a deployment — including data/x-posts.json — are still
    public URLs. For real protection use a server-side gate (Vercel
@@ -57,9 +66,46 @@ XR.define("app.site", ["app.ports.platform", "core.availability"], function (pla
   /** Where the clock stands right now: { open, working, until, remaining, … } — always open without a schedule. */
   function status(now = new Date()) {
     if (!scheduled()) return { open: true, always: true, working: true, window: null, until: null, remaining: Infinity, daysAhead: 0 };
-    return availability.status(seed(), now);
+    const s = availability.status(seed(), now);
+    const f = forced(now);
+    if (!f) return s;
+    // Both open: whichever lasts longer decides when "Closing time." comes.
+    return s.open && s.until && s.until.getTime() >= f.until.getTime() ? s : f;
   }
   const phase = (s = status()) => (s.always ? "open" : availability.phase(s));
+
+  /* --------------------------------------------------- forcing it open -- */
+  const FORCED_KEY = "xreels.site.forcedUntil";
+  const forceTries = () => schedule().forceTries;
+  const forceMinutes = () => schedule().forceMinutes;
+  let streak = 0;                    // right passcodes in a row refused for closure
+  let forcedUntil = 0;               // ms since epoch; 0 = no forced window on this device
+  const store = () => { try { return typeof localStorage !== "undefined" ? localStorage : null; } catch { return null; } };
+  function readForced() {
+    if (forcedUntil) return forcedUntil;
+    try { forcedUntil = Number(store()?.getItem(FORCED_KEY)) || 0; } catch { forcedUntil = 0; }
+    return forcedUntil;
+  }
+  function writeForced(until) {
+    forcedUntil = until;
+    try { if (until) store()?.setItem(FORCED_KEY, String(until)); else store()?.removeItem(FORCED_KEY); } catch { /* private mode */ }
+  }
+  /** The forced window if it is running right now, else null. A stored deadline further
+      away than a forced window can be (clock set back) is not trusted and is dropped. */
+  function forced(now = new Date()) {
+    const until = readForced(), t = now.getTime();
+    if (!until) return null;
+    const left = until - t;
+    if (left <= 0 || left > forceMinutes() * 60000 + 1000) { writeForced(0); return null; }
+    return { open: true, forced: true, working: false, window: null, until: new Date(until), remaining: left / 60000, daysAhead: 0 };
+  }
+  /** Open a forced window starting now. */
+  function forceOpen(now = new Date()) {
+    writeForced(now.getTime() + forceMinutes() * 60000);
+    streak = 0;
+    return forced(now);
+  }
+  const streakOf = () => streak;
 
   /** Same digest shape as app.lock: sha256("<salt>:<password>"). */
   async function digest(password) { return platform.sha256(`${salt()}:${String(password ?? "")}`); }
@@ -80,18 +126,24 @@ XR.define("app.site", ["app.ports.platform", "core.availability"], function (pla
     return diff === 0;
   }
 
-  /** The full verdict: { ok, reason: null | "wrong" | "closed", status }.
+  /** The full verdict: { ok, reason: null | "wrong" | "closed", status, streak?, tries?, forced? }.
       The passcode is checked first, the clock second — a wrong passcode is
-      "wrong" at any hour; the right one outside the opening hours is "closed". */
+      "wrong" at any hour; the right one outside the opening hours is "closed"
+      and counts towards forcing the door: the `tries`-th right passcode in a
+      row opens a forced window (`forced: true`). A wrong passcode resets the count. */
   async function check(password, now = new Date()) {
     if (!applies()) return { ok: true, reason: null, status: status(now) };
     const want = await expected();
     if (!want) return { ok: true, reason: null, status: status(now) };
-    if (!same(await digest(password), want)) return { ok: false, reason: "wrong", status: null };
+    if (!same(await digest(password), want)) { streak = 0; return { ok: false, reason: "wrong", status: null }; }
     const s = status(now);
-    return s.open ? { ok: true, reason: null, status: s } : { ok: false, reason: "closed", status: s };
+    if (s.open) { streak = 0; return { ok: true, reason: null, status: s }; }
+    const tries = forceTries();
+    streak++;
+    if (tries > 0 && streak >= tries) return { ok: true, reason: null, forced: true, status: forceOpen(now) };
+    return { ok: false, reason: "closed", status: s, streak, tries };
   }
   async function verify(password, now) { return (await check(password, now)).ok; }
 
-  return { config, isClosed, closedNotice, isEnabled, applies, isLocalFile, hint, title, salt, digest, expected, check, verify, schedule, scheduled, seed, graceMinutes, status, phase };
+  return { config, isClosed, closedNotice, isEnabled, applies, isLocalFile, hint, title, salt, digest, expected, check, verify, schedule, scheduled, seed, graceMinutes, status, phase, forceTries, forceMinutes, forced, streak: streakOf };
 });

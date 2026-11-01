@@ -11,7 +11,8 @@ import { runInNewContext } from "node:vm";
 export const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 export const FILE = join(ROOT, "site.config.js");
 
-export const DEFAULT_AVAILABILITY = { enabled: false, seed: "", graceMinutes: 5 };
+export const DEFAULT_AVAILABILITY = { enabled: false, seed: "", graceMinutes: 5, forceTries: 7, forceMinutes: 30 };
+const clampInt = (value, min, max, fallback) => (Number.isFinite(Number(value)) ? Math.min(max, Math.max(min, Math.round(Number(value)))) : fallback);
 
 /** The current config, or an empty one when the file is missing or unreadable. */
 export function readSiteConfig() {
@@ -26,7 +27,9 @@ export function readSiteConfig() {
     availability: {
       enabled: a.enabled === true || a.enabled === "on" || a.enabled === 1,
       seed: String(a.seed ?? ""),
-      graceMinutes: Number.isFinite(Number(a.graceMinutes)) ? Math.min(30, Math.max(0, Math.round(Number(a.graceMinutes)))) : 5,
+      graceMinutes: clampInt(a.graceMinutes, 0, 30, 5),
+      forceTries: clampInt(a.forceTries, 0, 20, 7),        // right passcodes in a row that force a closed library open; 0 = never
+      forceMinutes: clampInt(a.forceMinutes, 1, 30, 30),   // how long a forced opening lasts
     },
   };
 }
@@ -48,7 +51,7 @@ window.XREELS_SITE = {
   hash: ${JSON.stringify(c.hash)},
   hint: ${JSON.stringify(c.hint)},
   title: ${JSON.stringify(c.title)},
-  availability: { enabled: ${c.availability.enabled ? "true" : "false"}, seed: ${JSON.stringify(c.availability.seed)}, graceMinutes: ${c.availability.graceMinutes} },
+  availability: { enabled: ${c.availability.enabled ? "true" : "false"}, seed: ${JSON.stringify(c.availability.seed)}, graceMinutes: ${c.availability.graceMinutes}, forceTries: ${c.availability.forceTries}, forceMinutes: ${c.availability.forceMinutes} },
 };
 `;
 
@@ -71,6 +74,9 @@ const TEMPLATE = (c) => c.closed ? CLOSED_TEMPLATE(c) : `/* saves — the passwo
      seed          "" → the calendar is derived from the hash above (a new
                    password = a new calendar); any text reshuffles it on its own
      graceMinutes  minutes to finish after a window closes (0–30)
+     forceTries    the one way through a closed door: the right password this
+                   many times in a row (0–20; 0 = never) …
+     forceMinutes  … opens the library for this long (1–30), then it closes again
    Switch with:  npm run site:password -- --hours on|off   ·  preview:  npm run site:hours */
 window.XREELS_SITE = {
   closed: false,
@@ -78,7 +84,7 @@ window.XREELS_SITE = {
   hash: ${JSON.stringify(c.hash)},
   hint: ${JSON.stringify(c.hint)},
   title: ${JSON.stringify(c.title)},
-  availability: { enabled: ${c.availability.enabled ? "true" : "false"}, seed: ${JSON.stringify(c.availability.seed)}, graceMinutes: ${c.availability.graceMinutes} },
+  availability: { enabled: ${c.availability.enabled ? "true" : "false"}, seed: ${JSON.stringify(c.availability.seed)}, graceMinutes: ${c.availability.graceMinutes}, forceTries: ${c.availability.forceTries}, forceMinutes: ${c.availability.forceMinutes} },
 };
 `;
 

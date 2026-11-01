@@ -44,6 +44,7 @@ const plan = A.monthPlan(seed, year, month);
 const C = A.constants;
 
 console.log(`\n  Opening hours — ${config.hash ? "site password set" : "NO site password"} · schedule ${schedule.enabled ? "ON" : "OFF"} · grace ${schedule.graceMinutes} min · ${seedLabel}`);
+console.log(`  Forcing it open — ${schedule.forceTries ? `the right password ${schedule.forceTries} times in a row opens a closed library for ${schedule.forceMinutes} min` : "OFF (a closed library stays closed until the next window)"}`);
 if (!schedule.enabled && seedOverride == null) console.log("  (the schedule is off: the password works around the clock — this is what it would do when switched on)");
 console.log(`\n  ${monthName} ${year} — working days (● the passcode works all day except ${C.SHARE_MINUTES} min of blackouts · · off day, only ${C.SHARE_MINUTES} min of windows)\n`);
 for (const w of plan.weeks) {

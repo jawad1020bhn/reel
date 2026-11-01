@@ -36,6 +36,12 @@
    the time of day: blackouts prefer the evening, access windows prefer waking
    hours — so the app is least available when it is most tempting.
 
+   ── Forcing it open ────────────────────────────────────────────────────────
+   The one way through a closed door: the right passcode entered `forceTries`
+   times in a row (default 7; a wrong one starts over) opens the library for
+   `forceMinutes` (default 30 — never longer than a window). app.site keeps the
+   count and the forced window; this module only normalizes the two settings.
+
    ── Honesty ────────────────────────────────────────────────────────────────
    This runs on the device clock, in the device's time zone. It is a
    self-discipline tool, not a security boundary: whoever controls the clock
@@ -56,6 +62,8 @@ XR.define("core.availability", [], function () {
   const QUOTAS = [4, 3, 3, 2];                      // working days per week of the month
   const MAX_RUN = 2;                                // working days in a row
   const GRACE_DEFAULT = 5, GRACE_MAX = 30;          // minutes to finish after a window closes
+  const FORCE_TRIES_DEFAULT = 7, FORCE_TRIES_MAX = 20;      // right passcodes in a row that force a closed library open (0 = never)
+  const FORCE_MINUTES_DEFAULT = 30, FORCE_MINUTES_MAX = 30; // how long a forced opening lasts — never longer than a window
 
   /* Time-of-day weights, one per hour. Blackouts (working days) lean on the
      evening; access windows (off days) lean on waking hours. */
@@ -105,11 +113,13 @@ XR.define("core.availability", [], function () {
   function normalize(raw) {
     const c = raw && typeof raw === "object" ? raw : {};
     const enabled = c.enabled === true || c.enabled === 1 || c.enabled === "on" || c.enabled === "true";
-    const grace = Number(c.graceMinutes);
+    const grace = Number(c.graceMinutes), tries = Number(c.forceTries), minutes = Number(c.forceMinutes);
     return {
       enabled,
       seed: String(c.seed ?? "").trim(),
       graceMinutes: Number.isFinite(grace) ? Math.min(GRACE_MAX, Math.max(0, Math.round(grace))) : GRACE_DEFAULT,
+      forceTries: Number.isFinite(tries) ? Math.min(FORCE_TRIES_MAX, Math.max(0, Math.round(tries))) : FORCE_TRIES_DEFAULT,
+      forceMinutes: Number.isFinite(minutes) ? Math.min(FORCE_MINUTES_MAX, Math.max(1, Math.round(minutes))) : FORCE_MINUTES_DEFAULT,
     };
   }
 
@@ -305,7 +315,7 @@ XR.define("core.availability", [], function () {
 
   return {
     normalize, monthPlan, dayPlan, status, phase, isWorkingDay,
-    constants: { DAY, SLOT, SHARE, SHARE_MINUTES, WINDOW_MIN, WINDOW_MAX, WINDOWS_MIN, WINDOWS_MAX, QUOTAS, MAX_RUN, GRACE_DEFAULT, GRACE_MAX },
+    constants: { DAY, SLOT, SHARE, SHARE_MINUTES, WINDOW_MIN, WINDOW_MAX, WINDOWS_MIN, WINDOWS_MAX, QUOTAS, MAX_RUN, GRACE_DEFAULT, GRACE_MAX, FORCE_TRIES_DEFAULT, FORCE_TRIES_MAX, FORCE_MINUTES_DEFAULT, FORCE_MINUTES_MAX },
     _internal: { rng, cyrb128, combos, hasRun, hasRhythm, hasEvenTriple, reusesWeekdays, splitMinutes, pickSlots, complement },
   };
 });

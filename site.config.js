@@ -17,6 +17,9 @@
      seed          "" → the calendar is derived from the hash above (a new
                    password = a new calendar); any text reshuffles it on its own
      graceMinutes  minutes to finish after a window closes (0–30)
+     forceTries    the one way through a closed door: the right password this
+                   many times in a row (0–20; 0 = never) …
+     forceMinutes  … opens the library for this long (1–30), then it closes again
    Switch with:  npm run site:password -- --hours on|off   ·  preview:  npm run site:hours */
 window.XREELS_SITE = {
   closed: false,
@@ -24,5 +27,5 @@ window.XREELS_SITE = {
   hash: "a512804f1371c3ecd8a4e9fa011de83b3991f848d78f2648d70babfc01ac0e54",
   hint: "",
   title: "saves",
-  availability: { enabled: true, seed: "", graceMinutes: 5 },
+  availability: { enabled: true, seed: "", graceMinutes: 5, forceTries: 7, forceMinutes: 30 },
 };

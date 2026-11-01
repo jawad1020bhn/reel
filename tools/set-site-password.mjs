@@ -17,6 +17,8 @@
      node tools/set-site-password.mjs --hours off
      node tools/set-site-password.mjs --hours on --seed "autumn"   # reshuffle the calendar without a new password
      node tools/set-site-password.mjs --grace 3           # minutes to finish after a window closes (0–30)
+     node tools/set-site-password.mjs --force-tries 7     # right passwords in a row that force a closed library open (0 = never)
+     node tools/set-site-password.mjs --force-minutes 30  # how long a forced opening lasts (1–30)
 
    A closed library (\`closed: true\` in site.config.js) refuses all of this.
    Only \`--reopen\` — typed on purpose, together with a new password — opens it
@@ -29,7 +31,7 @@ import { readSiteConfig, writeSiteConfig } from "./site-config.mjs";
 const argv = process.argv.slice(2);
 const flags = new Set(argv.filter((a) => a.startsWith("--")));
 const valueOf = (flag) => { const i = argv.indexOf(flag); return i >= 0 ? argv[i + 1] : undefined; };
-const TAKES_VALUE = new Set(["--hint", "--hours", "--seed", "--grace"]);
+const TAKES_VALUE = new Set(["--hint", "--hours", "--seed", "--grace", "--force-tries", "--force-minutes"]);
 const REOPEN = flags.has("--reopen");
 const positional = argv.filter((a, i) => !a.startsWith("--") && !TAKES_VALUE.has(argv[i - 1]));
 
@@ -68,6 +70,18 @@ if (flags.has("--grace")) {
   next.availability.graceMinutes = Math.round(grace);
   notes.push(`grace after a window closes: ${next.availability.graceMinutes} min`);
 }
+if (flags.has("--force-tries")) {
+  const tries = Number(valueOf("--force-tries"));
+  if (!Number.isInteger(tries) || tries < 0 || tries > 20) fail("--force-tries needs a whole number between 0 and 20 (0 = a closed library can never be forced open).");
+  next.availability.forceTries = tries;
+  notes.push(tries ? `forcing it open: the right password ${tries} times in a row opens a closed library for ${next.availability.forceMinutes} min` : "forcing it open: OFF — a closed library stays closed until the next window");
+}
+if (flags.has("--force-minutes")) {
+  const minutes = Number(valueOf("--force-minutes"));
+  if (!Number.isFinite(minutes) || minutes < 1 || minutes > 30) fail("--force-minutes needs a number of minutes between 1 and 30.");
+  next.availability.forceMinutes = Math.round(minutes);
+  notes.push(`a forced opening lasts ${next.availability.forceMinutes} min`);
+}
 
 /* ---- password -------------------------------------------------------- */
 if (flags.has("--clear")) {
@@ -79,7 +93,7 @@ if (flags.has("--clear")) {
 
 const password = positional[0] ?? process.env.XREELS_SITE_PASSWORD ?? "";
 if (!password && !notes.length) {
-  fail('No password given.\n    Usage: npm run site:password -- "your password" [--hint "the usual"] [--hours on|off] [--seed "…"] [--grace 5]\n    Or:    XREELS_SITE_PASSWORD="your password" npm run site:password');
+  fail('No password given.\n    Usage: npm run site:password -- "your password" [--hint "the usual"] [--hours on|off] [--seed "…"] [--grace 5] [--force-tries 7] [--force-minutes 30]\n    Or:    XREELS_SITE_PASSWORD="your password" npm run site:password');
 }
 if (password) {
   if (password.length < 4) fail("The password needs at least 4 characters.");
