@@ -189,7 +189,11 @@ XR.define("features.settings", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog",
       return h("div.lib-row", { class: active ? "active" : "" },
         h("button.lib-main", { onclick: async () => { if (!active) { try { await importer.switchTo(d.id); render(); } catch (e) { actions.toast(e.message, "error"); } } } },
           icons.icon(d.builtin ? "database" : "layers", 16),
-          h("div.lib-text", h("div.lib-name", d.label), h("div.lib-meta", `${dom.compact(d.count || 0)} posts${d.adapter ? " · " + d.adapter : ""}${when ? " · " + when : ""}`)),
+          h("div.lib-text", h("div.lib-name", d.label), h("div.lib-meta", `${dom.compact(d.count || 0)} posts${d.adapter ? " · " + d.adapter : ""}${when ? " · " + when : ""}`),
+            // One library spread over data/x-posts.json, data/x-posts2.json …: show what each file contributed.
+            d.parts?.length > 1 || d.parts?.some((p) => p.error)
+              ? h("div.lib-files", d.parts.map((p, i) => h("span", { class: p.error ? "skipped" : "" }, `${i ? " + " : ""}${p.label} ${p.error ? `(skipped: ${p.error})` : `(${dom.compact(p.count)})`}`)))
+              : null),
           active ? h("span.badge.badge-accent", "Active") : null),
         d.builtin ? null : h("div.row-btns",
           W.iconBtn("edit", "Rename…", async () => { const name = await dialog.prompt("", { title: "Rename library", value: d.label, ok: "Save" }); if (name) { await importer.renameLibrary(d.id, name); render(); } }, { size: 16 }),

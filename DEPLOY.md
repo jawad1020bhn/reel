@@ -15,9 +15,9 @@ is asked, no dataset is fetched. The page shows one quiet screen ("Closed.")
 with nothing to type. The CLIs refuse to touch a closed config; only
 `npm run site:password -- "new password" --reopen` opens it again.
 
-To close for good, also remove the dataset (`data/x-posts.json`,
-`data/r-posts.json`), add those paths to `.gitignore`, and close the doors only
-the owner can close:
+To close for good, also remove the dataset (`data/x-posts.json` and any
+`data/x-posts2.json`… continuation files, `data/r-posts.json`), add those paths
+to `.gitignore`, and close the doors only the owner can close:
 
 | Door | How to close it |
 |---|---|
@@ -198,11 +198,32 @@ The app then lives at `https://<project>.vercel.app`. Every deployment URL is
 its own origin, so a PIN set in one of them does not exist in another — that
 is exactly why the site password is a separate, deployment-wide thing.
 
+### Adding more X posts later: `data/x-posts2.json`
+
+The X library does not have to be one file. Next to `data/x-posts.json` the
+app also reads `data/x-posts2.json`, then `data/x-posts3.json`, and so on, as
+long as the numbers are consecutive (the first missing number ends the series;
+up to `x-posts9.json`). Each file is a normal export in the same format as
+`data/x-posts.json` (`{"export_version": …, "bookmarks": [ … ]}`); the exporter
+can produce it as a separate, incremental dump — no need to merge files by hand.
+
+* All files form **one** library: posts are merged by ID, so a post present in
+  two files appears once (its most recent capture wins). Sorting is by the
+  capture date, so the lists interleave naturally.
+* A missing continuation file is normal, not an error — commit it whenever it is
+  ready and redeploy. Browsers notice the new content and re-index once (the
+  cache key covers every file).
+* A continuation file that is not valid JSON is skipped with a warning in the
+  browser console and in Settings → Data → Libraries; the main file still loads.
+  A broken `data/x-posts.json` is still reported as an error, as before.
+* Settings → Data → Libraries lists the files and how many posts each one
+  contributed. Permanent deletion (§7) searches every file.
+
 **Any other static host** (Netlify, Cloudflare Pages, GitHub Pages, S3, nginx)
 works the same way: upload the folder, serve `index.html` at the root. Only
 `file://` and `https://` are supported (the app fetches `data/x-posts.json`
-and `data/r-posts.json` over http and never over `file://`; on `file://` use
-Import instead).
+with its `data/x-posts2.json`… continuations and `data/r-posts.json` over http
+and never over `file://`; on `file://` use Import instead).
 
 ---
 
@@ -315,9 +336,11 @@ fails safely; supply a suitable permitted data branch/workflow instead.
 
 1. Open a post's **More → Delete from library**.
 2. Read the warning and enter the deletion password. **Cancel** changes nothing.
-3. The server removes every matching top-level row from the configured data file,
-   updates its count, drops the now-stale export verification report, and adds
-   the ID to the shared deletion ledger. It never executes imported JavaScript.
+3. The server removes every matching top-level row from the configured data file
+   (and, for `data/x-posts.json`, from each `data/x-posts2.json`… continuation
+   file that contains the post), updates its count, drops the now-stale export
+   verification report, and adds the ID to the shared deletion ledger. It never
+   executes imported JavaScript.
 4. Only after the durable write succeeds does this browser remove the post from
    the catalog and its cached libraries. An open Viewer closes; Watch returns to
    Library so the removed post does not keep playing.

@@ -1,7 +1,9 @@
 /* app.importer — how posts get into the catalog, and the registry of *libraries*.
 
    Sources (DataSourcePort implementations live in infra.datasources):
-     auto   : data/posts.js (script tag) → data/x-posts.json (http only)
+     auto   : data/posts.js (script tag) → data/x-posts.json (http only), together with
+              its continuation files data/x-posts2.json, data/x-posts3.json … — one
+              library, merged by post id (the most recent capture of a post wins)
      reddit : data/r-posts.json (http only). Read on every boot and merged into the
               catalog beside the active X library; never stored inside an X library.
      file   : a File dropped/picked by the user
@@ -52,7 +54,8 @@ XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.po
     /** All libraries, auto first. */
     async function libraries() {
       await loadIndex();
-      const auto = { id: "auto", label: "data/posts.js", builtin: true, count: catalog.source?.id === "auto" ? libraryPosts().length : (await storage.get(KEY_AUTO).catch(() => null))?.posts?.length || 0 };
+      const live = catalog.source?.id === "auto" ? catalog.source : null;
+      const auto = { id: "auto", label: live?.label || "data/posts.js", builtin: true, parts: live?.parts, count: live ? libraryPosts().length : (await storage.get(KEY_AUTO).catch(() => null))?.posts?.length || 0 };
       return [auto, ...index.items.map((d) => ({ ...d, builtin: false }))];
     }
     const activeId = async () => (await loadIndex()).active;
@@ -154,6 +157,20 @@ XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.po
     }
 
     /* --------------------------------------------------------- auto path -- */
+    /** Union of several normalised exports of the same library, by post id. A post found in
+        more than one file keeps its most recent capture (later file on ties), so a newer
+        continuation file refreshes metrics without duplicating the post. Pure. */
+    function mergeParts(lists) {
+      const byId = new Map();
+      for (const posts of lists) for (const p of posts || []) {
+        const prev = byId.get(p.id);
+        if (!prev || (Number(p.savedAt) || 0) >= (Number(prev.savedAt) || 0)) byId.set(p.id, p);
+      }
+      return [...byId.values()];
+    }
+    /** data/posts.js, or data/x-posts.json with its continuation files (data/x-posts2.json …)
+        — one library whichever way it arrives. The cache key spans every part, so adding a
+        continuation file later re-indexes exactly once. */
     async function loadAuto() {
       const auto = sources.get("auto");
       if (!auto?.available()) return null;
@@ -162,25 +179,41 @@ XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.po
       const res = await auto.load();          // throws with a precise message on a syntax error
       mark("auto-read:end");
       if (!res) return null;
-      const input = res.json ?? res.text;
+      const parts = Array.isArray(res.parts) && res.parts.length ? res.parts : [res];
       mark("fingerprint:start");
-      const fp = fingerprintOf(input);
+      const fp = parts.map((part) => fingerprintOf(part.json ?? part.text)).join("+");
       mark("fingerprint:end");
       mark("auto-cache-read:start");
       const cached = await storage.get(KEY_AUTO).catch(() => null);
       mark("auto-cache-read:end");
       if (cached && cached.fingerprint === fp && Array.isArray(cached.posts) && cached.posts.length) {
         mark("normalize:cache-hit");
-        return { posts: cached.posts, source: { id: "auto", label: res.label, fingerprint: fp, adapter: cached.adapter, cached: true } };
+        return { posts: cached.posts, source: { id: "auto", label: res.label, fingerprint: fp, adapter: cached.adapter, cached: true, parts: cached.parts || [{ label: res.label, count: cached.posts.length }] } };
       }
-      progress("index", "Indexing posts…");
+      progress("index", parts.length > 1 ? `Indexing posts (${parts.length} files)…` : "Indexing posts…");
       mark("normalize:start");
-      const { result } = await normalizeInput(input, res.label);
+      const lists = [], summary = [];
+      let adapter = "";
+      for (const [i, part] of parts.entries()) {
+        const label = part.label || res.label;
+        try {
+          const { result } = await normalizeInput(part.json ?? part.text, label);
+          lists.push(result.posts);
+          summary.push({ label, count: result.posts.length, adapter: result.adapter });
+          adapter = adapter || result.adapter;
+        } catch (err) {
+          if (i === 0) throw err;                 // the main file must be readable
+          // A broken continuation file must not take the whole library down with it.
+          console.warn(`[saves] ${label} skipped: ${err.message}`);
+          summary.push({ label, count: 0, error: err.message });
+        }
+      }
+      const posts = parts.length > 1 ? mergeParts(lists) : lists[0];
       mark("normalize:end");
       mark("auto-cache-write:start");
-      await storage.set(KEY_AUTO, { fingerprint: fp, posts: result.posts, adapter: result.adapter, at: Date.now() }).catch(() => {});
+      await storage.set(KEY_AUTO, { fingerprint: fp, posts, adapter, parts: summary, at: Date.now() }).catch(() => {});
       mark("auto-cache-write:end");
-      return { posts: result.posts, source: { id: "auto", label: res.label, fingerprint: fp, adapter: result.adapter, cached: false } };
+      return { posts, source: { id: "auto", label: res.label, fingerprint: fp, adapter, cached: false, parts: summary } };
     }
     async function loadLibrary(id) {
       await loadIndex();
@@ -351,7 +384,7 @@ XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.po
     return {
       boot, analyze, commit, importFile, importText, importUrl, diffAgainstCatalog,
       libraries, activeId, switchTo, renameLibrary, removeLibrary, forgetImported, clearCache, reload,
-      deletionReady, deletePost, exportPosts, fingerprintOf, KEY_AUTO, KEY_INDEX, KEY_REDDIT, keyFor,
+      deletionReady, deletePost, exportPosts, fingerprintOf, mergeParts, KEY_AUTO, KEY_INDEX, KEY_REDDIT, keyFor,
       libraryPosts, redditStatus: () => reddit.status,
     };
   });

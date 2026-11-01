@@ -24,7 +24,10 @@
                        randomId(bytes)→hex, dpr()→number, isFile()→bool, vibrate(ms) }
    DataSourcesPort   { get(kind)→DataSource|null, all()→DataSource[],
                        deletionState()→Promise<{enabled, deletedIds}>, deletePost(id,password)→Promise<{deleted,id,deletedIds}> }
-   DataSource        { id, label, kind:'auto'|'file'|'text'|'url', available()→bool, load(arg?)→Promise<{json?, text?, label}|null> }
+   DataSource        { id, label, kind:'auto'|'file'|'text'|'url'|'reddit', available()→bool,
+                       load(arg?)→Promise<{json?, text?, label}|{parts:[{json?, text?, label}], label}|null> }
+                     ('parts' = one library spread over several files, e.g. data/x-posts.json + data/x-posts2.json;
+                      the importer merges them by post id)
 */
 XR.define("app.ports", [], function () {
   "use strict";

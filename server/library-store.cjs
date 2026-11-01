@@ -3,6 +3,8 @@
  * commit, with non-force ref updates/retries to preserve concurrent edits. */
 const { createHash, timingSafeEqual } = require("node:crypto");
 const LEDGER = "data/deleted-posts.js";
+const X_POSTS = "data/x-posts.json";
+const X_POSTS_MAX = 9;                     // data/x-posts2.json … data/x-posts9.json, numbered consecutively
 const fail = (status, message) => Object.assign(new Error(message), { status });
 
 function parseData(text) {
@@ -100,6 +102,19 @@ function createHandler({ env = process.env, fetch: request = globalThis.fetch } 
       }
       const ref = `/git/refs/heads/${config.branch.split("/").map(encodeURIComponent).join("/")}`;
       const read = (path, sha, optional = false) => github(`/contents/${path}?ref=${encodeURIComponent(sha)}`, { raw: true, optional });
+      /* Every file of the shared library, pinned to one commit: the configured file plus, for
+         data/x-posts.json, the continuation files the app merges with it (the first missing
+         number ends the series, exactly as in the browser). */
+      async function readLibrary(head) {
+        const files = [{ path: config.path, text: await read(config.path, head) }];
+        if (config.path !== X_POSTS) return files;
+        for (let n = 2; n <= X_POSTS_MAX; n++) {
+          const path = `data/x-posts${n}.json`, text = await read(path, head, true);
+          if (text === null) break;
+          files.push({ path, text });
+        }
+        return files;
+      }
       // Pin every read to the SAME commit, rather than racing a changing branch.
       for (let attempt = 0; attempt < 3; attempt++) {
         const head = (await github(ref.replace("/git/refs/", "/git/ref/"))).object.sha;
@@ -107,14 +122,14 @@ function createHandler({ env = process.env, fetch: request = globalThis.fetch } 
         const deletedIds = ledger === null ? [] : ledgerIds(ledger);
         if (req.method === "GET") return send(200, { enabled: true, deletedIds });
         const id = req.deleteId;
-        const text = await read(config.path, head);
-        const updated = removePost(text, id, config.path);
-        if (updated === null && deletedIds.includes(id)) return send(200, { deleted: true, id, deletedIds });
-        if (updated === null) throw fail(404, "This post is not in the shared data file. Nothing was deleted.");
+        // A post captured in more than one file is removed from each, so it cannot come back when the files are merged.
+        const changed = (await readLibrary(head)).map(({ path, text }) => ({ path, content: removePost(text, id, path) })).filter((f) => f.content !== null);
+        if (!changed.length && deletedIds.includes(id)) return send(200, { deleted: true, id, deletedIds });
+        if (!changed.length) throw fail(404, "This post is not in the shared data files. Nothing was deleted.");
         if (!deletedIds.includes(id)) deletedIds.push(id);
         const commit = await github(`/git/commits/${head}`);
         const files = [
-          { path: config.path, content: updated },
+          ...changed,
           { path: LEDGER, content: `window.XREELS_DELETED_IDS = ${JSON.stringify(deletedIds)};\n` },
         ];
         const treeEntries = await Promise.all(files.map(async ({ path, content }) => ({ path, mode: "100644", type: "blob", sha: (await github("/git/blobs", { method: "POST", body: { content, encoding: "utf-8" } })).sha })));
@@ -130,4 +145,4 @@ function createHandler({ env = process.env, fetch: request = globalThis.fetch } 
     }
   };
 }
-module.exports = { createHandler, parseData, ledgerIds, removePost, configuration };
+module.exports = { createHandler, parseData, ledgerIds, removePost, configuration, X_POSTS, X_POSTS_MAX };

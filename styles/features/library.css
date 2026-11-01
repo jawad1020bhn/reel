@@ -76,6 +76,9 @@
 .lib-row .lib-name { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lib-row .lib-text { color: var(--fg-2); font-size: 12.5px; }
 .lib-meta { font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg-2); }
+/* The files one library is made of (data/x-posts.json + data/x-posts2.json …). */
+.lib-files { font-family: var(--mono); font-size: 11px; color: var(--fg-2); overflow-wrap: anywhere; }
+.lib-files .skipped { color: var(--danger); }
 .lib-main { margin-left: auto; display: flex; align-items: center; gap: 6px; }
 
 @media (max-width: 1100px) {
