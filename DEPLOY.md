@@ -7,25 +7,25 @@ importing and hiding still work without a server.
 
 ---
 
-## 0. This library is closed
+## 0. Closing the library (`closed: true`)
 
-`site.config.js` says `closed: true`. That closes the library **everywhere** —
-the deployment and any local `file://` copy alike: nothing boots, no passcode is
-asked, no dataset is fetched. The page shows one quiet screen ("Closed.") with
-nothing to type. The closing commit also removed the dataset
-(`data/x-posts.json`, `data/r-posts.json`), the password digest and the
-opening hours, added the data files to `.gitignore` so they cannot come back by
-accident, and made the CLIs refuse to touch a closed config.
+`site.config.js` can carry `closed: true`. That closes the library **everywhere**
+— the deployment and any local `file://` copy alike: nothing boots, no passcode
+is asked, no dataset is fetched. The page shows one quiet screen ("Closed.")
+with nothing to type. The CLIs refuse to touch a closed config; only
+`npm run site:password -- "new password" --reopen` opens it again.
 
-Closing the code is the easy half. These doors only the owner can close:
+To close for good, also remove the dataset (`data/x-posts.json`,
+`data/r-posts.json`), add those paths to `.gitignore`, and close the doors only
+the owner can close:
 
 | Door | How to close it |
 |---|---|
-| **The live URL** | Merge this and redeploy — the URL then shows "Closed." and serves no data. Better: delete the Vercel project (*Settings → Delete Project*). That also deletes its environment secrets, including `LIBRARY_GITHUB_TOKEN`; revoke that token in GitHub too (*Settings → Developer settings*). |
-| **Git history** | A deleted file is still in every old commit. Either delete the repository (*Settings → Danger Zone*) or purge the two files from history and force-push: see below. Then delete old clones on your machines — they carry the history too. |
-| **The sources** | The app was only a mirror. In the extension: **X → Unsave → Unsave all bookmarks**, and **Reddit → Unsave → Unsave NSFW saved posts**. Both write a local backup before deleting — afterwards remove the extension (its storage goes with it) and delete the downloaded `x-unsave-backup.json` / `reddit-unsave-backup.json` and export files. |
+| **The live URL** | Merge and redeploy — the URL then shows "Closed." and serves no data. Better: delete the Vercel project (*Settings → Delete Project*). That also deletes its environment secrets, including `LIBRARY_GITHUB_TOKEN`; revoke that token in GitHub too (*Settings → Developer settings*). |
+| **Git history** | A deleted file is still in every old commit. Either delete the repository (*Settings → Danger Zone*) or purge the files from history and force-push: see below. Then delete old clones on your machines — they carry the history too. |
+| **The sources** | The app is only a mirror. In the extension: **X → Unsave → Unsave all bookmarks**, and **Reddit → Unsave → Unsave NSFW saved posts**. Both write a local backup before deleting — afterwards remove the extension (its storage goes with it) and delete the downloaded `x-unsave-backup.json` / `reddit-unsave-backup.json` and export files. |
 | **This browser** | Clear site data for the deployment's origin (or, while the app still opens locally, *Settings → Erase everything*). |
-| **The "just in case" copy** | Any `x-posts.json` / `r-posts.json` export left on disk or in a cloud folder. Don't keep one. |
+| **The "just in case" copy** | Any `x-posts.json` / `r-posts.json` export left on disk or in a cloud folder. |
 
 Purging the dataset from history without deleting the repository:
 
@@ -41,9 +41,8 @@ GitHub may keep the old commits reachable by hash for a while; its documentation
 says to contact GitHub Support to purge cached views. Deleting the repository is
 the simpler, surer option.
 
-**Reopening is deliberately hard.** It takes a new password typed together with
-`--reopen` (`npm run site:password -- "new password" --reopen`), a dataset added
-again, and a redeploy — three separate, conscious steps. Nothing in the app can
+Reopening is deliberately three conscious steps: a new password typed together
+with `--reopen`, a dataset added again, and a redeploy. Nothing in the app can
 do it.
 
 ---
@@ -238,7 +237,7 @@ password does not un-publish an export that was pushed before.
 
 | Symptom | Cause / fix |
 |---|---|
-| The page only says "Closed." | `site.config.js` has `closed: true` — the library was closed on purpose (section 0). |
+| The page only says "Closed." | `site.config.js` has `closed: true` (section 0). Reopen with `npm run site:password -- "…" --reopen`, restore the dataset, redeploy. |
 | The site opens without asking | `site.config.js` has an empty `hash`, or the change was not redeployed. Run the CLI again, redeploy, hard-reload (Ctrl/Cmd+Shift-R). |
 | The prompt asks for the wrong password | The digest in `site.config.js` is for a different password. Re-run `npm run site:password -- "…"` and redeploy. |
 | The prompt never appears although a hash is set | `site.config.js` was not published (check `https://<your-site>/site.config.js` in the browser — it must show a `hash`). |
