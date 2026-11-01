@@ -117,10 +117,11 @@ test("status knows whether the passcode works now and when that changes", () => 
 
 test("normalize() reads the site.config.js block defensively", () => {
   const A = engine();
-  eq(A.normalize(undefined), { enabled: false, seed: "", graceMinutes: 5 });
-  eq(A.normalize({ enabled: "on", seed: "  autumn ", graceMinutes: "3" }), { enabled: true, seed: "autumn", graceMinutes: 3 });
-  eq(A.normalize({ enabled: true, graceMinutes: 99 }), { enabled: true, seed: "", graceMinutes: 30 });
-  eq(A.normalize({ enabled: "yes", graceMinutes: -2 }), { enabled: false, seed: "", graceMinutes: 0 });
+  const force = { forceTries: 7, forceMinutes: 30 };                       // defaults — see tests/site-force-open.test.mjs
+  eq(A.normalize(undefined), { enabled: false, seed: "", graceMinutes: 5, ...force });
+  eq(A.normalize({ enabled: "on", seed: "  autumn ", graceMinutes: "3" }), { enabled: true, seed: "autumn", graceMinutes: 3, ...force });
+  eq(A.normalize({ enabled: true, graceMinutes: 99 }), { enabled: true, seed: "", graceMinutes: 30, ...force });
+  eq(A.normalize({ enabled: "yes", graceMinutes: -2 }), { enabled: false, seed: "", graceMinutes: 0, ...force });
 });
 
 /* ---------------------------------------------------------------- app.site -- */

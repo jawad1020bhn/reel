@@ -15,9 +15,9 @@ is asked, no dataset is fetched. The page shows one quiet screen ("Closed.")
 with nothing to type. The CLIs refuse to touch a closed config; only
 `npm run site:password -- "new password" --reopen` opens it again.
 
-To close for good, also remove the dataset (`data/x-posts.json`,
-`data/r-posts.json`), add those paths to `.gitignore`, and close the doors only
-the owner can close:
+To close for good, also remove the dataset (`data/x-posts.json` and any
+`data/x-posts2.json`… continuation files, `data/r-posts.json`), add those paths
+to `.gitignore`, and close the doors only the owner can close:
 
 | Door | How to close it |
 |---|---|
@@ -109,6 +109,8 @@ npm run site:password -- --hours on               # the password only works insi
 npm run site:password -- --hours off              # back to "works around the clock"
 npm run site:password -- --hours on --seed "autumn"   # reshuffle the calendar, keep the password
 npm run site:password -- --grace 3                # minutes to finish after a window closes (0–30, default 5)
+npm run site:password -- --force-tries 7          # right passwords in a row that force a closed library open (0 = never)
+npm run site:password -- --force-minutes 30       # how long a forced opening lasts (1–30)
 npm run site:hours                                # preview: this month, today's windows, the status right now
 npm run site:hours -- --month 2026-11 --day 2026-11-03
 ```
@@ -117,7 +119,7 @@ This writes an `availability` block into `site.config.js`; redeploy for it to
 take effect:
 
 ```
-availability: { enabled: true, seed: "", graceMinutes: 5 },
+availability: { enabled: true, seed: "", graceMinutes: 5, forceTries: 7, forceMinutes: 30 },
 ```
 
 ### The calendar
@@ -168,11 +170,35 @@ waking hours, so the library is least available when it is most tempting.
   opens. A closed laptop lid or a background tab cannot stretch a window: the
   clock is re-read on every return and an overdue grace locks immediately.
 
+### Forcing it open
+
+There is exactly one way through a closed door: **the right password, seven
+times in a row** (`forceTries`, default 7). Each entry is answered the same calm
+way; from the second one the gate counts — *"Still closed — it opens again
+later today. (2 of 7)"* — and the seventh opens the library.
+
+- **In a row** means consecutive: a wrong password starts the count over, and so
+  does a window opening in between (that entry is just a normal entry).
+- A forced opening is a **forced window of 30 minutes** (`forceMinutes`, 1–30 —
+  never longer than a real window). It behaves like any other window: a toast
+  says *"Forced open — the library closes again in 30 min"*, the usual grace
+  follows when it ends, then **"Closing time."** If the calendar is still closed
+  by then, it takes seven more.
+- The forced window is remembered **on that device only, for its own duration**
+  (one `localStorage` key), so a reload or a relaunched home-screen app inside
+  it asks for the password once, not seven times. Another device sees nothing.
+  A stored deadline further away than a forced window can be — a clock set
+  back, a tampered value — is dropped.
+- `--force-tries 0` switches forcing off: a closed library then stays closed
+  until the next window, whatever is typed.
+
 ### Honesty
 
 The calendar runs on the **device clock, in the device's time zone**. It is a
 commitment device, not a security boundary: whoever controls the clock controls
-the calendar, and the schedule can always be previewed with `npm run site:hours`.
+the calendar, the schedule can always be previewed with `npm run site:hours`,
+and the door can be forced with enough patience (above) — that is the one
+deliberate exception to "nothing is stored".
 A local `file://` copy never has a site password, so it has no opening hours
 either.
 
@@ -198,11 +224,32 @@ The app then lives at `https://<project>.vercel.app`. Every deployment URL is
 its own origin, so a PIN set in one of them does not exist in another — that
 is exactly why the site password is a separate, deployment-wide thing.
 
+### Adding more X posts later: `data/x-posts2.json`
+
+The X library does not have to be one file. Next to `data/x-posts.json` the
+app also reads `data/x-posts2.json`, then `data/x-posts3.json`, and so on, as
+long as the numbers are consecutive (the first missing number ends the series;
+up to `x-posts9.json`). Each file is a normal export in the same format as
+`data/x-posts.json` (`{"export_version": …, "bookmarks": [ … ]}`); the exporter
+can produce it as a separate, incremental dump — no need to merge files by hand.
+
+* All files form **one** library: posts are merged by ID, so a post present in
+  two files appears once (its most recent capture wins). Sorting is by the
+  capture date, so the lists interleave naturally.
+* A missing continuation file is normal, not an error — commit it whenever it is
+  ready and redeploy. Browsers notice the new content and re-index once (the
+  cache key covers every file).
+* A continuation file that is not valid JSON is skipped with a warning in the
+  browser console and in Settings → Data → Libraries; the main file still loads.
+  A broken `data/x-posts.json` is still reported as an error, as before.
+* Settings → Data → Libraries lists the files and how many posts each one
+  contributed. Permanent deletion (§7) searches every file.
+
 **Any other static host** (Netlify, Cloudflare Pages, GitHub Pages, S3, nginx)
 works the same way: upload the folder, serve `index.html` at the root. Only
 `file://` and `https://` are supported (the app fetches `data/x-posts.json`
-and `data/r-posts.json` over http and never over `file://`; on `file://` use
-Import instead).
+with its `data/x-posts2.json`… continuations and `data/r-posts.json` over http
+and never over `file://`; on `file://` use Import instead).
 
 ---
 
@@ -315,9 +362,11 @@ fails safely; supply a suitable permitted data branch/workflow instead.
 
 1. Open a post's **More → Delete from library**.
 2. Read the warning and enter the deletion password. **Cancel** changes nothing.
-3. The server removes every matching top-level row from the configured data file,
-   updates its count, drops the now-stale export verification report, and adds
-   the ID to the shared deletion ledger. It never executes imported JavaScript.
+3. The server removes every matching top-level row from the configured data file
+   (and, for `data/x-posts.json`, from each `data/x-posts2.json`… continuation
+   file that contains the post), updates its count, drops the now-stale export
+   verification report, and adds the ID to the shared deletion ledger. It never
+   executes imported JavaScript.
 4. Only after the durable write succeeds does this browser remove the post from
    the catalog and its cached libraries. An open Viewer closes; Watch returns to
    Library so the removed post does not keep playing.

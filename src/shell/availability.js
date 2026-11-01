@@ -5,7 +5,9 @@
    and, when it does, gives the visitor a short grace (site.config.js
    `graceMinutes`, default 5) with a visible countdown to finish what they are
    watching — then pauses playback and brings the gate back as "Closing time."
-   The passcode is accepted again when the next window opens.
+   The passcode is accepted again when the next window opens — or, seven right
+   passcodes in a row later, for one forced window (app.site), which this
+   module treats like any other: it closes, the grace runs, the gate returns.
 
    Timers alone are not trusted: a closed laptop lid or a throttled background
    tab must not stretch a window, so the clock is re-read on every visibility
@@ -45,7 +47,8 @@ XR.define("shell.availability", ["ui.dom", "ui.toast", "app.site", "app.playback
     if (s.open && s.until) {
       closesAt = s.until.getTime();
       graceUntil = closesAt + graceMs();
-      if (s.remaining <= 60) toast.toast(`Heads-up: this window closes in about ${Math.max(1, Math.round(s.remaining))} min.`, "info", { icon: "clock", timeout: 5000 });
+      if (s.forced) toast.toast(`Forced open — the library closes again in ${Math.max(1, Math.round(s.remaining))} min.`, "info", { icon: "clock", timeout: 6000 });
+      else if (s.remaining <= 60) toast.toast(`Heads-up: this window closes in about ${Math.max(1, Math.round(s.remaining))} min.`, "info", { icon: "clock", timeout: 5000 });
     } else {
       /* Let in during a window that has closed since (clock jump, long sleep): the grace starts now. */
       closesAt = now;

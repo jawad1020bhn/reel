@@ -2,7 +2,10 @@
 
    auto : <script src="data/posts.js"> injected at runtime (works on file://). Looks for
           window.XREELS_DATA, POSTS_DATA, POSTS, BOOKMARKS, xdashData. Falls back to
-          fetch("data/x-posts.json") when running over http(s).
+          fetch("data/x-posts.json") when running over http(s) — plus any continuation
+          files data/x-posts2.json, data/x-posts3.json … (numbered consecutively; the
+          first missing number ends the series). They are one library: the importer
+          merges them by post id. A missing continuation file is normal, not an error.
    file : File/Blob (drag-drop or picker). Reads .json and .js (window.X = {...}).
    text : pasted text (the importer parses it; this is a pass-through for symmetry).
    url  : fetch(url) — http(s) only; blocked on file:// by the browser.
@@ -12,6 +15,31 @@ XR.define("infra.datasources", [], function () {
   "use strict";
   const GLOBALS = ["XREELS_DATA", "POSTS_DATA", "POSTS", "BOOKMARKS", "xdashData", "DATA"];
   const isFile = () => typeof location !== "undefined" && location.protocol === "file:";
+  const X_POSTS = "data/x-posts.json";
+  const X_POSTS_MAX = 9;                                   // data/x-posts2.json … data/x-posts9.json
+  const xPostsPath = (n) => (n <= 1 ? X_POSTS : `data/x-posts${n}.json`);
+  /** The text of a static JSON file, or null when it is absent/unreachable (404 is normal). */
+  async function fetchText(path) {
+    try {
+      const res = await fetch(path, { cache: "no-store" });
+      /* Keep the JSON as text until the importer checks its fingerprint. On a cache hit,
+         this avoids parsing the full export just to discover that normalized posts exist. */
+      if (res.ok) return await res.text();
+    } catch { /* absent or unreachable */ }
+    return null;
+  }
+  /** data/x-posts.json and its numbered continuations, in order. [] when none exists. */
+  async function fetchXPosts() {
+    const parts = [];
+    const primary = await fetchText(X_POSTS);
+    if (primary != null) parts.push({ text: primary, label: X_POSTS });
+    for (let n = 2; n <= X_POSTS_MAX; n++) {
+      const text = await fetchText(xPostsPath(n));
+      if (text == null) break;                               // consecutive numbering: the first gap ends the series
+      parts.push({ text, label: xPostsPath(n) });
+    }
+    return parts;
+  }
 
   function findGlobal() {
     for (const g of GLOBALS) {
@@ -51,12 +79,9 @@ XR.define("infra.datasources", [], function () {
         return typeof value === "string" ? { text: value, label: "data/posts.js" } : { json: value, label: "data/posts.js" };
       }
       if (!isFile() && typeof fetch === "function") {
-        try {
-          const res = await fetch("data/x-posts.json", { cache: "no-store" });
-          /* Keep the JSON as text until the importer checks its fingerprint. On a cache hit,
-             this avoids parsing the full export just to discover that normalized posts exist. */
-          if (res.ok) return { text: await res.text(), label: "data/x-posts.json" };
-        } catch { /* absent */ }
+        const parts = await fetchXPosts();
+        if (parts.length === 1) return { text: parts[0].text, label: parts[0].label };
+        if (parts.length > 1) return { parts, label: parts.map((p) => p.label).join(" + ") };
       }
       return null;
     },
@@ -131,5 +156,5 @@ XR.define("infra.datasources", [], function () {
   };
 
   const list = [auto, file, text, url, reddit];
-  return { get: (kind) => list.find((s) => s.kind === kind || s.id === kind) || null, all: () => list.slice(), GLOBALS, deletionState, deletePost, clearGlobals: () => { for (const g of GLOBALS) try { delete window[g]; } catch { /* non-configurable */ } } };
+  return { get: (kind) => list.find((s) => s.kind === kind || s.id === kind) || null, all: () => list.slice(), GLOBALS, X_POSTS, X_POSTS_MAX, xPostsPath, fetchXPosts, deletionState, deletePost, clearGlobals: () => { for (const g of GLOBALS) try { delete window[g]; } catch { /* non-configurable */ } } };
 });

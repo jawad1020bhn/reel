@@ -34,7 +34,7 @@ XR.define("app.prefs", ["app.ports.storage", "core.events", "core.domain.events"
     hideSensitive: false,     // hide posts flagged sensitive (X), or NSFW (Reddit)
     lockMinutes: 0,           // auto-lock after N minutes hidden (0 = only on launch)
     /* sources — switch each site's saves in or out of every list (data stays loaded) */
-    showX: true,              // posts from the X library (data/x-posts.json, uploads…)
+    showX: true,              // posts from the X library (data/x-posts.json + x-posts2.json…, uploads…)
     showReddit: true,         // posts from data/r-posts.json
     redditImagesOnly: false,  // with Reddit on: photos & galleries only, no Reddit videos
     /* data */

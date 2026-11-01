@@ -31,6 +31,7 @@ XR.define("features.import", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog", "
               h("li", "Open ", h("code", "data/posts.template.js"), " for the exact format."),
               h("li", "Save your export as ", h("code", "data/posts.js"), " starting with ", h("code", "window.XREELS_DATA = "), " and ending with ", h("code", ";")),
               h("li", "Reload. The file is cached until its content changes."),
+              h("li", "Hosted over https? ", h("code", "data/x-posts.json"), " works without the wrapper, and more exports can follow as ", h("code", "data/x-posts2.json"), ", ", h("code", "data/x-posts3.json"), "… (consecutive numbers). They are merged into the same library, without duplicates."),
               h("li", "Reddit saves: save the Reddit export as ", h("code", "data/r-posts.json"), " and reload. It is shown beside your X library, and Settings → Sources turns each one on or off.")),
             h("div.row-btns",
               W.btn("Re-read data/posts.js", { icon: "refresh", onClick: async () => { splashless(async () => { await importer.reload(); }); } }),
