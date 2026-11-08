@@ -119,34 +119,31 @@ XR.define("features.settings", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog",
       return W.section("Shuffle", "How the smart order picks what comes next",
         W.row("Style", "Fresh favours just-saved posts · Balanced mixes everything · Discovery widens the range beyond creators you already open",
           W.segmented([{ value: "fresh", label: "Fresh" }, { value: "balanced", label: "Balanced" }, { value: "discovery", label: "Discovery" }], P("shuffleMode"), set("shuffleMode"))),
-        W.row("Learn from my history", "Dwell time, quick skips and the creators you keep opening shape the weights. Off = a plain unseen-first shuffle",
+        W.row("Learn from my history", "Watched time, quick skips and each creator's record shape the weights (opens fade over 90 days). Off = a plain unseen-first shuffle",
           W.toggle(P("shuffleLearn") !== false, set("shuffleLearn"))),
-        W.row("New deck on reload", "On = every page load deals a fresh order. Off = the same order until you press Shuffle (R)", W.toggle(P("shuffleFreshDeck") !== false, set("shuffleFreshDeck"))),
+        W.row("New deck on reload", "On = every page load deals a fresh order. Off = the deck from earlier today is resumed, so a mid-scroll reload keeps its place", W.toggle(P("shuffleFreshDeck") !== false, set("shuffleFreshDeck"))),
         W.row("Explain the order", "Open the deck with a note under every tile saying what moved it — attention, skips, affinity, or a spread rule it had to break",
           W.btn("Explain my deck", { icon: "info", size: "sm", onClick: explainDeck })),
-        W.row("What it has learned", learned ? `${learned} post${learned === 1 ? "" : "s"} with watched time, ${activity.counts().opened} opened` : "Nothing yet — watch a few posts in the feed and the order starts adapting",
+        W.row("What it has learned", learned ? `${learned} post${learned === 1 ? "" : "s"} with watched time (photos in the Viewer included), ${activity.counts().opened} opened` : "Nothing yet — watch a few posts in the feed or open a photo, and the order starts adapting",
           h("div.row-btns", W.btn("Forget this", { icon: "trash", kind: "danger", onClick: async () => { if (await dialog.confirm("Clear watched time, skips and the last deck? Stars, seen marks and collections stay.", { ok: "Forget", danger: true })) { activity.clearDeck(); activity.clearSignals(); actions.toast("Shuffle history cleared", "success"); render(); } } }))));
     }
     /** Deal the same deck the Library would, then show the engine's reason table. */
     function explainDeck() {
-      const seed = 1 + Math.floor(Math.random() * 2147483646);
-      const res = catalog.query({ sort: "smart", seed, limit: 12, explain: true });
-      const made = XR.resolve("core.i18n").t("Smart shuffle");
-      const head = h("p.muted.small", `${res.total} posts in the deck · showing the first ${Math.min(12, res.items.length)} · seed ${seed}`);
-      const rows = res.items.map((p, i) => {
-        const e = res.explain?.get(p.id) || {};
+      const deck = XR.resolve("app.shuffle").explain({ limit: 12 });
+      const head = h("p.muted.small", `${deck.total} posts in the deck · showing the first ${deck.rows.length} · seed ${deck.seed}`);
+      const rows = deck.rows.map((r) => {
         const reasons = [];
-        if (e.lead) reasons.push(h("span.exp-tag.exp-lead", "lead slot"));
-        for (const n of e.notes || []) reasons.push(h("span.exp-tag", n));
-        for (const b of e.broke || []) reasons.push(h("span.exp-tag.exp-broke", "broke: " + b));
+        if (r.lead) reasons.push(h("span.exp-tag.exp-lead", "lead slot"));
+        for (const n of r.notes) reasons.push(h("span.exp-tag", n));
+        for (const b of r.broke) reasons.push(h("span.exp-tag.exp-broke", "broke: " + b));
         return h("div.exp-row",
-          h("span.exp-rank", String(i + 1)),
-          h("span.exp-who", "@" + (p.author?.username || "?")),
-          h("span.exp-kind", catalog.ctx.kindOf(p)),
+          h("span.exp-rank", String(r.rank)),
+          h("span.exp-who", "@" + r.creator),
+          h("span.exp-kind", r.kind),
           h("span.exp-why", reasons.length ? reasons : h("span.exp-tag", "neutral weight")),
-          h("span.exp-weight", (e.weight || 0).toFixed(2)));
+          h("span.exp-weight", r.weight.toFixed(2)));
       });
-      dialog.open({ title: made, size: "lg", body: h("div.stack", head, h("div.exp-table", rows)),
+      dialog.open({ title: "Smart shuffle", size: "lg", body: h("div.stack", head, h("div.exp-table", rows)),
         actions: [{ label: "Shuffle again", kind: "primary", run: () => { dialog.closeAll(); explainDeck(); } }, { label: "Done", kind: "ghost" }] });
     }
     function playback() {
@@ -279,11 +276,13 @@ XR.define("features.settings", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog",
     }
     return {
       id: "settings", title: "Settings", icon: "settings", route: "/settings", nav: true, order: 110, key: "s",
-      mount(outlet) { host = outlet; render(); }, unmount() { host = null; },
+      mount(outlet, route) { host = outlet; render(); if (route?.query?.explain) setTimeout(explainDeck, 60); }, unmount() { host = null; },
       commands: () => [
         { id: "settings.open", title: "Open Settings", icon: "settings", run: () => nav.go("settings") },
         { id: "settings.blur", title: "Toggle privacy blur", icon: "eyeOff", run: () => prefs.set({ blur: !prefs.get("blur") }) },
         { id: "settings.discreet", title: "Toggle discreet tab title", icon: "shield", run: () => prefs.set({ discreet: !prefs.get("discreet") }) },
+        { id: "shuffle.explain", title: "Shuffle: why is my deck in this order?", icon: "info", run: () => { nav.go("settings"); setTimeout(explainDeck, 60); } },
+        { id: "shuffle.reshuffle", title: "Shuffle: deal a new deck", icon: "shuffle", run: () => nav.go("library", {}, { sort: "smart", seed: 1 + Math.floor(Math.random() * 2147483646) }) },
         { id: "settings.lock", title: lock.isEnabled() ? "Lock now" : "Set a PIN", icon: "lock", run: () => (lock.isEnabled() ? lock.lock() : nav.go("settings")) },
       ],
     };

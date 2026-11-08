@@ -100,8 +100,9 @@ XR.define("core.query.engine", ["core.query.search", "core.util"], function (sea
    *                      a clip swiped past in under a second loses nearly all its weight,
    *                      a clip watched to the end gains up to ×1.9;
    *   · skipRateOf(id)   a post skipped 3+ times is demoted even when it is starred;
-   *   · affinityOf(user) opens of that creator, normalised — up to ×1.35 for a creator the
-   *                      user keeps coming back to, ×0.8 for one they keep passing over;
+   *   · affinityOf(user) a SIGNED creator score (opens decayed over time, minus skipped
+   *                      deals); mapped through tanh to ×0.68–×1.28. A creator the user keeps
+   *                      passing over drops below ×1 instead of keeping a click's boost;
    *   · lastDeck         the previous deck's opening (ids) — those posts, and the creators
    *                      that filled it, are pushed back so two shuffles never look alike;
    *   · sessionSeen      ids the Library already showed this session — demoted, not hidden.
@@ -133,18 +134,24 @@ XR.define("core.query.engine", ["core.query.search", "core.util"], function (sea
     const freshWindow = mode === "fresh" ? 30 : 60;
     const affScale = mode === "discovery" ? 0.4 : 1;
     const creatorDamp = mode === "discovery" ? 1.4 : 1;
-    /* affinity: opens per creator, scaled against the busiest creator, nudged to 0.8–1.35 */
-    const affinity = new Map();
+    /* Affinity is a SIGNED score per creator (opens that decay over time, minus the times
+       the feed dealt them and the user swiped past — see activity.creatorSignalOf). It is
+       mapped through tanh so the pull saturates: +1 open ≈ ×1.05, +4 ≈ ×1.2, negative
+       skips push below ×1 (down to ×0.6). A missing signal leaves the creator neutral. */
+    const creatorMul = new Map();
+    /* How much of the deck a creator is entitled to. The spread pass pulls a creator forward
+       when it is behind its fair share — which would drag a demoted account right back up.
+       So the fair share itself follows the learned score: a skipped account is owed less of
+       the deck (×0.55), one the user keeps returning to is owed more (up to ×1.3). */
+    const creatorShare = new Map();
     if (sig?.affinityOf) {
       for (const user of creatorCount.keys()) {
-        const opens = Number(sig.affinityOf(user)) || 0;
-        if (opens > 0) affinity.set(user, opens);
+        const raw = Number(sig.affinityOf(user)) || 0;
+        if (!raw) continue;
+        creatorMul.set(user, 0.68 + 0.6 * (0.5 + 0.5 * Math.tanh(raw / 3)));
+        creatorShare.set(user, Math.min(1.3, Math.max(0.4, 1 + 0.16 * raw)));
       }
     }
-    let topOpens = 1;
-    for (const opens of affinity.values()) if (opens > topOpens) topOpens = opens;
-    const creatorMul = new Map();
-    for (const [user, opens] of affinity) creatorMul.set(user, 0.8 + 0.55 * Math.min(1, Math.sqrt(opens / topOpens)));
     /* The previous deck's opening: those exact posts, and the creators that filled it,
        are pushed back. Nothing is banned — a fresh seed can still deal them, later. */
     /* lastDeck may be the list itself or a zero-arg getter (the catalog exposes a getter so
@@ -152,7 +159,17 @@ XR.define("core.query.engine", ["core.query.search", "core.util"], function (sea
     const lastDeck = typeof sig?.lastDeck === "function" ? sig.lastDeck() : sig?.lastDeck;
     const deckIds = new Set(Array.isArray(lastDeck) ? lastDeck.slice(0, 24) : []);
     const deckCreators = new Map();
-    if (deckIds.size) for (const p of items) if (deckIds.has(p.id)) deckCreators.set(p.author.username, (deckCreators.get(p.author.username) || 0) + 1);
+    /* If the last deck was full of one creator but the user watched those posts to the end,
+       that creator was not crowding anything out — so the penalty is scaled by how much of
+       their share was actually skipped (see `deckCreators` use in weight()). */
+    const deckHeld = new Map();
+    for (const p of items) {
+      if (!deckIds.has(p.id)) continue;
+      const u = p.author.username;
+      deckCreators.set(u, (deckCreators.get(u) || 0) + 1);
+      const pull = sig?.attentionOf ? Math.min(1, Math.max(0, Number(sig.attentionOf(p.id)) || 0)) : 0;
+      deckHeld.set(u, (deckHeld.get(u) || 0) + pull);
+    }
     const sessionSeen = sig?.sessionSeen ? new Set(sig.sessionSeen) : null;
     const weight = (p) => {
       const notes = explain ? [] : null;
@@ -179,10 +196,25 @@ XR.define("core.query.engine", ["core.query.search", "core.util"], function (sea
       }
       const aff0 = creatorMul.get(p.author.username);
       if (aff0) { const aff = 1 + (aff0 - 1) * affScale; w *= aff; if (Math.abs(aff - 1) > 0.02) notes?.push(`creator affinity ×${aff.toFixed(2)}`); }
-      if (sessionSeen?.has(p.id)) { w *= 0.35; notes?.push("shown this session ×0.35"); }
-      if (deckIds.has(p.id)) { w *= 0.3; notes?.push("opened the last deck ×0.3"); }
+      /* Novelty pressure is real, but it must not bury a post that earns attention:
+         the demotion fades as the post's attention rises (×0.35 → ×0.85 shown-this-session,
+         ×0.30 → ×0.80 last-deck), so a clip watched to the end can still come back while
+         the rest of the opening stays out of the way. */
+      const dwellPull = sig?.attentionOf ? Math.min(1, Math.max(0, Number(sig.attentionOf(p.id)) || 0)) : 0;
+      if (sessionSeen?.has(p.id)) {
+        const mul = 0.35 + 0.5 * dwellPull;
+        w *= mul; notes?.push(`shown this session ×${mul.toFixed(2)}`);
+      }
+      if (deckIds.has(p.id)) {
+        const mul = 0.3 + 0.5 * dwellPull;
+        w *= mul; notes?.push(`opened the last deck ×${mul.toFixed(2)}`);
+      }
       const dc = deckCreators.get(p.author.username);
-      if (dc) { const mul = 1 / (1 + 0.45 * dc); w *= mul; notes?.push(`filled the last deck ×${mul.toFixed(2)}`); }
+      if (dc) {
+        const held = (deckHeld.get(p.author.username) || 0) / dc;      // 0 = all swiped past, 1 = all watched
+        const mul = 1 / (1 + 0.45 * dc * (1 - held));
+        w *= mul; notes?.push(`filled the last deck ×${mul.toFixed(2)}`);
+      }
       if (notes) why.set(p.id, { weight: w, notes });
       return w;
     };
@@ -209,12 +241,20 @@ XR.define("core.query.engine", ["core.query.search", "core.util"], function (sea
     const out = [], rest = [];
     {
       const leadPool = keyed.slice();
+      /* A lead slot is a promise that these are good posts. The weighted draw can put a
+         light post first by luck, so a candidate also has to clear a share of the deck's
+         heaviest weight — otherwise the slot goes to the best inside the window. */
+      let maxWeight = 0;
+      for (const p of items) maxWeight = Math.max(maxWeight, weight(p));
+      const leadFloor = maxWeight * 0.45;
       const leadUsers = new Set(), leadKinds = [];
       while (out.length < leadSize && leadPool.length) {
         let pick = 0;
-        for (let i = 0; i < leadPool.length && i < 12; i++) {
+        for (let i = 0; i < leadPool.length && i < 16; i++) {
           const c = leadPool[i], u = c.author.username;
+          if ((why?.get(c.id)?.weight ?? weight(c)) < leadFloor) continue;
           if (leadUsers.has(u)) continue;
+          /* no three of the same kind in the lead: gifs and text posts count as kinds too */
           if (leadKinds.length >= 2 && leadKinds[leadKinds.length - 1] === kindOf(c) && leadKinds[leadKinds.length - 2] === kindOf(c)) continue;
           pick = i; break;
         }
@@ -253,7 +293,8 @@ XR.define("core.query.engine", ["core.query.search", "core.util"], function (sea
       const gap = creatorGap.get(c.author.username) || SPREAD + 1;
       if (dc < gap) cost += (gap - dc) * 3;
       const placed = placedCreator.get(c.author.username) || 0;
-      const ahead = (placed + 1) / (pos + 1) - (creatorCount.get(c.author.username) || 0) / total;
+      const shareMul = creatorShare.get(c.author.username) || 1;
+      const ahead = (placed + 1) / (pos + 1) - ((creatorCount.get(c.author.username) || 0) * shareMul) / total;
       cost += ahead * 30; /* negative when behind fair share: a lagging creator is pulled forward */
       if (tailRun >= RUN && kindOf(c) === tailKind) cost += 4;
       const tag = tagOf(c);

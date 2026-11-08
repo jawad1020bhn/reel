@@ -61,6 +61,7 @@ window.XREELS_MANIFEST = {
     "src/application/services/catalog.js",
     "src/application/services/importer.js",
     "src/application/services/feed-context.js",
+    "src/application/services/shuffle.js",
     "src/application/services/navigation.js",
     "src/application/services/playback.js",
     "src/application/services/lock.js",

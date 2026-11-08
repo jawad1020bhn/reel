@@ -30,8 +30,16 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
       const spec = engine.fromParams(query);
       /* preference: keep one deck across reloads (off) or deal a new one every load (on) */
       const mayDeal = freshDeck && prefs.get("shuffleFreshDeck") !== false;
-      if (mayDeal && (spec.sort === "smart" || spec.sort === "random")) spec.seed = newSeed();
-      else if (query.sort === undefined && !spec.q) { spec.sort = "smart"; spec.seed = spec.seed || LOAD_SEED; }
+      if (mayDeal && (spec.sort === "smart" || spec.sort === "random")) {
+        spec.seed = newSeed();
+      } else if (query.sort === undefined && !spec.q) {
+        spec.sort = "smart";
+        /* A reload mid-scroll should not lose the order: when "New deck on reload" is off,
+           resume the deck dealt earlier today instead of inventing a seed */
+        spec.seed = catalog.resumeSeed(spec.seed || LOAD_SEED);
+      } else if (spec.sort === "smart" && !spec.seed) {
+        spec.seed = catalog.resumeSeed(LOAD_SEED);
+      }
       return spec;
     };
 
@@ -230,6 +238,9 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
       const ctx = S.spec.sort === "smart" && sessionSeen.length ? catalog.withSessionSeen(sessionSeen) : catalog.ctx;
       S.result = catalog.query(S.spec, ctx);
       if (S.spec.sort === "smart") {
+        /* the deck the Library deals is a deck: remember its opening so the next shuffle
+           (here or in the feed) does not open with the same posts */
+        if (S.spec.sort === "smart" && (S.result.items.length >= 8 || sessionSeen.length)) activity.rememberDeck(S.spec.seed, S.ids);
         const known = new Set(sessionSeen);
         for (const p of S.result.items.slice(0, 30)) if (!known.has(p.id)) { sessionSeen.push(p.id); known.add(p.id); }
         if (sessionSeen.length > SESSION_SEEN_MAX) sessionSeen.splice(0, sessionSeen.length - SESSION_SEEN_MAX);
@@ -382,6 +393,7 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
         { id: "library.shorts", title: "Library: shorts", icon: "zap", run: () => nav.go("library", {}, { kind: "short" }) },
         { id: "library.photos", title: "Library: photos", icon: "image", run: () => nav.go("library", {}, { kind: "photo" }) },
         { id: "library.shuffle", title: "Library: shuffle order", icon: "shuffle", run: () => nav.go("library", {}, { sort: "smart", seed: Date.now() % 2147483646 }) },
+        { id: "library.explain", title: "Library: explain this order", icon: "info", run: () => nav.go("settings", {}, { explain: "1" }) },
         ...activity.views().map((v) => ({ id: "view:" + v.name, title: "View: " + v.name, icon: "view", run: () => nav.go("library", {}, v.spec) })),
       ],
     };

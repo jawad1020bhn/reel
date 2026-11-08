@@ -21,7 +21,43 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.postMenu",
       tiles: [],
       els: {},
       wheelTimer: 0,
+      visit: null,
     };
+
+    /* -------------------------------------------------------- attention -- */
+    /* Photos and albums are opened here, not in the Watch feed, so this is the only place
+       their attention can be measured. One visit = one post on the stage; a stopwatch runs
+       while the tab is visible and is banked when the post changes or the viewer closes.
+       A quick next/next/next through an album therefore reads as skips, exactly like the
+       feed — which is what makes the smart shuffle learn about stills at all. */
+    function startVisitClock() {
+      const v = S.visit;
+      if (!v || v.since || document.hidden) return;
+      v.since = Date.now();
+    }
+    function stopVisitClock() {
+      const v = S.visit;
+      if (!v || !v.since) return;
+      v.held += Date.now() - v.since;
+      v.since = 0;
+    }
+    function beginVisit(post) {
+      endVisit();
+      const m = post?.media?.[S.mediaIndex] || post?.media?.[0];
+      const waiting = !!m && m.kind !== "photo" && m.kind !== "carousel" && !!prefs.get("autoplay") === false;
+      S.visit = post ? { id: post.id, creator: post.author?.username || "", held: 0, since: 0 } : null;
+      /* stills are attention by time alone; a clip only counts once it is actually playing
+         (the play listener starts the clock) */
+      if (!waiting) startVisitClock();
+    }
+    function endVisit() {
+      const v = S.visit;
+      S.visit = null;
+      if (!v) return;
+      stopVisitClock();
+      if (v.held < 120) return;                      // never really on screen
+      activity.noteDwell(v.id, v.held, { ratio: 0, creator: v.creator });
+    }
 
     const SPEEDS = [1, 1.25, 1.5, 2];
 
@@ -77,12 +113,15 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.postMenu",
         events.bus.on(EV.ROUTE_CHANGED, () => close(false)),
         events.bus.on(EV.POST_DELETED, ({ id }) => { if (S.ids.includes(id)) close(false); }),
         events.bus.on(EV.PLAYBACK_CHANGED, () => syncPlaybackState()),
+        /* the tab being hidden is not attention */
+        dom.on(document, "visibilitychange", () => { if (document.hidden) stopVisitClock(); else startVisitClock(); }),
       ];
       render();
     }
 
     function close(animate = true) {
       if (!S.el) return;
+      endVisit();
       for (const off of S.offs) off();
       S.offs = [];
       keys.pop("viewer");
@@ -153,6 +192,8 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.postMenu",
     function render() {
       const post = current();
       if (!post) return close();
+      /* a different post took the stage: bank the previous visit and time this one */
+      if (S.visit?.id !== post.id) beginVisit(post);
       teardownStage();
 
       const frame = S.el.querySelector(".viewer-frame");
@@ -398,10 +439,12 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.postMenu",
       video.addEventListener("play", () => {
         playBtn.innerHTML = "";
         playBtn.appendChild(icons.icon("pause", 18, { filled: true }));
+        startVisitClock();                 // a paused clip is not attention; playing is
       });
       video.addEventListener("pause", () => {
         playBtn.innerHTML = "";
         playBtn.appendChild(icons.icon("play", 18, { filled: true }));
+        stopVisitClock();
       });
 
       dom.append(host, [playBtn, scrub, timeLabel, speedBtn, muteBtn]);
