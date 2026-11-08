@@ -76,3 +76,33 @@
 }
 
 [data-touch="on"] .settings-nav-link { min-height: 44px; }
+
+/* ------------------------------------------------ shuffle: explain table -- */
+.exp-table { display: grid; gap: 6px; }
+.exp-row {
+  display: grid;
+  grid-template-columns: 28px minmax(90px, 1fr) 64px minmax(0, 2.2fr) 56px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: rgb(255 255 255 / 0.02);
+  font-size: 13px;
+}
+.exp-rank { color: var(--fg-2); font-variant-numeric: tabular-nums; }
+.exp-who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.exp-kind { color: var(--fg-2); font-size: 12px; }
+.exp-why { display: flex; flex-wrap: wrap; gap: 4px; }
+.exp-tag { padding: 2px 6px; border-radius: var(--r-pill); background: rgb(255 255 255 / 0.06); font-size: 12px; color: var(--fg-1); }
+.exp-lead { box-shadow: inset 0 0 0 1px var(--accent); }
+.exp-broke { color: var(--warning); }
+.exp-weight { text-align: end; color: var(--fg-2); font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) {
+  .exp-row { grid-template-columns: 24px 1fr 48px; grid-template-areas: "rank who weight" "why why why"; }
+  .exp-rank { grid-area: rank; }
+  .exp-who { grid-area: who; }
+  .exp-kind { display: none; }
+  .exp-why { grid-area: why; }
+  .exp-weight { grid-area: weight; }
+}

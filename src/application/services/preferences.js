@@ -26,6 +26,10 @@ XR.define("app.prefs", ["app.ports.storage", "core.events", "core.domain.events"
     speed: 1,
     shortMaxSeconds: model.SHORT_MAX_SECONDS,
     tileOpens: "auto",        // auto: videos → Watch, photos/albums → Viewer
+    /* shuffle — how the smart shuffle weighs your history (see core.query.engine smartShuffle) */
+    shuffleMode: "balanced",  // fresh | balanced | discovery
+    shuffleLearn: true,       // learn from dwell/skips and creator affinity
+    shuffleFreshDeck: true,   // a page reload deals a new deck (off = keep the same order)
     wheelStep: true,          // one post per mouse-wheel notch in Watch
     /* privacy */
     blur: false,              // blur stills until hover/tap

@@ -5,20 +5,41 @@
    Storage layout (one document, debounced writes):
      { seen: {postId: ms}, starred: {postId: ms}, hidden: {postId: ms},
        progress: {mediaId: {t, d, at}}, collections: [{id, name, createdAt, ids: []}],
-       views: [{name, spec, createdAt}], opens: {postId: count}, creators: {username: score} } */
+       views: [{name, spec, createdAt}], opens: {postId: count}, creators: {username: score},
+       dwell: {postId: {t: seconds, n: visits, s: quick skips, at: ms}},
+       deck: {ids: [postId…], seed, at} }
+
+   `dwell` and `deck` are the learning signals the smart shuffle reads: how long a post
+   actually held the user (versus a sub-second swipe past), and which deck was dealt last,
+   so the next shuffle does not open with the same handful of posts. Both are written
+   silently (no ACTIVITY_CHANGED event): they are ranking input, not user-visible state. */
 XR.define("app.activity", ["app.ports.storage", "core.events", "core.domain.events", "core.util"], function (storage, events, EV, util) {
   "use strict";
   const KEY = "xreels.activity.v1";
-  const EMPTY = () => ({ seen: {}, starred: {}, hidden: {}, progress: {}, collections: [], views: [], opens: {}, creators: {}, unavailable: {}, notes: {} });
+  const EMPTY = () => ({ seen: {}, starred: {}, hidden: {}, progress: {}, collections: [], views: [], opens: {}, creators: {}, unavailable: {}, notes: {}, dwell: {}, deck: null });
 
   let data = EMPTY();
   let dirty = false;
-
+  /* Silent writes (dwell, deck) batch for longer than user actions so scrolling a
+     Watch feed does not hit storage on every swipe. */
+  let quietTimer = 0;
+  const flushQuiet = () => {
+    clearTimeout(quietTimer); quietTimer = 0;
+    if (!dirty) return;
+    dirty = false;
+    storage.set(KEY, data).catch((err) => console.warn("[activity] persist failed", err));
+  };
   const persist = util.debounce(() => {
     if (!dirty) return;
     dirty = false;
     storage.set(KEY, data).catch((err) => console.warn("[activity] persist failed", err));
   }, 400);
+  /** Ranking input only: saved in the background, no ACTIVITY_CHANGED, no re-render. */
+  function quiet() {
+    dirty = true;
+    persist();
+    if (!quietTimer) quietTimer = setTimeout(flushQuiet, 3000);
+  }
   function touch(kind, ids) {
     dirty = true; persist();
     events.bus.emit(EV.ACTIVITY_CHANGED, { kind, ids: Array.isArray(ids) ? ids : [ids] });
@@ -87,7 +108,57 @@ XR.define("app.activity", ["app.ports.storage", "core.events", "core.domain.even
   const unavailableIds = () => Object.keys(data.unavailable);
   function clearUnavailable() { const ids = unavailableIds(); data.unavailable = {}; if (ids.length) touch("unavailable", ids); }
 
-  /* ------------------------------------------------------------ progress -- */
+  /* ------------------------------------------------------ dwell signals -- */
+  /* One visit = one post becoming the active cell in a player surface. A visit that
+     ends before QUICK_MS (or that only reached a third of a clip) counts as a skip:
+     the post was dealt and immediately swiped past. That is the strongest negative
+     signal we have, and it is what the smart shuffle learns from. */
+  const QUICK_MS = 1200;
+  function noteDwell(id, ms, { ratio = 0 } = {}) {
+    if (!id || !(ms > 0)) return;
+    const secs = Math.round(Math.min(ms, 36e5) / 100) / 10;      // seconds, 1 decimal, max 1 h
+    const entry = data.dwell[id] || { t: 0, n: 0, s: 0, at: 0 };
+    entry.t += secs; entry.n += 1; entry.at = Date.now();
+    if (ms < QUICK_MS && ratio < 0.33) entry.s += 1;
+    data.dwell[id] = entry;
+    quiet();
+  }
+  const dwellOf = (id) => data.dwell[id] || null;
+  /** Mean seconds + skip rate for a post, or null when it has never been seen in a player. */
+  function dwellStats(id) {
+    const e = data.dwell[id];
+    if (!e || !e.n) return null;
+    return { mean: e.t / e.n, visits: e.n, skips: e.s, skipRate: e.n ? e.s / e.n : 0, at: e.at || 0 };
+  }
+  /** 0–1: how much this post actually held attention (mean dwell ÷ target, skips subtracted). */
+  function attentionOf(id, target = 6) {
+    const s = dwellStats(id);
+    if (!s) return 0;
+    const hold = Math.min(1, s.mean / Math.max(1, target));
+    /* a post that was only ever skipped has nothing to hold on to: floor it at 0 */
+    return s.skipRate >= 1 ? 0 : util.clamp(hold * (1 - 0.75 * s.skipRate), 0, 1);
+  }
+
+  /* -------------------------------------------------------- deck memory -- */
+  /* The last deck handed to a player surface. The smart shuffle uses its opening to
+     avoid dealing the same first posts again, and the Library uses it to know what it
+     already showed this session. Kept to DECK_KEEP ids so it stays a few KB. */
+  const DECK_KEEP = 60;
+  function rememberDeck(seed, ids) {
+    if (!Array.isArray(ids) || !ids.length) return;
+    data.deck = { seed: seed >>> 0, at: Date.now(), ids: ids.slice(0, DECK_KEEP) };
+    quiet();
+  }
+  const lastDeck = () => data.deck || null;
+  const clearDeck = () => { if (data.deck) { data.deck = null; quiet(); } };
+  /** Forget everything the shuffle learned (dwell, skips, deck memory). Seen/starred/hidden stay. */
+  function clearSignals() {
+    const had = Object.keys(data.dwell || {}).length || data.deck;
+    data.dwell = {}; data.deck = null;
+    if (had) { dirty = true; quiet(); }
+  }
+
+
   function saveProgress(mediaId, t, d) {
     if (!mediaId || !(d > 0)) return;
     const ratio = t / d;
@@ -152,7 +223,7 @@ XR.define("app.activity", ["app.ports.storage", "core.events", "core.domain.even
   /* ----------------------------------------------------------------- bulk -- */
   function bulk(fn) { fn(); touch("bulk", []); }
   function counts() {
-    return { seen: Object.keys(data.seen).length, starred: Object.keys(data.starred).length, hidden: Object.keys(data.hidden).length, progress: Object.keys(data.progress).length, collections: data.collections.length };
+    return { seen: Object.keys(data.seen).length, starred: Object.keys(data.starred).length, hidden: Object.keys(data.hidden).length, progress: Object.keys(data.progress).length, collections: data.collections.length, watched: Object.keys(data.dwell || {}).length, opened: Object.keys(data.opens || {}).length };
   }
   const exportState = () => JSON.parse(JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), ...data }));
   function importState(obj, { merge = true } = {}) {
@@ -160,7 +231,7 @@ XR.define("app.activity", ["app.ports.storage", "core.events", "core.domain.even
     const incoming = { ...EMPTY(), ...obj };
     if (!merge) data = incoming;
     else {
-      for (const k of ["seen", "starred", "hidden", "progress", "opens", "creators"]) data[k] = { ...data[k], ...incoming[k] };
+      for (const k of ["seen", "starred", "hidden", "progress", "opens", "creators", "dwell"]) data[k] = { ...data[k], ...incoming[k] };
       for (const c of incoming.collections || []) { const ex = collection(c.id); if (ex) { for (const id of c.ids) if (!ex.ids.includes(id)) ex.ids.push(id); } else data.collections.push(c); }
       for (const v of incoming.views || []) if (!data.views.find((x) => x.name === v.name)) data.views.push(v);
     }
@@ -175,9 +246,10 @@ XR.define("app.activity", ["app.ports.storage", "core.events", "core.domain.even
     isHidden, toggleHidden,
     isUnavailable, markUnavailable, unavailableIds, clearUnavailable,
     saveProgress, progressEntry, clearProgress, progressOf, progressAt,
+    noteDwell, dwellOf, dwellStats, attentionOf, rememberDeck, lastDeck, clearDeck, clearSignals,
     collections, collection, createCollection, renameCollection, deleteCollection, addToCollection, removeFromCollection, inCollection, collectionsOf,
     views, saveView, deleteView,
     bulk, counts, exportState, importState, resetAll,
-    flush: () => { if (dirty) { dirty = false; return storage.set(KEY, data); } return Promise.resolve(); },
+    flush: () => { clearTimeout(quietTimer); quietTimer = 0; if (dirty) { dirty = false; return storage.set(KEY, data); } return Promise.resolve(); },
   };
 });

@@ -6,7 +6,27 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
     "use strict";
     const h = dom.h;
     const WINDOW = 2;
-    const S = { host: null, root: null, track: null, ids: [], index: 0, cells: new Map(), label: "", spec: null, fitOverride: null, offs: [], seenTimer: 0, lastNav: 0, wheelAcc: 0, wheelTimer: 0, els: {}, endCard: null, infoOpen: false, nextCancelled: false, nextT: 0, nextEnd: 0, idleT: 0, lastAct: 0, posAt: 0 };
+    const S = { host: null, root: null, track: null, ids: [], index: 0, cells: new Map(), label: "", spec: null, fitOverride: null, offs: [], seenTimer: 0, lastNav: 0, wheelAcc: 0, wheelTimer: 0, els: {}, endCard: null, infoOpen: false, nextCancelled: false, nextT: 0, nextEnd: 0, idleT: 0, lastAct: 0, posAt: 0, visit: null };
+
+    /* -------------------------------------------------------- attention -- */
+    /* One visit = a post held the screen. The moment it stops being the active cell
+       (swipe, jump, key, unmount) the visit is banked: how long it held, and how much
+       of its clip played. That is what the smart shuffle learns from — a sub-second
+       swipe past is a skip, five seconds on a clip is attention. */
+    function beginVisit() {
+      const p = current();
+      S.visit = p ? { id: p.id, at: Date.now() } : null;
+    }
+    function endVisit() {
+      const v = S.visit;
+      S.visit = null;
+      if (!v) return;
+      const ms = Date.now() - v.at;
+      /* how much of the clip actually played (saved continuously by playback.js) */
+      const p = catalog.post(v.id);
+      const ratio = p ? activity.progressOf(p) : 0;
+      activity.noteDwell(v.id, ms, { ratio });
+    }
 
     /* ------------------------------------------------------------ context -- */
     function resolveContext(route) {
@@ -18,10 +38,12 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
         ctx = feed.set(all, i, { label: "Everything", origin: "deeplink" });
       } else if (want && ctx) { ctx.index = ctx.ids.indexOf(want); }
       if (!ctx || !ctx.ids.length) {
-        let list = catalog.query({ kind: "short", state: "unseen", sort: "random", seed: util.daySeed() }).items;
+        /* Smart shuffle, not a plain random draw: unseen + learned attention + creator spread,
+           and the previous deck's opening is demoted so Watch does not loop the same clips. */
+        let list = catalog.query({ kind: "short", state: "unseen", sort: "smart", seed: util.daySeed() }).items;
         let label = "Unseen shorts";
-        if (list.length < 5) { list = catalog.query({ state: "unseen", sort: "random", seed: util.daySeed() }).items; label = "Unseen"; }
-        if (list.length < 5) { list = catalog.query({ sort: "random", seed: Date.now() % 99999 }).items; label = "Shuffle"; }
+        if (list.length < 5) { list = catalog.query({ state: "unseen", sort: "smart", seed: util.daySeed() }).items; label = "Unseen"; }
+        if (list.length < 5) { list = catalog.query({ sort: "smart", seed: Date.now() % 99999 }).items; label = "Shuffle"; }
         ctx = feed.set(list.map((p) => p.id), 0, { label, origin: "auto" });
       }
       // drop ids that no longer exist (dataset replaced)
@@ -86,6 +108,9 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
       root.focus({ preventScroll: true });
     }
     function unmount() {
+      endVisit();
+      /* Remember the deck's opening so the next shuffle does not deal the same first posts. */
+      if (S.ids.length) activity.rememberDeck(S.spec?.seed || util.daySeed(), S.ids);
       for (const off of S.offs) off(); S.offs = [];
       setWake(false);
       const ms = mediaApi();
@@ -173,6 +198,8 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
       S.els.arrows.querySelector(".watch-arrow-up").disabled = S.index <= 0;
       S.els.arrows.querySelector(".watch-arrow-down").disabled = S.index >= S.ids.length;
       scheduleSeen();
+      /* a new post took the screen: bank the previous visit and start timing this one */
+      if (S.visit?.id !== S.ids[S.index]) { endVisit(); beginVisit(); }
       feed.setIndex(S.index);
       syncMediaSession();
       /* A swipe between posts may land on a photo or an unstarted clip; the
@@ -193,6 +220,7 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
       if (next === S.ids.length && !S.endCard) return false;
       S.lastNav = Date.now();
       if (moving) { S.infoOpen = false; S.els.info.classList.remove("on"); killNextup(); }
+      endVisit();
       S.index = next;
       if (S.index === S.ids.length) { // end card
         for (const c of S.cells.values()) c.deactivate();
@@ -205,7 +233,7 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
       renderWindow();
       return true;
     }
-    function jump(i) { S.index = util.clamp(i, 0, S.ids.length - 1); for (const c of S.cells.values()) c.destroy(); S.cells.clear(); renderWindow(true); }
+    function jump(i) { endVisit(); S.index = util.clamp(i, 0, S.ids.length - 1); for (const c of S.cells.values()) c.destroy(); S.cells.clear(); renderWindow(true); }
     function bounce() { const track = S.track; track?.classList.add("bounce"); setTimeout(() => track?.classList.remove("bounce"), 300); }
     function endCard() {
       return h("section.cell.cell-end", h("div.end-card", icons.icon("check", 40), h("h2", "You're all caught up"), h("p.muted", `${S.ids.length} posts · ${S.label}`),
