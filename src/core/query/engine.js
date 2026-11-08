@@ -12,7 +12,8 @@
      seed       number used by random sort
      limit      max results
 
-   ctx = { kindOf, isSeen, isStarred, isHidden, inCollection, progressOf, duration }
+   ctx = { kindOf, isSeen, isStarred, isHidden, inCollection, progressOf, duration,
+          signals: { attentionOf, skipRateOf, affinityOf, lastDeck, sessionSeen } }   // all optional
 */
 XR.define("core.query.engine", ["core.query.search", "core.util"], function (search, util) {
   "use strict";
@@ -93,9 +94,26 @@ XR.define("core.query.engine", ["core.query.search", "core.util"], function (sea
    *      so far (see below), so when the remaining pool cannot satisfy every rule —
    *      one creator owning a third of the library, say — it breaks the least-bad one
    *      instead of abandoning the rest or stranding that creator in the tail.
+   *
+   * Weighting is learned, not fixed. `ctx.signals` (optional, see catalog.ctx) adds:
+   *   · attentionOf(id)  0–1 — how long the post actually held the user (dwell minus skips):
+   *                      a clip swiped past in under a second loses nearly all its weight,
+   *                      a clip watched to the end gains up to ×1.9;
+   *   · skipRateOf(id)   a post skipped 3+ times is demoted even when it is starred;
+   *   · affinityOf(user) opens of that creator, normalised — up to ×1.35 for a creator the
+   *                      user keeps coming back to, ×0.8 for one they keep passing over;
+   *   · lastDeck         the previous deck's opening (ids) — those posts, and the creators
+   *                      that filled it, are pushed back so two shuffles never look alike;
+   *   · sessionSeen      ids the Library already showed this session — demoted, not hidden.
+   *
+   * Explain mode: pass `{ explain: true }` and the deck carries an `explain` map — one entry
+   * per post id listing what moved its weight, whether it filled the reserved lead block,
+   * and which spread rule it broke on placement.
    */
-  function smartShuffle(items, seed, ctx) {
+  function smartShuffle(items, seed, ctx, options = {}) {
     const SPREAD = 4, RUN = 3, TAG_SPREAD = 3, LOOK = 64, VIDEO_RUN = 5, now = Date.now();
+    const explain = !!options.explain;
+    const why = explain ? new Map() : null;
     const rnd = util.seededRandom(seed || 1);
     const creatorCount = new Map();
     for (const p of items) creatorCount.set(p.author.username, (creatorCount.get(p.author.username) || 0) + 1);
@@ -104,16 +122,68 @@ XR.define("core.query.engine", ["core.query.search", "core.util"], function (sea
        to the tail no matter its weight. Its target gap is total ÷ its count. */
     const creatorGap = new Map();
     for (const [user, count] of creatorCount) creatorGap.set(user, Math.min(SPREAD + 1, Math.max(1, items.length / count)));
+    /* ---- learned signals (all optional; a missing ctx.signals = the old behaviour) ---- */
+    const sig = ctx.signals || null;
+    /* mode tunes the same machine, it does not swap algorithms:
+         fresh     — favour what was just saved, widen the unseen boost, shorten the freshness window
+         balanced  — the default
+         discovery — mute creator affinity and dampen prolific accounts harder, so the deck wanders */
+    const mode = sig?.mode || "balanced";
+    const unseenMul = mode === "fresh" ? 4.5 : 3;
+    const freshWindow = mode === "fresh" ? 30 : 60;
+    const affScale = mode === "discovery" ? 0.4 : 1;
+    const creatorDamp = mode === "discovery" ? 1.4 : 1;
+    /* affinity: opens per creator, scaled against the busiest creator, nudged to 0.8–1.35 */
+    const affinity = new Map();
+    if (sig?.affinityOf) {
+      for (const user of creatorCount.keys()) {
+        const opens = Number(sig.affinityOf(user)) || 0;
+        if (opens > 0) affinity.set(user, opens);
+      }
+    }
+    let topOpens = 1;
+    for (const opens of affinity.values()) if (opens > topOpens) topOpens = opens;
+    const creatorMul = new Map();
+    for (const [user, opens] of affinity) creatorMul.set(user, 0.8 + 0.55 * Math.min(1, Math.sqrt(opens / topOpens)));
+    /* The previous deck's opening: those exact posts, and the creators that filled it,
+       are pushed back. Nothing is banned — a fresh seed can still deal them, later. */
+    /* lastDeck may be the list itself or a zero-arg getter (the catalog exposes a getter so
+       the deck is only read when a shuffle actually runs) */
+    const lastDeck = typeof sig?.lastDeck === "function" ? sig.lastDeck() : sig?.lastDeck;
+    const deckIds = new Set(Array.isArray(lastDeck) ? lastDeck.slice(0, 24) : []);
+    const deckCreators = new Map();
+    if (deckIds.size) for (const p of items) if (deckIds.has(p.id)) deckCreators.set(p.author.username, (deckCreators.get(p.author.username) || 0) + 1);
+    const sessionSeen = sig?.sessionSeen ? new Set(sig.sessionSeen) : null;
     const weight = (p) => {
+      const notes = explain ? [] : null;
       let w = 1;
-      if (ctx.isUnavailable?.(p.id)) w *= 0.05;
-      if (!ctx.isSeen(p.id)) w *= 3;
-      const pr = ctx.progressOf(p); if (pr > 0.03 && pr < 0.97) w *= 2;
-      if (ctx.isStarred(p.id)) w *= 1.5;
+      if (ctx.isUnavailable?.(p.id)) { w *= 0.05; notes?.push("unavailable ×0.05"); }
+      if (!ctx.isSeen(p.id)) { w *= unseenMul; notes?.push(`unseen ×${unseenMul}`); }
+      const pr = ctx.progressOf(p); if (pr > 0.03 && pr < 0.97) { w *= 2; notes?.push("in progress ×2"); }
+      if (ctx.isStarred(p.id)) { w *= 1.5; notes?.push("starred ×1.5"); }
       const ageDays = Math.max(0, (now - (p.savedAt || 0)) / 864e5);
-      w *= 1 + 0.8 * Math.max(0, 1 - ageDays / 60);
+      const fresh = 1 + 0.8 * Math.max(0, 1 - ageDays / freshWindow);
+      if (fresh > 1.05) notes?.push(`fresh save ×${fresh.toFixed(2)}`);
+      w *= fresh;
       w *= 1 + 0.15 * Math.log10(1 + (p.metrics.likes || 0));
-      w /= 1 + Math.log10(creatorCount.get(p.author.username) || 1);
+      w /= 1 + creatorDamp * Math.log10(creatorCount.get(p.author.username) || 1);
+      /* dwell: did the post hold attention or get swiped past? */
+      if (sig?.attentionOf) {
+        const a = Math.min(1, Math.max(0, Number(sig.attentionOf(p.id)) || 0));
+        if (a > 0) { const mul = 0.55 + 1.35 * a; w *= mul; notes?.push(`attention ${(a * 100) | 0}% ×${mul.toFixed(2)}`); }
+      }
+      const skip = sig?.skipRateOf ? Number(sig.skipRateOf(p.id)) || 0 : 0;
+      if (skip > 0) {
+        const mul = Math.max(0.25, 1 - 1.4 * skip);
+        w *= mul; notes?.push(`skipped ${(skip * 100) | 0}% ×${mul.toFixed(2)}`);
+      }
+      const aff0 = creatorMul.get(p.author.username);
+      if (aff0) { const aff = 1 + (aff0 - 1) * affScale; w *= aff; if (Math.abs(aff - 1) > 0.02) notes?.push(`creator affinity ×${aff.toFixed(2)}`); }
+      if (sessionSeen?.has(p.id)) { w *= 0.35; notes?.push("shown this session ×0.35"); }
+      if (deckIds.has(p.id)) { w *= 0.3; notes?.push("opened the last deck ×0.3"); }
+      const dc = deckCreators.get(p.author.username);
+      if (dc) { const mul = 1 / (1 + 0.45 * dc); w *= mul; notes?.push(`filled the last deck ×${mul.toFixed(2)}`); }
+      if (notes) why.set(p.id, { weight: w, notes });
       return w;
     };
     const keyed = items
@@ -128,13 +198,47 @@ XR.define("core.query.engine", ["core.query.search", "core.util"], function (sea
     /* "Video" means a playable clip (short or long). Photos, carousels, GIFs and text posts are all non-video. */
     const isVideo = (p) => { const k = kindOf(p); return k === "short" || k === "long" || k === "video"; };
     const imageTotal = items.filter((p) => !isVideo(p)).length;
-    const tagOf = (p) => (p.hashtags && p.hashtags[0]) || "";
-    const out = [], rest = keyed, total = items.length;
+    const tagOf = (p) => (p.hashtags && p.hashtags.length ? p.hashtags[0] : "");
+    /* Lead slot: the first few positions are the ones the user actually judges the deck by.
+       A short "best of" block is reserved there from the head of the weighted order, then the
+       spread pass runs on what is left — so the top of the deck reads as curated, and the
+       rest keeps its rules. Block size scales with the library (never more than the deck). */
+    const total = items.length;
+    const leadSize = total < 8 ? 0 : Math.min(5, Math.max(2, Math.round(total * 0.02)));
+    /* The lead block still respects "no creator twice" when it reasonably can. */
+    const out = [], rest = [];
+    {
+      const leadPool = keyed.slice();
+      const leadUsers = new Set(), leadKinds = [];
+      while (out.length < leadSize && leadPool.length) {
+        let pick = 0;
+        for (let i = 0; i < leadPool.length && i < 12; i++) {
+          const c = leadPool[i], u = c.author.username;
+          if (leadUsers.has(u)) continue;
+          if (leadKinds.length >= 2 && leadKinds[leadKinds.length - 1] === kindOf(c) && leadKinds[leadKinds.length - 2] === kindOf(c)) continue;
+          pick = i; break;
+        }
+        const [chosen] = leadPool.splice(pick, 1);
+        leadUsers.add(chosen.author.username); leadKinds.push(kindOf(chosen));
+        out.push(chosen);
+        if (explain) why.get(chosen.id).lead = true;
+      }
+      rest.push(...leadPool);
+    }
     const lastCreator = new Map(), lastTag = new Map(), placedCreator = new Map();
     let tailKind = null, tailRun = 0;
-    /* Videos may run at most VIDEO_RUN in a row: the next post is a non-video whenever one is left.
-       Non-videos are also paced across the whole deck (see `behind`), so they do not bunch up at the start. */
-    let videoRun = 0, imagesPlaced = 0;
+    /* seed the spread state from the lead block so its rules carry into the main pass */
+    for (let i = 0; i < out.length; i++) {
+      const p = out[i];
+      lastCreator.set(p.author.username, i);
+      placedCreator.set(p.author.username, (placedCreator.get(p.author.username) || 0) + 1);
+      if (tagOf(p)) lastTag.set(tagOf(p), i);
+      const k = kindOf(p);
+      if (k === tailKind) tailRun++; else { tailKind = k; tailRun = 1; }
+    }
+    let leadVideoRun = 0;
+    for (const p of out) leadVideoRun = isVideo(p) ? leadVideoRun + 1 : 0;
+    let videoRun = leadVideoRun, imagesPlaced = out.filter((p) => !isVideo(p)).length;
     /* Soft-rule penalty for a candidate at the current tail: breaking a rule costs,
        breaking it worse costs more (a creator 1 slot back ≫ a creator 4 slots back),
        and an unbroken rule costs 0 — so the pick below trades rules off against each
@@ -187,6 +291,18 @@ XR.define("core.query.engine", ["core.query.search", "core.util"], function (sea
       }
       if (pick < 0) pick = 0;
       const [chosen] = rest.splice(pick, 1);
+      if (explain) {
+        const e = why.get(chosen.id) || { weight: 1, notes: [] };
+        e.lead = false;
+        e.broke = [];
+        const dc = out.length - (lastCreator.get(chosen.author.username) ?? -Infinity);
+        const gap = creatorGap.get(chosen.author.username) || SPREAD + 1;
+        if (dc < gap) e.broke.push(`same creator after ${dc} slot${dc === 1 ? "" : "s"}`);
+        if (tailRun >= RUN && kindOf(chosen) === tailKind) e.broke.push(`${tailRun} ${tailKind} posts in a row`);
+        const tag = tagOf(chosen);
+        if (tag && out.length - (lastTag.get(tag) ?? -Infinity) <= TAG_SPREAD) e.broke.push(`#${tag} repeated`);
+        why.set(chosen.id, e);
+      }
       out.push(chosen);
       lastCreator.set(chosen.author.username, out.length - 1);
       placedCreator.set(chosen.author.username, (placedCreator.get(chosen.author.username) || 0) + 1);
@@ -194,6 +310,10 @@ XR.define("core.query.engine", ["core.query.search", "core.util"], function (sea
       const k = kindOf(chosen);
       if (k === tailKind) tailRun++; else { tailKind = k; tailRun = 1; }
       if (isVideo(chosen)) videoRun++; else { videoRun = 0; imagesPlaced++; }
+    }
+    if (explain) {
+      /* the reason table travels beside the deck: one entry per post id */
+      Object.defineProperty(out, "explain", { value: why, enumerable: false });
     }
     return out;
   }
@@ -223,11 +343,13 @@ XR.define("core.query.engine", ["core.query.search", "core.util"], function (sea
     let items = posts.filter((p) => tests.every((t) => t(p, ctx)));
     const sort = compiled.hints.sort && SORTS.includes(compiled.hints.sort) ? compiled.hints.sort : spec.sort;
     if (sort === "random") items = util.shuffle(items, spec.seed || 1);
-    else if (sort === "smart") items = smartShuffle(items, spec.seed, ctx);
+    else if (sort === "smart") items = smartShuffle(items, spec.seed, ctx, { explain: !!rawSpec.explain });
     else items.sort(comparator(sort, spec.seed, ctx));
     const total = items.length;
+    /* explain mode travels with the result, before the limit trims the array */
+    const explain = sort === "smart" && rawSpec.explain ? items.explain || null : null;
     if (spec.limit > 0) items = items.slice(0, spec.limit);
-    return { items, total, spec: { ...spec, sort } };
+    return { items, total, spec: { ...spec, sort }, explain };
   }
 
   /** Counts per facet for a base list (ignores kind/state of the spec itself). */

@@ -9,6 +9,7 @@ XR.define("features.settings", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog",
 
     const SECTIONS = [
       ["appearance", "Appearance", "grid"],
+      ["shuffle", "Shuffle", "shuffle"],
       ["sources", "Sources", "layers"],
       ["playback", "Playback", "play"],
       ["privacy", "Privacy", "shield"],
@@ -25,7 +26,7 @@ XR.define("features.settings", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog",
         h("div.settings-nav-foot",
           W.btn("Reset preferences", { size: "sm", onClick: async () => { if (await dialog.confirm("Reset all preferences to defaults?")) { prefs.reset(); render(); } } }),
           h("p.muted.small", "Changes save instantly in this browser.")));
-      const body = h("div.settings-body", mark(appearance(), "appearance"), mark(sources(), "sources"), mark(playback(), "playback"), mark(privacy(), "privacy"), mark(data(), "data"), mark(about(), "about"));
+      const body = h("div.settings-body", mark(appearance(), "appearance"), mark(shuffle(), "shuffle"), mark(sources(), "sources"), mark(playback(), "playback"), mark(privacy(), "privacy"), mark(data(), "data"), mark(about(), "about"));
       page.append(h("div.settings-cols", nav, body));
       host.appendChild(page);
       observeSections(body, nav);
@@ -110,6 +111,43 @@ XR.define("features.settings", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog",
         W.row("Show Reddit posts", redditText, W.toggle(P("showReddit"), onSource("showReddit"))),
         imagesRow,
         note);
+    }
+    /* Shuffle: what the smart order optimises for. The three modes run the same
+       algorithm with different weights (see core.query.engine smartShuffle). */
+    function shuffle() {
+      const learned = activity.counts().watched;
+      return W.section("Shuffle", "How the smart order picks what comes next",
+        W.row("Style", "Fresh favours just-saved posts · Balanced mixes everything · Discovery widens the range beyond creators you already open",
+          W.segmented([{ value: "fresh", label: "Fresh" }, { value: "balanced", label: "Balanced" }, { value: "discovery", label: "Discovery" }], P("shuffleMode"), set("shuffleMode"))),
+        W.row("Learn from my history", "Dwell time, quick skips and the creators you keep opening shape the weights. Off = a plain unseen-first shuffle",
+          W.toggle(P("shuffleLearn") !== false, set("shuffleLearn"))),
+        W.row("New deck on reload", "On = every page load deals a fresh order. Off = the same order until you press Shuffle (R)", W.toggle(P("shuffleFreshDeck") !== false, set("shuffleFreshDeck"))),
+        W.row("Explain the order", "Open the deck with a note under every tile saying what moved it — attention, skips, affinity, or a spread rule it had to break",
+          W.btn("Explain my deck", { icon: "info", size: "sm", onClick: explainDeck })),
+        W.row("What it has learned", learned ? `${learned} post${learned === 1 ? "" : "s"} with watched time, ${activity.counts().opened} opened` : "Nothing yet — watch a few posts in the feed and the order starts adapting",
+          h("div.row-btns", W.btn("Forget this", { icon: "trash", kind: "danger", onClick: async () => { if (await dialog.confirm("Clear watched time, skips and the last deck? Stars, seen marks and collections stay.", { ok: "Forget", danger: true })) { activity.clearDeck(); activity.clearSignals(); actions.toast("Shuffle history cleared", "success"); render(); } } }))));
+    }
+    /** Deal the same deck the Library would, then show the engine's reason table. */
+    function explainDeck() {
+      const seed = 1 + Math.floor(Math.random() * 2147483646);
+      const res = catalog.query({ sort: "smart", seed, limit: 12, explain: true });
+      const made = XR.resolve("core.i18n").t("Smart shuffle");
+      const head = h("p.muted.small", `${res.total} posts in the deck · showing the first ${Math.min(12, res.items.length)} · seed ${seed}`);
+      const rows = res.items.map((p, i) => {
+        const e = res.explain?.get(p.id) || {};
+        const reasons = [];
+        if (e.lead) reasons.push(h("span.exp-tag.exp-lead", "lead slot"));
+        for (const n of e.notes || []) reasons.push(h("span.exp-tag", n));
+        for (const b of e.broke || []) reasons.push(h("span.exp-tag.exp-broke", "broke: " + b));
+        return h("div.exp-row",
+          h("span.exp-rank", String(i + 1)),
+          h("span.exp-who", "@" + (p.author?.username || "?")),
+          h("span.exp-kind", catalog.ctx.kindOf(p)),
+          h("span.exp-why", reasons.length ? reasons : h("span.exp-tag", "neutral weight")),
+          h("span.exp-weight", (e.weight || 0).toFixed(2)));
+      });
+      dialog.open({ title: made, size: "lg", body: h("div.stack", head, h("div.exp-table", rows)),
+        actions: [{ label: "Shuffle again", kind: "primary", run: () => { dialog.closeAll(); explainDeck(); } }, { label: "Done", kind: "ghost" }] });
     }
     function playback() {
       return W.section("Playback", "How the feed behaves while you watch",

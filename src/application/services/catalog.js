@@ -39,6 +39,16 @@ XR.define("app.catalog", ["core.domain.model", "core.query.engine", "core.rankin
       progressOf: (p) => activity.progressOf(p),
       progressAt: (p) => activity.progressAt(p),
       creatorAffinity: () => activity.creatorAffinity(),
+      /* learned ranking signals for the smart shuffle (see core.query.engine smartShuffle) */
+      signals: {
+        /* "Learn from my history" off = neutral signals, i.e. the plain weighted shuffle */
+        get mode() { return prefs.get("shuffleMode") || "balanced"; },
+        attentionOf: (id) => (prefs.get("shuffleLearn") === false ? 0 : activity.attentionOf(id)),
+        skipRateOf: (id) => (prefs.get("shuffleLearn") === false ? 0 : activity.dwellStats(id)?.skipRate || 0),
+        affinityOf: (user) => (prefs.get("shuffleLearn") === false ? 0 : activity.creatorAffinity().get(user) || 0),
+        lastDeck: () => (prefs.get("shuffleLearn") === false ? null : activity.lastDeck()?.ids || null),
+        sessionSeen: null,          // set by the Library (`withSessionSeen`) — it owns this session's history
+      },
       /* editorial signals for the Discover rail builder */
       collections: () => activity.collections(),
       hashtags: (n) => topHashtags(n),
@@ -132,6 +142,9 @@ XR.define("app.catalog", ["core.domain.model", "core.query.engine", "core.rankin
       return { dupOf, dupGroups };
     }
     const shuffle = (posts, opts) => rails.weightedShuffle(posts, ctx, opts);
+    /** A ctx view whose smart shuffle also knows which posts this session already showed.
+        The Library owns that list (it survives in-page navigation but not a reload). */
+    const withSessionSeen = (ids) => ({ ...ctx, signals: { ...ctx.signals, sessionSeen: ids || null } });
     const duplicatesOf = (id) => (state.dupOf.get(id) || []).filter((x) => x !== id);
     function monthLabel(key) {
       const [y, m] = key.split("-").map(Number);
@@ -139,7 +152,7 @@ XR.define("app.catalog", ["core.domain.model", "core.query.engine", "core.rankin
     }
 
     /* --------------------------------------------------------- queries -- */
-    const query = (spec) => engine.run(state.posts, spec, ctx);
+    const query = (spec, useCtx) => engine.run(state.posts, spec, useCtx || ctx);
     const facets = () => engine.facets(state.posts, ctx);
     const describe = (spec) => engine.describe(spec);
     const post = (id) => state.byId.get(String(id)) || null;
@@ -204,7 +217,7 @@ XR.define("app.catalog", ["core.domain.model", "core.query.engine", "core.rankin
     });
 
     return {
-      load, query, facets, describe, post, media, postsByIds, creator, creators, topHashtags, buildRails, spotlight, stats, related, ctx, duplicatesOf, shuffle, countByPlatform,
+      load, query, facets, describe, post, media, postsByIds, creator, creators, topHashtags, buildRails, spotlight, stats, related, ctx, withSessionSeen, duplicatesOf, shuffle, countByPlatform,
       get dupGroups() { return state.dupGroups; },
       /** Shown posts (after the Settings toggles). */
       get posts() { return state.posts; },

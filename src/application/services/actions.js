@@ -51,11 +51,14 @@ XR.define("app.actions", ["app.activity", "app.catalog", "app.feedContext", "app
     /** Ask the user which collection(s) to add posts to. Emits COLLECTION_PICK for the UI to answer. */
     function addToCollection(postIds) { events.bus.emit(EV.COLLECTION_PICK, { ids: Array.isArray(postIds) ? postIds : [postIds] }); }
 
+    /* Shuffle play uses the same learned order as the Library (smart shuffle), so Watch
+       and the grid agree on what "shuffle" means: unseen first, dwell/skip aware, creator
+       spread, and the previous deck's opening demoted. The seed is fresh every press. */
     function shufflePlay(limit = 200, spec = {}) {
-      const pool = catalog.query({ kind: "all", ...spec }).items;
-      const picked = catalog.shuffle(pool, { limit });
+      const seed = 1 + Math.floor(Math.random() * 2147483646);
+      const picked = catalog.query({ kind: "all", ...spec, sort: "smart", seed, limit }).items;
       if (!picked.length) return toast("Nothing to play yet");
-      watch(picked.map((p) => p.id), 0, { label: "Shuffle" });
+      watch(picked.map((p) => p.id), 0, { label: "Smart shuffle", spec: { ...spec, sort: "smart", seed } });
     }
 
     return { star, hide, openOnX, openLabel, copyLink, copyText, canShare, share, download, watch, view, open, goCreator, goTag, goCollection, goLibrary, addToCollection, shufflePlay, toast };

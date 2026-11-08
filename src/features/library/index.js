@@ -28,7 +28,9 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
     let firstMount = true;
     const specFrom = (query, { freshDeck = false } = {}) => {
       const spec = engine.fromParams(query);
-      if (freshDeck && (spec.sort === "smart" || spec.sort === "random")) spec.seed = newSeed();
+      /* preference: keep one deck across reloads (off) or deal a new one every load (on) */
+      const mayDeal = freshDeck && prefs.get("shuffleFreshDeck") !== false;
+      if (mayDeal && (spec.sort === "smart" || spec.sort === "random")) spec.seed = newSeed();
       else if (query.sort === undefined && !spec.q) { spec.sort = "smart"; spec.seed = spec.seed || LOAD_SEED; }
       return spec;
     };
@@ -216,9 +218,22 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
       if (focusKey) chips.querySelector(`[data-chip="${focusKey}"]`)?.focus({ preventScroll: true });
     }
 
+    /* Session deck memory: every smart-shuffle deck this session dealt, newest last.
+       The next shuffle demotes what the deck already opened with, so pressing R twice
+       does not feel like the same first five posts again. Memory only — never storage. */
+    const SESSION_SEEN_MAX = 400;
+    const sessionSeen = [];
+
     function runQuery(resetScroll = true) {
       if (!S.host) return;
-      S.result = catalog.query(S.spec);
+      /* smart shuffle learns from this session: pass a ctx that knows what was already shown */
+      const ctx = S.spec.sort === "smart" && sessionSeen.length ? catalog.withSessionSeen(sessionSeen) : catalog.ctx;
+      S.result = catalog.query(S.spec, ctx);
+      if (S.spec.sort === "smart") {
+        const known = new Set(sessionSeen);
+        for (const p of S.result.items.slice(0, 30)) if (!known.has(p.id)) { sessionSeen.push(p.id); known.add(p.id); }
+        if (sessionSeen.length > SESSION_SEEN_MAX) sessionSeen.splice(0, sessionSeen.length - SESSION_SEEN_MAX);
+      }
       S.ids = S.result.items.map((p) => p.id);
       renderChips();
       if (resetScroll) S.host.scrollTop = 0;
