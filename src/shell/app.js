@@ -8,7 +8,12 @@ XR.define("shell.app", ["ui.dom", "ui.keys", "ui.toast", "ui.dialog", "ui.menu",
     async function start() {
       /* The site password comes first: a deployed build must not boot (or fetch
          the dataset) before the visitor is let in. No password configured → the
-         promise resolves immediately and nothing changes for a local copy. */
+         promise resolves immediately and nothing changes for a local copy.
+         The markup splash from index.html has to go first — it is above everything
+         else on the page, so leaving it up would hide the passcode form entirely
+         (the app then waits for a passcode nobody can type: a deadlock). */
+      window.XREELS_READY = true;      // loaders stop showing their own "still opening" notice
+      splash.clear();
       try { await siteGate.ensure(); } catch (err) { console.error("[app] site gate failed", err); }
       splash.show();
       try {
@@ -54,6 +59,7 @@ XR.define("shell.app", ["ui.dom", "ui.keys", "ui.toast", "ui.dialog", "ui.menu",
         } catch { /* diagnostics must never break boot */ }
       } catch (err) {
         console.error("[app] boot failed", err);
+        splash.clear();
         splash.fail(err);
       }
     }

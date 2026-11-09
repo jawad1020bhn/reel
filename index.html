@@ -27,6 +27,9 @@
   <style>
     html { background: #0a0a0b; color-scheme: dark; }
     html[data-theme="light"] { background: #f6f6f7; }
+    /* Highest layer on purpose: it must survive until a screen of its own replaces it.
+       --z-boot matches styles/tokens.css (this inline block cannot read a stylesheet it
+       has not loaded yet, so the number is repeated here, and only here). */
     #boot-splash { position: fixed; inset: 0; display: grid; place-items: center; background: inherit;
       transition: opacity .24s ease; z-index: 9999; }
     #boot-splash.is-done { opacity: 0; pointer-events: none; }

@@ -8,10 +8,18 @@ XR.define("shell.splash", ["ui.dom", "ui.icons", "core.events", "core.domain.eve
      first frame is the app's background, not white, even on a cold, slow connection. The
      real splash adopts that node instead of stacking a second one on top of it. */
   function adopt() {
-    const boot = document.getElementById("boot-splash");
+    const boot = typeof document !== "undefined" && document.getElementById("boot-splash");
     if (!boot) return;
     boot.classList.add("is-done");
     setTimeout(() => boot.remove(), 260);
+  }
+  /* Nothing may hand the screen over to a screen of its own (the site passcode, a closed
+     library, an error) while this placeholder is still on top: it is a plain markup
+     overlay with the highest z-index in the app, so it would cover the passcode form
+     forever. Every boot step that takes over the screen calls this first. */
+  function clear() {
+    const boot = typeof document !== "undefined" && document.getElementById("boot-splash");
+    if (boot) boot.remove();
   }
   function show(discreet = false) {
     if (el) return;
@@ -41,5 +49,5 @@ XR.define("shell.splash", ["ui.dom", "ui.icons", "core.events", "core.domain.eve
     el.classList.add("splash-error");
     dom.replace(msg, dom.h("span", "Something went wrong while starting. "), dom.h("code", String(error && error.message || error)), dom.h("br"), dom.h("button.btn.btn-primary", { onclick: () => location.reload(), style: { marginTop: "14px" } }, "Reload"));
   }
-  return { show, set, hide, fail };
+  return { show, set, hide, fail, clear, adopt };
 });
