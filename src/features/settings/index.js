@@ -1,6 +1,6 @@
 /* features.settings — preferences, privacy (PIN, blur), data management, about. */
-XR.define("features.settings", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog", "ui.keys", "app.prefs", "app.lock", "app.site", "app.activity", "app.catalog", "app.importer", "app.actions", "app.nav", "app.ports.storage", "app.ports.platform", "app.ports.playerEngine", "core.domain.model"],
-  function (dom, icons, W, dialog, keys, prefs, lock, site, activity, catalog, importer, actions, nav, storage, platform, player, model) {
+XR.define("features.settings", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog", "ui.keys", "app.prefs", "app.lock", "app.site", "app.activity", "app.catalog", "app.importer", "app.actions", "app.nav", "app.ports.storage", "app.ports.platform", "app.ports.playerEngine", "app.ports.offlineCache", "core.domain.model"],
+  function (dom, icons, W, dialog, keys, prefs, lock, site, activity, catalog, importer, actions, nav, storage, platform, player, offline, model) {
     "use strict";
     const h = dom.h;
     let host = null;
@@ -156,6 +156,7 @@ XR.define("features.settings", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog",
         W.row("Fit", "Auto = fill the screen for vertical clips on phones, letterbox elsewhere", W.segmented([{ value: "auto", label: "Auto" }, { value: "contain", label: "Fit" }, { value: "cover", label: "Fill" }], P("fit"), set("fit"))),
         W.row("Remember position", "Resume long videos where you left them", W.toggle(P("rememberProgress"), set("rememberProgress"))),
         W.row("Preload neighbours", "Warm up the next clip while you watch", W.toggle(P("preload"), set("preload"))),
+        W.row("Preload depth", "How far ahead to warm: Near = 2 clips, Deep = 3 (more mobile data)", W.segmented([{ value: "near", label: "Near" }, { value: "deep", label: "Deep" }], P("preloadDepth"), set("preloadDepth"))),
         W.row("One post per wheel notch", "Off = free scrolling with a mouse wheel", W.toggle(P("wheelStep"), set("wheelStep"))),
         W.row("“Short” means up to", "Threshold between Shorts and Long videos", W.numberInput(P("shortMaxSeconds"), (v) => prefs.set({ shortMaxSeconds: Math.max(10, v || model.SHORT_MAX_SECONDS) }), { min: 10, max: 3600, suffix: "s" })),
         W.row("HLS engine", player.canHls() ? "hls.js loaded — streams fall back to HLS when MP4 fails" : "hls.js loads on demand for HLS streams; MP4 plays without it", null));
@@ -217,8 +218,23 @@ XR.define("features.settings", ["ui.dom", "ui.icons", "ui.widgets", "ui.dialog",
         W.row("Storage", est, h("div.row-btns",
           W.btn("Reset preferences", { onClick: async () => { if (await dialog.confirm("Reset all preferences to defaults?")) { prefs.reset(); render(); } } }),
           W.btn("Erase everything", { icon: "trash", kind: "danger", onClick: async () => { if (await dialog.confirm("Erase stars, collections, history, PIN, imported posts and preferences from this browser? data/posts.js is not affected.", { ok: "Erase", danger: true })) { await lock.forceReset(); await activity.resetAll(); await storage.clear(); location.reload(); } } }))),
+        W.row("Offline cache", offlineNote(), h("div.row-btns",
+          W.toggle(P("offlineCache"), async (v) => { prefs.set({ offlineCache: v }); if (v) { await offline.start({ enabled: true }); await offline.warmShell(); } render(); }),
+          W.btn("Clear media", { icon: "trash", title: "Forget cached video and audio; the app itself still opens instantly", onClick: async () => { const ok = await offline.clearMedia(); actions.toast(ok ? "Cached media cleared" : "Nothing cached yet", ok ? "success" : "info"); render(); } }))),
         W.row("Debug panel", "Environment, boot timings and the last events — handy when reporting a problem", W.btn("Open", { icon: "info", onClick: debugPanel })));
     }
+    /** Human size of what the service worker is holding for this device. The number
+        arrives asynchronously, so the row is patched in place instead of re-rendering. */
+    function offlineNote() {
+      if (!offline.supported) return "Not available when opened from a file — the browser only allows this on a hosted copy";
+      if (prefs.get("offlineCache") === false) return "Off — every visit downloads the app and its clips again";
+      const note = h("span", "On — keeping the app and watched clips on this device");
+      offline.usage().then((u) => {
+        if (u && u.bytes) note.textContent = `On — ${dom.bytes(u.bytes)} cached (${u.entries} files)`;
+      }, () => {});
+      return note;
+    }
+
     function libraryRow(d, active) {
       const when = d.at ? new Date(d.at).toLocaleDateString() : "";
       return h("div.lib-row", { class: active ? "active" : "" },

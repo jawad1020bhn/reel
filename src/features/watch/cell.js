@@ -36,9 +36,14 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu",
       const d = handle?.video.duration || handle?.media.duration || 0;
       return Number.isFinite(d) && d > 0 ? d : 0;
     }
+    /* Dragging the playhead fires an `input` for every pixel; seeking on each one makes
+       the browser abandon a request and start another (the classic scrub freeze). The
+       coalescer keeps at most one seek per frame and lands the last one on release. */
+    const seeker = util.seekCoalescer((t) => { if (handle && !destroyed) handle.seek(t); });
     function endSeek(resume = true) {
       if (!scrubbing) return;
       scrubbing = false; el.classList.remove("is-scrubbing");
+      seeker.flush();                       // the position the user let go of wins
       if (resume && resumeAfterSeek && active && !destroyed) handle?.play();
       resumeAfterSeek = false;
     }
@@ -50,7 +55,10 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu",
     seek.addEventListener("input", () => {
       if (!handle || !duration()) return;
       const t = Number(seek.value) / 100 * duration();
-      handle.seek(t); updateProgress(t, duration());
+      updateProgress(t, duration());
+      /* Scrubbing previews on every frame; a single tap (no drag) seeks immediately. */
+      seeker.request(t);
+      if (!scrubbing) seeker.flush();       // a tap seeks immediately; a drag waits for the frame
     });
     seek.addEventListener("change", () => endSeek());
     seek.addEventListener("pointerup", () => endSeek());
@@ -63,7 +71,8 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu",
       if (!handle || !duration() || (delta === undefined && e.key !== "Home" && e.key !== "End")) return;
       e.preventDefault();
       const t = e.key === "Home" ? 0 : e.key === "End" ? duration() : util.clamp(handle.video.currentTime + delta, 0, duration());
-      handle.seek(t); updateProgress(t, duration());
+      updateProgress(t, duration());
+      seeker.request(t); seeker.flush();
     });
 
     function syncControls() {
@@ -257,9 +266,11 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu",
       for (const s of slides) s.hd?.deactivate();
       syncControls();
     }
+    /** Preload a neighbour: attach the source (metadata) and warm its bytes in the cache. */
     function prepare() { // preload neighbour
       if (!prefs.get("preload")) return;
       if (handle) handle.attach();
+      env.warm?.(post);
     }
     function destroy() {
       if (destroyed) return; destroyed = true;

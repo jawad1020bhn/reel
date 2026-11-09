@@ -20,9 +20,32 @@
   <!-- everything else (stylesheets + scripts, in order) comes from src/manifest.js -->
   <script src="src/manifest.js"></script>
   <script src="src/kernel/loader.js"></script>
+
+  <!-- Paint before a single module executes. The splash lives in the markup (not in JS), so the
+       first frame is the app's own background instead of white — the perceived start is now the
+       HTML response, not the end of a ~1 MB script chain. shell.splash takes the node over. -->
+  <style>
+    html { background: #0a0a0b; color-scheme: dark; }
+    html[data-theme="light"] { background: #f6f6f7; }
+    #boot-splash { position: fixed; inset: 0; display: grid; place-items: center; background: inherit;
+      transition: opacity .24s ease; z-index: 9999; }
+    #boot-splash.is-done { opacity: 0; pointer-events: none; }
+    #boot-splash .bs-mark { width: 44px; height: 44px; opacity: .9; animation: bs-pulse 1.6s ease-in-out infinite; }
+    #boot-splash .bs-label { margin-top: 14px; font: 500 12px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+      letter-spacing: .14em; text-transform: uppercase; color: #7c7c80; }
+    #boot-splash .bs-wrap { display: grid; justify-items: center; }
+    @keyframes bs-pulse { 0%,100% { opacity: .35; transform: scale(.97); } 50% { opacity: .95; transform: scale(1); } }
+    @media (prefers-reduced-motion: reduce) { #boot-splash .bs-mark { animation: none; opacity: .8; } }
+  </style>
 </head>
 <body>
   <noscript><p style="font:16px system-ui;padding:2rem">saves needs JavaScript. Everything runs locally in your browser.</p></noscript>
+  <div id="boot-splash" aria-hidden="true">
+    <div class="bs-wrap">
+      <svg class="bs-mark" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="#141416"/><path d="M20 14 H44 V46 L32 37 L20 46 Z" fill="#e50914"/></svg>
+      <p class="bs-label">Opening your library</p>
+    </div>
+  </div>
   <div id="app"></div>
 </body>
 </html>

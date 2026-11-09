@@ -1,8 +1,8 @@
 /* shell.app — boot sequence and global wiring.
    Order matters: storage → prefs → theme → activity → lock → catalog data →
    features → layout → router → outlet. Each step reports to the splash. */
-XR.define("shell.app", ["ui.dom", "ui.keys", "ui.toast", "ui.dialog", "ui.menu", "app.ports.storage", "app.ports.platform", "app.migrations", "app.diagnostics", "app.prefs", "app.activity", "app.lock", "app.importer", "app.catalog", "app.features", "app.nav", "app.playback", "shell.theme", "shell.layout", "shell.outlet", "shell.lockGate", "shell.siteGate", "shell.availability", "shell.splash", "core.events", "core.domain.events"],
-  function (dom, keys, toast, dialog, menu, storage, platform, migrations, diag, prefs, activity, lock, importer, catalog, features, nav, playback, theme, layout, outlet, lockGate, siteGate, availability, splash, events, EV) {
+XR.define("shell.app", ["ui.dom", "ui.keys", "ui.toast", "ui.dialog", "ui.menu", "app.ports.storage", "app.ports.platform", "app.migrations", "app.diagnostics", "app.prefs", "app.activity", "app.lock", "app.importer", "app.catalog", "app.features", "app.nav", "app.playback", "shell.theme", "shell.layout", "shell.outlet", "shell.lockGate", "shell.siteGate", "shell.availability", "shell.splash", "app.ports.offlineCache", "core.events", "core.domain.events"],
+  function (dom, keys, toast, dialog, menu, storage, platform, migrations, diag, prefs, activity, lock, importer, catalog, features, nav, playback, theme, layout, outlet, lockGate, siteGate, availability, splash, offline, events, EV) {
     "use strict";
 
     async function start() {
@@ -42,6 +42,16 @@ XR.define("shell.app", ["ui.dom", "ui.keys", "ui.toast", "ui.dialog", "ui.menu",
         splash.hide();
         diag.mark("app:ready");
         document.documentElement.classList.add("app-ready");
+        /* Only now, with the app on screen, may the service worker take over: registering
+           earlier would put a worker install in front of the first paint. */
+        try { offline.start({ enabled: prefs.get("offlineCache") !== false }); } catch (err) { console.warn("[app] offline cache unavailable", err); }
+        /* Paint and boot timings, so "it feels slow" can be answered with numbers. */
+        try {
+          const marks = (performance.getEntriesByType?.("mark") || []).filter((m) => m.name.startsWith("xreels:"));
+          const paint = performance.getEntriesByType?.("paint") || [];
+          for (const m of marks) diag.mark(m.name.replace("xreels:", "") + " @" + Math.round(m.startTime) + "ms");
+          for (const p of paint) diag.mark(`${p.name} @${Math.round(p.startTime)}ms`);
+        } catch { /* diagnostics must never break boot */ }
       } catch (err) {
         console.error("[app] boot failed", err);
         splash.fail(err);

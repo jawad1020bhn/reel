@@ -78,6 +78,8 @@ window.XREELS_MANIFEST = {
     "src/infrastructure/router/hash.js",
     "src/infrastructure/media/twimg.js",
     "src/infrastructure/media/player.js",
+    "src/infrastructure/media/prefetch.js",
+    "src/infrastructure/media/offline.js",
     "src/infrastructure/platform/index.js",
     "src/infrastructure/workers/index.js",
     "src/ui/dom.js",

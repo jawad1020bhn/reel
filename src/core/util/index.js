@@ -139,8 +139,37 @@ XR.define("core.util", [], function () {
   }
   const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
+  /**
+   * Coalesce a stream of seek targets into at most one seek per animation frame.
+   * Returns { request(t), flush(), cancel() }: `request` remembers the newest target,
+   * `flush` applies it now (call it when the drag ends, so the position the user let go
+   * of is the one that sticks). Seeking on every pointer event makes the browser abandon
+   * one range request and start another — the freeze people see while scrubbing.
+   */
+  function seekCoalescer(apply, { frame, cancelFrame } = {}) {
+    let pending = null, handle = 0;
+    const schedule = frame || (typeof requestAnimationFrame === "function" ? requestAnimationFrame : (fn) => setTimeout(fn, 16));
+    const cancelSchedule = cancelFrame || (typeof cancelAnimationFrame === "function" ? cancelAnimationFrame : clearTimeout);
+    function flush() {
+      if (handle) { cancelSchedule(handle); handle = 0; }
+      if (pending == null) return;
+      const t = pending; pending = null;
+      apply(t);
+    }
+    return {
+      request(t) {
+        pending = t;
+        if (handle) return;
+        handle = schedule(() => { handle = 0; flush(); });
+      },
+      flush,
+      cancel() { pending = null; if (handle) { cancelSchedule(handle); handle = 0; } },
+      get pending() { return pending; },
+    };
+  }
+
   return {
-    fnv1a, seededRandom, shuffle, daySeed,
+    fnv1a, seededRandom, shuffle, daySeed, seekCoalescer,
     parseDate, monthKey, sameMonthDay, parseDurationSpec, MONTHS,
     extractHashtags, cleanText, truncate, slug, toNumber, clamp, uniq, groupBy, debounce, throttle, uid,
   };

@@ -38,11 +38,17 @@ function autoSource(files, { protocol = "https:" } = {}) {
   return { api, requested };
 }
 
-test("data source: only data/x-posts.json present → exactly the old single-file result; one quiet probe for x-posts2", async () => {
+/* The continuation probes run in parallel, so the number/order of requests is an
+   implementation detail: what matters is that the result is unchanged and no non-x-posts
+   file is touched. */
+const xRequests = (requested) => requested.filter((p) => p.startsWith("data/x-posts"));
+
+test("data source: only data/x-posts.json present → exactly the old single-file result", async () => {
   const { api, requested } = autoSource({ "data/x-posts.json": exportOf([{ tweet_id: "1" }]) });
   const res = plain(await api.get("auto").load());
   assert.deepEqual(res, { text: exportOf([{ tweet_id: "1" }]), label: "data/x-posts.json" });
-  assert.deepEqual(requested.filter((p) => p.startsWith("data/x-posts")), ["data/x-posts.json", "data/x-posts2.json"]);
+  assert.ok(xRequests(requested).includes("data/x-posts2.json"), "the first continuation is probed");
+  assert.ok(xRequests(requested).includes("data/x-posts.json"), "and so is the main file");
 });
 
 test("data source: data/x-posts2.json (and x-posts3…) are returned as parts of the same library, in order", async () => {
@@ -52,7 +58,7 @@ test("data source: data/x-posts2.json (and x-posts3…) are returned as parts of
   assert.equal(res.label, "data/x-posts.json + data/x-posts2.json + data/x-posts3.json");
   assert.deepEqual(res.parts.map((p) => p.label), ["data/x-posts.json", "data/x-posts2.json", "data/x-posts3.json"]);
   assert.deepEqual(res.parts.map((p) => p.text), Object.values(files));
-  assert.deepEqual(requested.filter((p) => p.startsWith("data/x-posts")), ["data/x-posts.json", "data/x-posts2.json", "data/x-posts3.json", "data/x-posts4.json"]);
+  assert.deepEqual([...new Set(xRequests(requested))].sort(), ["data/x-posts.json", "data/x-posts2.json", "data/x-posts3.json", "data/x-posts4.json", "data/x-posts5.json", "data/x-posts6.json", "data/x-posts7.json", "data/x-posts8.json", "data/x-posts9.json"], "every continuation is probed at once, so the whole library costs one round trip");
   assert.equal(api.X_POSTS_MAX, X_POSTS_MAX, "browser and server agree on how far the numbering goes");
 });
 

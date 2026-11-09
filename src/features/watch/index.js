@@ -1,8 +1,8 @@
 /* features.watch — the vertical, one-post-at-a-time feed (TikTok style).
    Virtualised: only the current cell ±2 exist. Navigation is transform based so
    wheel notches, swipes and keys all move exactly one post. */
-XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.widgets", "ui.menu", "ui.postMenu", "ui.keys", "app.catalog", "app.activity", "app.actions", "app.feedContext", "app.playback", "app.prefs", "app.media", "app.nav", "app.ports.platform", "core.events", "core.domain.events", "core.util"],
-  function (cellUI, dom, icons, W, menu, postMenu, keys, catalog, activity, actions, feed, playback, prefs, media, nav, platform, events, EV, util) {
+XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.widgets", "ui.menu", "ui.postMenu", "ui.keys", "app.catalog", "app.activity", "app.actions", "app.feedContext", "app.playback", "app.prefs", "app.media", "app.nav", "app.ports.platform", "app.ports.mediaPrefetch", "core.events", "core.domain.events", "core.util"],
+  function (cellUI, dom, icons, W, menu, postMenu, keys, catalog, activity, actions, feed, playback, prefs, media, nav, platform, prefetch, events, EV, util) {
     "use strict";
     const h = dom.h;
     const WINDOW = 2;
@@ -48,6 +48,45 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
       /* a visit that never really started (instant unmount) is noise, not a skip */
       if (ms < 120) return;
       activity.noteDwell(v.id, ms, { ratio, creator: v.creator });
+    }
+
+    /* ------------------------------------------------------------ warm -- */
+    /* The feed is what makes the cache useful: it knows exactly which clips come next, so
+       it warms them before the swipe. Depth follows the connection — two clips ahead on a
+       good link, one on a slow one, and nothing at all when "Preload neighbours" is off or
+       the browser reports Save-Data. The clip right after this one jumps the queue. */
+    function warmDepth() {
+      if (!prefs.get("preload")) return 0;
+      const c = typeof navigator !== "undefined" ? navigator.connection : null;
+      if (c?.saveData) return 0;
+      if (!c) return 1;
+      if (c.effectiveType && /(^|-)2g$/.test(c.effectiveType)) return 0;
+      if (c.effectiveType === "3g") return 1;
+      return prefs.get("preloadDepth") === "deep" ? 3 : 2;
+    }
+    function warmPost(post, priority = 1) {
+      const depth = warmDepth();
+      if (!depth || !post) return;
+      const src = playerSource(post);
+      if (src) prefetch.prefetch(src.url, { type: src.type }, { priority });
+    }
+    function playerSource(post) {
+      const media = post?.media?.[0];
+      if (!media || media.kind === "photo" || media.kind === "carousel") return null;
+      const list = media.sources || [];
+      return list.find((s) => s && s.url && !/\.m3u8(\?|$)/i.test(s.url)) || null;
+    }
+    /** Warm the neighbours around the current post: next first, then the one after. */
+    function warmWindow() {
+      const depth = warmDepth();
+      if (!depth) return;
+      for (let d = 1; d <= depth; d++) {
+        const next = catalog.post(S.ids[S.index + d]);
+        if (next) warmPost(next, d === 1 ? 0 : 1);
+      }
+      /* one behind, so a swipe back is instant too */
+      const prev = catalog.post(S.ids[S.index - 1]);
+      if (prev) warmPost(prev, 1);
     }
 
     /* ------------------------------------------------------------ context -- */
@@ -191,6 +230,7 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
         },
         onCarouselEnd: () => {}, onCarouselStart: () => {},
         markSeen: () => {},
+        warm: (post) => warmPost(post, 1),
       };
     }
     function renderWindow(initial = false, reuse = false) {
@@ -230,6 +270,7 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
       if (!reuse && S.visit?.id !== S.ids[S.index]) { endVisit(); beginVisit(); }
       feed.setIndex(S.index);
       syncMediaSession();
+      warmWindow();
       /* A swipe between posts may land on a photo or an unstarted clip; the
          wake lock follows the active cell, not the previous one's events. */
       const active = S.cells.get(S.index);

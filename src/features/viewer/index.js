@@ -409,13 +409,20 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.postMenu",
 
       /* Native range input handles mouse/touch/keyboard without global listeners
          that could outlive this stage when the post changes mid-drag. */
+      /* One seek per animation frame: seeking on every `input` makes the browser abandon
+         one range request and start another, the freeze people notice when scrubbing. */
+      const seeker = util.seekCoalescer((at) => { try { video.currentTime = at; } catch { /* not yet seekable */ } });
       seek.addEventListener("input", () => {
         const dur = video.duration || m.duration || 0;
-        if (Number.isFinite(dur) && dur > 0) {
-          try { video.currentTime = Number(seek.value) / 100 * dur; } catch { /* not yet seekable */ }
-          updateControlsProgress(video.currentTime, dur);
-        }
+        if (!(Number.isFinite(dur) && dur > 0)) return;
+        const at = Number(seek.value) / 100 * dur;
+        updateControlsProgress(at, dur);
+        seeker.request(at);
       });
+      /* The drag can end anywhere; the last position is the one that must stick. */
+      for (const type of ["change", "pointerup", "pointercancel", "lostpointercapture"]) {
+        seek.addEventListener(type, () => seeker.flush());
+      }
       seek.addEventListener("keydown", (e) => {
         if (e.key === "Escape") return;
         e.stopPropagation();
