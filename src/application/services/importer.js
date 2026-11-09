@@ -333,7 +333,13 @@ XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.po
     /** "Re-read file": drop every cached dataset (auto + Reddit) so the next boot re-reads
         and re-normalises the files, even when their contents have not changed. */
     async function clearCache() { await storage.remove(KEY_AUTO).catch(() => {}); await storage.remove(KEY_REDDIT).catch(() => {}); }
-    async function reload() { await clearCache(); sources.clearGlobals?.(); return boot(); }
+    /** Re-read from disk: bypass the HTTP cache for this one boot, then restore normal caching. */
+    async function reload() {
+      await clearCache();
+      sources.clearGlobals?.();
+      sources.setRevalidate?.(true);
+      try { return await boot(); } finally { sources.setRevalidate?.(false); }
+    }
 
     /** Refresh once before loading any source (including imported caches). */
     async function refreshDeletions() {

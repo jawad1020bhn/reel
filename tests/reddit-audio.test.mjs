@@ -51,6 +51,8 @@ function setup() {
   });
   let candidates = [];
   XR.provide("app.ports.mediaResolver", { audio: () => candidates.slice(), poster: () => "" });
+  /* warm cache is inert here: these tests are about the audio ladder, not prefetching */
+  XR.provide("app.ports.mediaPrefetch", { blobUrl: () => "", warm: async () => null, prefetch: async () => null, warmAhead() {}, stats: () => ({}), clear() {}, setEnabled() {} });
   XR.provide("app.activity", { progressEntry: () => null, noteOpen: () => {}, saveProgress: () => {}, clearProgress: () => {} });
   const values = { startMuted: false, speed: 1, loopShorts: false, rememberProgress: false, localMediaDir: "" };
   XR.provide("app.prefs", { get: (k) => values[k], set: () => {}, onChange: () => () => {} });

@@ -16,7 +16,7 @@
 XR.define("app.activity", ["app.ports.storage", "core.events", "core.domain.events", "core.util"], function (storage, events, EV, util) {
   "use strict";
   const KEY = "xreels.activity.v1";
-  const EMPTY = () => ({ seen: {}, starred: {}, hidden: {}, progress: {}, collections: [], views: [], opens: {}, creators: {}, unavailable: {}, notes: {}, dwell: {}, deck: null });
+  const EMPTY = () => ({ seen: {}, starred: {}, hidden: {}, progress: {}, collections: [], views: [], opens: {}, creators: {}, unavailable: {}, notes: {}, dwell: {}, creatorDwell: {}, creatorsAt: {}, deck: null });
 
   let data = EMPTY();
   let dirty = false;
@@ -53,6 +53,10 @@ XR.define("app.activity", ["app.ports.storage", "core.events", "core.domain.even
     /* One-time reset. Reddit saves are new in this release, so any "unavailable" mark on a
        Reddit save (id "t3_…") was written by a health check while Reddit's images were still
        blocked by the content policy. Clear those marks once; a later check re-marks real dead ones. */
+    /* Older activity documents predate the learned signals: give them the new maps and
+       trim the dwell table so a restored backup cannot blow past the ceiling. */
+    for (const key of ["dwell", "creatorDwell", "creatorsAt"]) if (!data[key] || typeof data[key] !== "object") data[key] = {};
+    pruneDwell();
     if (data.redditMarksReset !== "v3") {
       for (const id of Object.keys(data.unavailable || {})) if (String(id).startsWith("t3_")) delete data.unavailable[id];
       data.redditMarksReset = "v3";
@@ -73,7 +77,7 @@ XR.define("app.activity", ["app.ports.storage", "core.events", "core.domain.even
     if (!post) return;
     data.opens[post.id] = (data.opens[post.id] || 0) + 1;
     const u = post.author?.username;
-    if (u) data.creators[u] = (data.creators[u] || 0) + 1;
+    if (u) { data.creators[u] = (data.creators[u] || 0) + 1; data.creatorsAt[u] = Date.now(); }
     markSeen(post.id, true);
   }
   const creatorAffinity = () => new Map(Object.entries(data.creators));
@@ -114,13 +118,34 @@ XR.define("app.activity", ["app.ports.storage", "core.events", "core.domain.even
      the post was dealt and immediately swiped past. That is the strongest negative
      signal we have, and it is what the smart shuffle learns from. */
   const QUICK_MS = 1200;
-  function noteDwell(id, ms, { ratio = 0 } = {}) {
+  /* A library of thousands is watched one post at a time: without a ceiling the dwell map
+     would grow for ever and every save would carry it to storage. Past DWELL_MAX the least
+     recently watched entries are dropped, so the shuffle keeps remembering what matters —
+     what you watched lately — and the document stays small. */
+  const DWELL_MAX = 2000;
+  function pruneDwell() {
+    const ids = Object.keys(data.dwell);
+    if (ids.length <= DWELL_MAX) return;
+    ids.sort((a, b) => (data.dwell[a].at || 0) - (data.dwell[b].at || 0));
+    for (const id of ids.slice(0, ids.length - DWELL_MAX)) delete data.dwell[id];
+  }
+  /* The same visit is also banked against its creator: one account's posts being swiped
+     past again and again is a signal about the account, not just about those posts. */
+  function noteDwell(id, ms, { ratio = 0, creator = "" } = {}) {
     if (!id || !(ms > 0)) return;
     const secs = Math.round(Math.min(ms, 36e5) / 100) / 10;      // seconds, 1 decimal, max 1 h
+    const skip = ms < QUICK_MS && ratio < 0.33;
     const entry = data.dwell[id] || { t: 0, n: 0, s: 0, at: 0 };
     entry.t += secs; entry.n += 1; entry.at = Date.now();
-    if (ms < QUICK_MS && ratio < 0.33) entry.s += 1;
+    if (skip) entry.s += 1;
     data.dwell[id] = entry;
+    if (creator) {
+      const c = data.creatorDwell[creator] || { t: 0, n: 0, s: 0, at: 0 };
+      c.t += secs; c.n += 1; c.at = Date.now();
+      if (skip) c.s += 1;
+      data.creatorDwell[creator] = c;
+    }
+    pruneDwell();
     quiet();
   }
   const dwellOf = (id) => data.dwell[id] || null;
@@ -139,14 +164,89 @@ XR.define("app.activity", ["app.ports.storage", "core.events", "core.domain.even
     return s.skipRate >= 1 ? 0 : util.clamp(hold * (1 - 0.75 * s.skipRate), 0, 1);
   }
 
+  /* --------------------------------------------------- creator signal -- */
+  /* Two things shape a creator's pull, and neither existed before:
+       · opens decay with a 90-day half-life, so an account you binged last year stops
+         dominating the deck (a one-off click is not a standing preference);
+       · being swiped past counts against it, so an account you keep skipping drops below
+         neutral even though you have opened it a few times.
+     Returns a signed score (roughly -3 … +15); core.query.engine maps it to a multiplier. */
+  const CREATOR_HALF_LIFE_DAYS = 90;
+  function creatorSignalOf(user, now = Date.now()) {
+    if (!user) return 0;
+    const opens = data.creators[user] || 0;
+    const last = data.creatorsAt?.[user] || 0;
+    const ageDays = last ? Math.max(0, (now - last) / 864e5) : 0;
+    const decay = opens ? Math.pow(0.5, ageDays / CREATOR_HALF_LIFE_DAYS) : 0;
+    const d = data.creatorDwell?.[user];
+    /* Count the skips, do not just take their rate: being dealt twenty posts and swiping
+       past eighteen is a stronger statement than being dealt two and skipping one, and a
+       rate alone can never outweigh a pile of old opens. */
+    const skips = d?.s || 0;
+    return opens * decay - 1.2 * skips;
+  }
+  /** Creators the shuffle currently trusts (signed score > 0), for Insights and debug. */
+  function creatorSignals(limit = 8) {
+    const users = new Set([...Object.keys(data.creators || {}), ...Object.keys(data.creatorDwell || {})]);
+    return [...users]
+      .map((user) => ({ user, score: creatorSignalOf(user), opens: data.creators[user] || 0, ...(data.creatorDwell?.[user] || {}) }))
+      .filter((x) => x.score !== 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit);
+  }
+
+  /* ------------------------------------------------------------ quality -- */
+  /**
+   * Is the deck actually working? These three numbers answer that without tracking
+   * anything new — they are derived from the dwell table and the last deck:
+   *   firstTen  mean attention (0–1) of the posts that opened recent decks — the ones
+   *             the user judges the shuffle by;
+   *   skips     share of visits that were swiped past in under a second;
+   *   reached   how far into the last deck the user got before leaving (0–1).
+   * Everything is local; nothing leaves the browser.
+   */
+  function quality() {
+    const ids = Object.keys(data.dwell || {});
+    let visits = 0, skips = 0, sum = 0, counted = 0;
+    for (const id of ids) {
+      const s = dwellStats(id);
+      if (!s) continue;
+      visits += s.visits; skips += s.skips;
+      const a = attentionOf(id);
+      if (a > 0) { sum += a; counted++; }
+    }
+    const deck = data.deck;
+    let firstTen = null;
+    if (deck?.ids?.length) {
+      const head = deck.ids.slice(0, 10).map((id) => attentionOf(id)).filter((a) => a > 0);
+      if (head.length) firstTen = head.reduce((x, y) => x + y, 0) / head.length;
+    }
+    return {
+      firstTen,
+      meanAttention: counted ? sum / counted : null,
+      skipRate: visits ? skips / visits : 0,
+      visits,
+      reached: deck ? Math.min(1, (deck.reached || 0) / Math.max(1, deck.size || deck.ids.length)) : null,
+      deckAt: deck?.at || 0,
+    };
+  }
+
   /* -------------------------------------------------------- deck memory -- */
   /* The last deck handed to a player surface. The smart shuffle uses its opening to
      avoid dealing the same first posts again, and the Library uses it to know what it
      already showed this session. Kept to DECK_KEEP ids so it stays a few KB. */
   const DECK_KEEP = 60;
-  function rememberDeck(seed, ids) {
+  function rememberDeck(seed, ids, { reached = 0 } = {}) {
     if (!Array.isArray(ids) || !ids.length) return;
-    data.deck = { seed: seed >>> 0, at: Date.now(), ids: ids.slice(0, DECK_KEEP) };
+    data.deck = { seed: seed >>> 0, at: Date.now(), ids: ids.slice(0, DECK_KEEP), size: ids.length, reached };
+    quiet();
+  }
+  /** How far into the current deck the user has scrolled (cheap: written with the deck). */
+  function noteDeckProgress(index) {
+    if (!data.deck) return;
+    const reached = Math.max(data.deck.reached || 0, index || 0);
+    if (reached === data.deck.reached) return;
+    data.deck.reached = reached;
     quiet();
   }
   const lastDeck = () => data.deck || null;
@@ -246,7 +346,8 @@ XR.define("app.activity", ["app.ports.storage", "core.events", "core.domain.even
     isHidden, toggleHidden,
     isUnavailable, markUnavailable, unavailableIds, clearUnavailable,
     saveProgress, progressEntry, clearProgress, progressOf, progressAt,
-    noteDwell, dwellOf, dwellStats, attentionOf, rememberDeck, lastDeck, clearDeck, clearSignals,
+    noteDwell, dwellOf, dwellStats, attentionOf, creatorSignalOf, creatorSignals,
+    rememberDeck, noteDeckProgress, lastDeck, clearDeck, clearSignals, quality,
     collections, collection, createCollection, renameCollection, deleteCollection, addToCollection, removeFromCollection, inCollection, collectionsOf,
     views, saveView, deleteView,
     bulk, counts, exportState, importState, resetAll,

@@ -53,6 +53,7 @@ XR.define("features.insights", ["ui.dom", "ui.icons", "ui.widgets", "ui.charts",
             ? panel("Saved per month", h("div.saved-single", h("b", savedByMonth[0].value), h("span", `saved in ${savedByMonth[0].label}`)), "Add another import to see a trend.")
             : null,
         panel("Video length", charts.hbars(buckets, { onClick: (d) => actions.goLibrary({ q: d.hi === Infinity ? `dur:>${d.lo}s` : `dur:${d.lo}s-${d.hi}s` }), format: (v) => String(v) })),
+        shuffleHealth(),
         panel("Top creators", charts.hbars(topCreators, { onClick: (d) => actions.goCreator(d.username), format: (v) => String(v) })),
         topTags.length ? panel("Top hashtags", charts.hbars(topTags, { onClick: (d) => actions.goTag(d.tag), format: (v) => String(v) })) : null,
         affinity.length ? panel("Creators you open most", charts.hbars(affinity, { onClick: (d) => actions.goCreator(d.username), format: (v) => String(v) }), "Based on what you watched here.") : null,
@@ -65,6 +66,31 @@ XR.define("features.insights", ["ui.dom", "ui.icons", "ui.widgets", "ui.charts",
       host.appendChild(page);
     }
     const panel = (title, body, foot) => h("section.panel", h("h2.panel-title", title), body, foot ? h("p.panel-foot.muted.small", foot) : null);
+
+    /**
+     * "Is the shuffle working?" — three numbers derived from the learned signals, no new
+     * tracking: how much the posts that OPEN decks hold the user, how often a post is
+     * swiped past, and how far into the last deck they got. High first-ten + low skips
+     * means the order is landing; the button opens the same explain table Settings uses.
+     */
+    function shuffleHealth() {
+      const q = activity.quality();
+      if (!q.visits) {
+        return panel("Shuffle health", h("p.muted.small", "Nothing watched yet. Open the feed or a photo, and the order starts adapting — this panel then shows how well it is landing."));
+      }
+      const pct = (x) => (x == null ? "—" : Math.round(x * 100) + "%");
+      const big = (value, label, foot) => h("div.recap-stat", h("b.recap-big", value), h("span.recap-small", label), foot ? h("span.muted.small", foot) : null);
+      const signals = activity.creatorSignals ? activity.creatorSignals(5) : [];
+      return panel("Shuffle health", h("div.stack",
+        h("div.recap-row",
+          big(pct(q.firstTen), "opening hold", "attention of the first 10 posts in decks"),
+          big(pct(1 - q.skipRate), "kept", `${q.visits} visits · ${Math.round(q.skipRate * 100)}% swiped past`),
+          big(pct(q.reached), "deck reached", "how far into the last deck you got")),
+        signals.length
+          ? h("div.stack", h("p.small.muted", "Creators the order leans toward"), charts.hbars(signals.map((c) => ({ label: "@" + c.user, value: Math.max(0, Math.round(c.score * 10) / 10), username: c.user })), { onClick: (d) => actions.goCreator(d.username), format: (v) => String(v) }))
+          : h("p.small.muted", "No creator bias yet — the order is still neutral.")),
+        "Computed locally from watched time, skips and the last deck. Nothing leaves this browser.");
+    }
 
     const dayKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 

@@ -80,3 +80,38 @@ test("reset all clears the learned signals", async () => {
   assert.equal(activity.dwellStats("a"), null);
   assert.equal(activity.lastDeck(), null);
 });
+
+test("the dwell table is capped so storage cannot grow without bound", async () => {
+  const { activity } = await loadActivity();
+  for (let i = 0; i < 2100; i++) activity.noteDwell("p" + i, 3000, { ratio: 0.5 });
+  const dump = Object.keys(activity.exportState().dwell);
+  assert.ok(dump.length <= 2000, `${dump.length} dwell entries kept`);
+  assert.ok(dump.includes("p2099"), "the newest visit is kept");
+  assert.ok(!dump.includes("p0"), "the oldest visit was pruned");
+});
+
+test("a creator's pull decays with age and turns negative when its posts are skipped", async () => {
+  const old = Date.now() - 200 * 864e5;
+  const { activity } = await loadActivity({ creators: { faded: 6, fresh: 6 }, creatorsAt: { faded: old, fresh: Date.now() } });
+  const faded = activity.creatorSignalOf("faded");
+  const fresh = activity.creatorSignalOf("fresh");
+  assert.ok(fresh > faded * 2, `recent opens should weigh more (${fresh} vs ${faded})`);
+  for (let i = 0; i < 4; i++) activity.noteDwell("x" + i, 400, { ratio: 0.01, creator: "fresh" });
+  assert.ok(activity.creatorSignalOf("fresh") < fresh, "skipping its posts pulls the creator down");
+  for (let i = 4; i < 10; i++) activity.noteDwell("x" + i, 400, { ratio: 0.01, creator: "fresh" });
+  assert.ok(activity.creatorSignalOf("fresh") < 0, "a creator whose posts are mostly skipped goes negative");
+  const signals = activity.creatorSignals(5);
+  assert.equal(signals[0].user, "faded", "the untarnished creator now ranks first");
+});
+
+test("quality reports opening hold, skip rate and how far into the deck the user got", async () => {
+  const { activity } = await loadActivity();
+  for (let i = 0; i < 10; i++) activity.noteDwell("open" + i, 9000, { ratio: 0.9 });
+  for (let i = 0; i < 10; i++) activity.noteDwell("skip" + i, 500, { ratio: 0.01 });
+  activity.rememberDeck(9, Array.from({ length: 40 }, (_, i) => "open" + (i % 10)), { reached: 10 });
+  activity.noteDeckProgress(25);
+  const q = activity.quality();
+  assert.ok(q.firstTen > 0.6, `opening hold ${q.firstTen}`);
+  assert.ok(q.skipRate > 0.4 && q.skipRate < 0.6, `skip rate ${q.skipRate}`);
+  assert.ok(q.reached > 0.5 && q.reached <= 1, `reached ${q.reached}`);
+});

@@ -18,27 +18,38 @@ XR.define("infra.datasources", [], function () {
   const X_POSTS = "data/x-posts.json";
   const X_POSTS_MAX = 9;                                   // data/x-posts2.json … data/x-posts9.json
   const xPostsPath = (n) => (n <= 1 ? X_POSTS : `data/x-posts${n}.json`);
-  /** The text of a static JSON file, or null when it is absent/unreachable (404 is normal). */
+  /** The text of a static JSON file, or null when it is absent/unreachable (404 is normal).
+      `cache: default` lets the browser reuse its HTTP copy on a reload — the importer still
+      fingerprints the bytes, so a stale cache can never silently change the library; a
+      changed file simply fails the fingerprint and re-indexes. */
   async function fetchText(path) {
     try {
-      const res = await fetch(path, { cache: "no-store" });
+      const res = await fetch(path, { cache: shouldRevalidate() ? "no-store" : "default" });
       /* Keep the JSON as text until the importer checks its fingerprint. On a cache hit,
          this avoids parsing the full export just to discover that normalized posts exist. */
       if (res.ok) return await res.text();
     } catch { /* absent or unreachable */ }
     return null;
   }
-  /** data/x-posts.json and its numbered continuations, in order. [] when none exists. */
+  /* An explicit re-read from Settings must bypass the HTTP cache; a normal boot should use it. */
+  let revalidate = false;
+  const shouldRevalidate = () => revalidate;
+  const setRevalidate = (on) => { revalidate = !!on; };
+
+  /** data/x-posts.json and its numbered continuations, in order. [] when none exists.
+      The continuations are fetched in PARALLEL (numbering stays consecutive: the first gap
+      ends the series), so a three-file library costs one round trip instead of three. */
   async function fetchXPosts() {
-    const parts = [];
-    const primary = await fetchText(X_POSTS);
-    if (primary != null) parts.push({ text: primary, label: X_POSTS });
-    for (let n = 2; n <= X_POSTS_MAX; n++) {
-      const text = await fetchText(xPostsPath(n));
-      if (text == null) break;                               // consecutive numbering: the first gap ends the series
-      parts.push({ text, label: xPostsPath(n) });
+    const rest = await Promise.all(
+      Array.from({ length: X_POSTS_MAX - 1 }, (_, i) => fetchText(xPostsPath(i + 2))),
+    );
+    const out = [];
+    for (let i = 0; i < rest.length; i++) {
+      if (rest[i] == null) break;                            // consecutive numbering: the first gap ends the series
+      out.push({ text: rest[i], label: xPostsPath(i + 2) });
     }
-    return parts;
+    const primary = await fetchText(X_POSTS);
+    return primary == null ? out : [{ text: primary, label: X_POSTS }, ...out];
   }
 
   function findGlobal() {
@@ -156,5 +167,5 @@ XR.define("infra.datasources", [], function () {
   };
 
   const list = [auto, file, text, url, reddit];
-  return { get: (kind) => list.find((s) => s.kind === kind || s.id === kind) || null, all: () => list.slice(), GLOBALS, X_POSTS, X_POSTS_MAX, xPostsPath, fetchXPosts, deletionState, deletePost, clearGlobals: () => { for (const g of GLOBALS) try { delete window[g]; } catch { /* non-configurable */ } } };
+  return { get: (kind) => list.find((s) => s.kind === kind || s.id === kind) || null, all: () => list.slice(), GLOBALS, X_POSTS, X_POSTS_MAX, xPostsPath, fetchXPosts, setRevalidate, deletionState, deletePost, clearGlobals: () => { for (const g of GLOBALS) try { delete window[g]; } catch { /* non-configurable */ } } };
 });

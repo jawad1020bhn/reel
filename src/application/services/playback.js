@@ -2,8 +2,8 @@
    source attachment through the PlayerEngine port, global mute/speed,
    resume positions, progress persistence, "seen" bookkeeping, and the rule
    that only one video plays at a time. Features own the DOM; this owns the policy. */
-XR.define("app.playback", ["app.ports.playerEngine", "app.ports.mediaResolver", "app.activity", "app.prefs", "core.events", "core.domain.events", "core.util"],
-  function (engine, resolver, activity, prefs, events, EV, util) {
+XR.define("app.playback", ["app.ports.playerEngine", "app.ports.mediaResolver", "app.ports.mediaPrefetch", "app.activity", "app.prefs", "core.events", "core.domain.events", "core.util"],
+  function (engine, resolver, prefetch, activity, prefs, events, EV, util) {
     "use strict";
     const state = { muted: prefs.get("startMuted"), speed: prefs.get("speed") || 1, active: null /* handle */, userUnmuted: false };
     const handles = new Set();
@@ -105,7 +105,21 @@ XR.define("app.playback", ["app.ports.playerEngine", "app.ports.mediaResolver", 
         lastSave = now;
         activity.saveProgress(media.id, video.currentTime, d);
       }
-      function onTime() { saveNow(false); if (opts.onProgress) opts.onProgress(video.currentTime, video.duration || media.duration); }
+      /* ---- warm-ahead: pull the rest of the clip into memory while it plays, so a seek
+         anywhere inside it is a local operation. Duration and bitrate let the cache refuse
+         something that could never fit before it costs a request. */
+      let warmTried = false;
+      function warmThis() {
+        if (warmTried || !prefs.get("preload")) return;
+        const src = engine.currentSource ? engine.currentSource(video) : null;
+        const url = src && src.type !== "hls" ? src.url : "";
+        if (!url) return;
+        warmTried = true;
+        const duration = video.duration || media.duration || 0;
+        const bitrate = (media.sources || []).find((x) => x && x.url === url)?.bitrate || 0;
+        prefetch.warmAhead(video, url, { duration, bitrate });
+      }
+      function onTime() { saveNow(false); warmThis(); if (opts.onProgress) opts.onProgress(video.currentTime, video.duration || media.duration); }
       function onEnded() { activity.clearProgress(media.id); if (opts.onEnded) opts.onEnded(h); }
 
       /* ---- Reddit CMAF: the playable files are silent; a separate <audio> carries the

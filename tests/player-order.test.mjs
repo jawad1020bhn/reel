@@ -21,7 +21,7 @@ function fakeVideo({ nativeHls = false } = {}) {
   return video;
 }
 
-function load() {
+function load({ cached = {} } = {}) {
   const { XR, load: loadFile } = createXR();
   XR.provide("app.ports.mediaResolver", {
     sources: (media) => media.sources || [],
@@ -29,8 +29,17 @@ function load() {
     thumb: () => "",
     poster: () => "",
   });
+  const warmCalls = [];
+  XR.provide("app.ports.mediaPrefetch", {
+    blobUrl: (url) => cached[url] || "",
+    warm: async () => null,
+    prefetch: async (url) => { warmCalls.push(url); return null; },
+    warmAhead() {}, stats: () => ({}), clear() {}, setEnabled() {},
+  });
   loadFile("src/infrastructure/media/player.js");
-  return XR.resolve("infra.media.player");
+  const player = XR.resolve("infra.media.player");
+  player.__warmCalls = warmCalls;
+  return player;
 }
 
 const HLS = "https://v.redd.it/abc/HLSPlaylist.m3u8";
@@ -110,4 +119,30 @@ test("after detach, no loadeddata can resurrect playback", () => {
   player.detach(video);
   video.dispatchEvent({ type: "loadeddata" });
   assert.equal(plays.length, 0);
+});
+
+/* ---- warm cache: a cached clip must play from memory, never from the network ---- */
+test("a clip already in the warm cache plays from its blob URL, with no request", () => {
+  const player = load({ cached: { [MP4(720)]: "blob:https://app/warm-1" } });
+  const video = fakeVideo({ nativeHls: true });
+  player.attach(video, { hls: "", hlsFirst: false, sources: [{ url: MP4(720), type: "video/mp4", bitrate: 720000 }] });
+  assert.equal(video.assigned[0], "blob:https://app/warm-1", "plays the in-memory copy");
+  assert.equal(video.dataset.warm, "1", "the cache hit is recorded on the element");
+  assert.equal(video.assigned.length, 1, "exactly one source assignment: no fallback request");
+});
+
+test("a clip that is not cached plays from the CDN and is warmed for next time", () => {
+  const player = load();
+  const video = fakeVideo({ nativeHls: true });
+  player.attach(video, { sources: [{ url: MP4(480), type: "video/mp4", bitrate: 480000 }] });
+  assert.equal(video.assigned[0], MP4(480), "streams from the network now");
+  assert.deepEqual(player.__warmCalls, [MP4(480)], "and asks the cache to keep it");
+});
+
+test("HLS playlists are never warmed (they are manifests, not bytes)", () => {
+  const player = load();
+  const video = fakeVideo({ nativeHls: true });
+  player.attach(video, { hls: HLS, hlsFirst: true, sources: [] });
+  assert.equal(video.assigned[0], HLS);
+  assert.deepEqual(player.__warmCalls, [], "the .m3u8 is left to the engine");
 });

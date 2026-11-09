@@ -5,7 +5,7 @@
 
    Policy choices live in app.playback; this module only knows how to get bytes
    into a <video>. */
-XR.define("infra.media.player", ["app.ports.mediaResolver"], function (resolver) {
+XR.define("infra.media.player", ["app.ports.mediaResolver", "app.ports.mediaPrefetch"], function (resolver, prefetch) {
   "use strict";
   const registry = new WeakMap(); // video → { sources, idx, hls, onError }
   const MAX_BITRATE_ON_SAVE_DATA = 2_500_000;
@@ -64,6 +64,24 @@ XR.define("infra.media.player", ["app.ports.mediaResolver"], function (resolver)
     return false;
   }
 
+  /* A source that is already in the warm cache plays from a blob: URL — no request, no
+     spinner, and every byte present, so seeking inside it costs nothing. Falls back to the
+     network URL when it is not cached (or the cache is off). */
+  function playSource(video, s) {
+    const ds = video.dataset || (video.dataset = {});
+    const cached = prefetch && prefetch.blobUrl(s.url);
+    if (cached) {
+      ds.warm = "1";
+      video.src = cached;
+      return true;
+    }
+    if (ds.warm) delete ds.warm;
+    video.src = s.url;
+    /* kick a background warm so the *next* visit to this clip is instant */
+    if (prefetch && prefetch.prefetch) prefetch.prefetch(s.url, { type: s.type || "video/mp4" }, { priority: 1 });
+    return true;
+  }
+
   /* HLS first for media flagged hlsFirst (Reddit: its sound is in the playlist), otherwise after
      the listed sources. Every other item keeps the original order. */
   function tryNext(video, rec, resumeAfterHls = false) {
@@ -71,8 +89,7 @@ XR.define("infra.media.player", ["app.ports.mediaResolver"], function (resolver)
     while (rec.idx < rec.sources.length) {
       const s = rec.sources[rec.idx++];
       if (saveData() && s.bitrate > MAX_BITRATE_ON_SAVE_DATA && rec.idx < rec.sources.length) continue;
-      video.src = s.url;
-      return true;
+      return playSource(video, s);
     }
     if (rec.hlsUrl && !rec.triedHls) return tryHls(video, rec, resumeAfterHls);
     rec.ready = Promise.resolve(false);

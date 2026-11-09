@@ -1,8 +1,8 @@
 /* features.watch — the vertical, one-post-at-a-time feed (TikTok style).
    Virtualised: only the current cell ±2 exist. Navigation is transform based so
    wheel notches, swipes and keys all move exactly one post. */
-XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.widgets", "ui.menu", "ui.postMenu", "ui.keys", "app.catalog", "app.activity", "app.actions", "app.feedContext", "app.playback", "app.prefs", "app.media", "app.nav", "app.ports.platform", "core.events", "core.domain.events", "core.util"],
-  function (cellUI, dom, icons, W, menu, postMenu, keys, catalog, activity, actions, feed, playback, prefs, media, nav, platform, events, EV, util) {
+XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.widgets", "ui.menu", "ui.postMenu", "ui.keys", "app.catalog", "app.activity", "app.actions", "app.feedContext", "app.playback", "app.prefs", "app.media", "app.nav", "app.ports.platform", "app.ports.mediaPrefetch", "core.events", "core.domain.events", "core.util"],
+  function (cellUI, dom, icons, W, menu, postMenu, keys, catalog, activity, actions, feed, playback, prefs, media, nav, platform, prefetch, events, EV, util) {
     "use strict";
     const h = dom.h;
     const WINDOW = 2;
@@ -12,20 +12,81 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
     /* One visit = a post held the screen. The moment it stops being the active cell
        (swipe, jump, key, unmount) the visit is banked: how long it held, and how much
        of its clip played. That is what the smart shuffle learns from — a sub-second
-       swipe past is a skip, five seconds on a clip is attention. */
+       swipe past is a skip, five seconds on a clip is attention.
+
+       Wall-clock alone lies: a paused clip with the phone in a pocket, or the tab hidden
+       for ten minutes, would read as rapt attention. A visit therefore runs a stopwatch
+       that only ticks while the post is genuinely on screen and (for video) playing. */
+    const now = () => Date.now();
     function beginVisit() {
       const p = current();
-      S.visit = p ? { id: p.id, at: Date.now() } : null;
+      S.visit = p ? { id: p.id, at: now(), held: 0, since: 0, creator: p.author?.username || "" } : null;
+      startClock();
+    }
+    /* start/stop the stopwatch; called on play/pause and on tab visibility */
+    function startClock() {
+      const v = S.visit;
+      if (!v || v.since) return;
+      if (document.hidden) return;
+      v.since = now();
+    }
+    function stopClock() {
+      const v = S.visit;
+      if (!v || !v.since) return;
+      v.held += now() - v.since;
+      v.since = 0;
     }
     function endVisit() {
       const v = S.visit;
       S.visit = null;
       if (!v) return;
-      const ms = Date.now() - v.at;
+      stopClock();
+      const ms = v.held;
       /* how much of the clip actually played (saved continuously by playback.js) */
       const p = catalog.post(v.id);
       const ratio = p ? activity.progressOf(p) : 0;
-      activity.noteDwell(v.id, ms, { ratio });
+      /* a visit that never really started (instant unmount) is noise, not a skip */
+      if (ms < 120) return;
+      activity.noteDwell(v.id, ms, { ratio, creator: v.creator });
+    }
+
+    /* ------------------------------------------------------------ warm -- */
+    /* The feed is what makes the cache useful: it knows exactly which clips come next, so
+       it warms them before the swipe. Depth follows the connection — two clips ahead on a
+       good link, one on a slow one, and nothing at all when "Preload neighbours" is off or
+       the browser reports Save-Data. The clip right after this one jumps the queue. */
+    function warmDepth() {
+      if (!prefs.get("preload")) return 0;
+      const c = typeof navigator !== "undefined" ? navigator.connection : null;
+      if (c?.saveData) return 0;
+      if (!c) return 1;
+      if (c.effectiveType && /(^|-)2g$/.test(c.effectiveType)) return 0;
+      if (c.effectiveType === "3g") return 1;
+      return prefs.get("preloadDepth") === "deep" ? 3 : 2;
+    }
+    function warmPost(post, priority = 1) {
+      const depth = warmDepth();
+      if (!depth || !post) return;
+      const src = playerSource(post);
+      if (src) prefetch.prefetch(src.url, { type: src.type }, { priority });
+    }
+    function playerSource(post) {
+      const media = post?.media?.[0];
+      if (!media || media.kind === "photo" || media.kind === "carousel") return null;
+      const list = media.sources || [];
+      return list.find((s) => s && s.url && !/\.m3u8(\?|$)/i.test(s.url)) || null;
+    }
+    /** Warm the neighbours around the current post: next first, then the one after. */
+    function warmWindow() {
+      const depth = warmDepth();
+      if (!depth) return;
+      for (let d = 1; d <= depth; d++) {
+        const next = catalog.post(S.ids[S.index + d]);
+        if (next) warmPost(next, d === 1 ? 0 : 1);
+      }
+      /* one behind, so a swipe back is instant too */
+      const prev = catalog.post(S.ids[S.index - 1]);
+      if (prev) warmPost(prev, 1);
     }
 
     /* ------------------------------------------------------------ context -- */
@@ -99,7 +160,9 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
         dom.on(window, "resize", dom.rafThrottle(() => S.cells.forEach((c) => c.fit(fitMode())))),
         dom.on(window, "keydown", () => { S.lastAct = Date.now(); }),
         dom.on(document, "visibilitychange", () => {
-          if (document.hidden) { setWake(false); return; }
+          if (document.hidden) { stopClock(); setWake(false); return; }
+          const cellNow = S.cells.get(S.index);
+          if (!cellNow?.video || !cellNow.video.paused) startClock();
           const c = S.cells.get(S.index);
           if (c?.video && !c.video.paused) setWake(true);
         }),
@@ -110,7 +173,7 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
     function unmount() {
       endVisit();
       /* Remember the deck's opening so the next shuffle does not deal the same first posts. */
-      if (S.ids.length) activity.rememberDeck(S.spec?.seed || util.daySeed(), S.ids);
+      if (S.ids.length) activity.rememberDeck(S.spec?.seed || util.daySeed(), S.ids, { reached: S.index });
       for (const off of S.offs) off(); S.offs = [];
       setWake(false);
       const ms = mediaApi();
@@ -145,12 +208,14 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
         onTag: (t) => actions.goTag(t),
         onOpenX: (p) => actions.openOnX(p),
         onNext: () => go(1),
-        onRetry: () => { const c = S.cells.get(S.index); if (c) { c.destroy(); S.cells.delete(S.index); renderWindow(); } },
+        onRetry: () => { const c = S.cells.get(S.index); if (c) { c.destroy(); S.cells.delete(S.index); renderWindow(false, true); } },
         onHide: (p) => { actions.hide(p); if (!go(1)) go(-1); },
         onUnplayable: () => { S.els?.upnext?.classList.remove("on"); },
         onPlayState: (playing, el) => {
           const cell = S.cells.get(S.index);
           if (cell?.el !== el) return;
+          /* the stopwatch follows playback, so a paused clip stops counting as attention */
+          if (playing) startClock(); else stopClock();
           const ms = mediaApi(); if (ms) ms.playbackState = playing ? "playing" : "paused";
           if (cell.video) syncMediaPosition(cell.video);
           setWake(playing);
@@ -165,9 +230,10 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
         },
         onCarouselEnd: () => {}, onCarouselStart: () => {},
         markSeen: () => {},
+        warm: (post) => warmPost(post, 1),
       };
     }
-    function renderWindow(initial = false) {
+    function renderWindow(initial = false, reuse = false) {
       if (!S.track) return;
       const lo = Math.max(0, S.index - WINDOW), hi = Math.min(S.ids.length - 1, S.index + WINDOW);
       for (const [i, c] of S.cells) if (i < lo || i > hi) { c.destroy(); S.cells.delete(i); }
@@ -198,10 +264,13 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
       S.els.arrows.querySelector(".watch-arrow-up").disabled = S.index <= 0;
       S.els.arrows.querySelector(".watch-arrow-down").disabled = S.index >= S.ids.length;
       scheduleSeen();
-      /* a new post took the screen: bank the previous visit and start timing this one */
-      if (S.visit?.id !== S.ids[S.index]) { endVisit(); beginVisit(); }
+      /* A new post took the screen: bank the previous visit and start timing this one.
+         When reuse is set (a re-render for the same post — rotation, controls, a seek)
+         the visit carries on, so a frame repaint cannot split one visit into two. */
+      if (!reuse && S.visit?.id !== S.ids[S.index]) { endVisit(); beginVisit(); }
       feed.setIndex(S.index);
       syncMediaSession();
+      warmWindow();
       /* A swipe between posts may land on a photo or an unstarted clip; the
          wake lock follows the active cell, not the previous one's events. */
       const active = S.cells.get(S.index);
@@ -222,6 +291,7 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
       if (moving) { S.infoOpen = false; S.els.info.classList.remove("on"); killNextup(); }
       endVisit();
       S.index = next;
+      activity.noteDeckProgress(S.index);
       if (S.index === S.ids.length) { // end card
         for (const c of S.cells.values()) c.deactivate();
         S.endCard.inert = false; S.endCard.removeAttribute("aria-hidden"); S.endCard.classList.add("is-active");
@@ -230,7 +300,7 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
         syncMediaSession();
         return true;
       }
-      renderWindow();
+      renderWindow(false, true);
       return true;
     }
     function jump(i) { endVisit(); S.index = util.clamp(i, 0, S.ids.length - 1); for (const c of S.cells.values()) c.destroy(); S.cells.clear(); renderWindow(true); }

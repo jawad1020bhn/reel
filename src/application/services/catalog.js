@@ -45,7 +45,8 @@ XR.define("app.catalog", ["core.domain.model", "core.query.engine", "core.rankin
         get mode() { return prefs.get("shuffleMode") || "balanced"; },
         attentionOf: (id) => (prefs.get("shuffleLearn") === false ? 0 : activity.attentionOf(id)),
         skipRateOf: (id) => (prefs.get("shuffleLearn") === false ? 0 : activity.dwellStats(id)?.skipRate || 0),
-        affinityOf: (user) => (prefs.get("shuffleLearn") === false ? 0 : activity.creatorAffinity().get(user) || 0),
+        /* signed, time-decayed creator score — see activity.creatorSignalOf */
+        affinityOf: (user) => (prefs.get("shuffleLearn") === false ? 0 : activity.creatorSignalOf(user)),
         lastDeck: () => (prefs.get("shuffleLearn") === false ? null : activity.lastDeck()?.ids || null),
         sessionSeen: null,          // set by the Library (`withSessionSeen`) — it owns this session's history
       },
@@ -141,7 +142,27 @@ XR.define("app.catalog", ["core.domain.model", "core.query.engine", "core.rankin
       }
       return { dupOf, dupGroups };
     }
-    const shuffle = (posts, opts) => rails.weightedShuffle(posts, ctx, opts);
+    /** Smart shuffle over an arbitrary list (used by "shuffle play"). Honours opts.limit. */
+    const shuffle = (posts, { seed = 1, limit = 0 } = {}) => {
+      const deck = engine.smartShuffle(posts, seed, ctx);
+      return limit > 0 ? deck.slice(0, limit) : deck;
+    };
+    /**
+     * The seed a smart deck should use on mount. With "New deck on reload" off — or when
+     * the deck dealt earlier today is still the freshest — reopening the app resumes the
+     * same order instead of dealing a new one, so a mid-scroll reload does not lose a place.
+     */
+    function resumeSeed(seed) {
+      const deck = activity.lastDeck();
+      if (!deck || !deck.seed) return seed;
+      if (prefs.get("shuffleFreshDeck") !== false && !sameDay(deck.at, Date.now())) return seed;
+      return deck.seed;
+    }
+    const sameDay = (a, b) => {
+      if (!a || !b) return false;
+      const x = new Date(a), y = new Date(b);
+      return x.getFullYear() === y.getFullYear() && x.getMonth() === y.getMonth() && x.getDate() === y.getDate();
+    };
     /** A ctx view whose smart shuffle also knows which posts this session already showed.
         The Library owns that list (it survives in-page navigation but not a reload). */
     const withSessionSeen = (ids) => ({ ...ctx, signals: { ...ctx.signals, sessionSeen: ids || null } });
@@ -217,7 +238,7 @@ XR.define("app.catalog", ["core.domain.model", "core.query.engine", "core.rankin
     });
 
     return {
-      load, query, facets, describe, post, media, postsByIds, creator, creators, topHashtags, buildRails, spotlight, stats, related, ctx, withSessionSeen, duplicatesOf, shuffle, countByPlatform,
+      load, query, facets, describe, post, media, postsByIds, creator, creators, topHashtags, buildRails, spotlight, stats, related, ctx, withSessionSeen, duplicatesOf, shuffle, resumeSeed, countByPlatform,
       get dupGroups() { return state.dupGroups; },
       /** Shown posts (after the Settings toggles). */
       get posts() { return state.posts; },

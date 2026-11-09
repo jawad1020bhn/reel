@@ -284,28 +284,5 @@ XR.define("core.ranking.rails", ["core.query.engine", "core.util"], function (en
     return pickWeighted(pool, (p) => (10 - pool.indexOf(p)) * (1 + Math.log10(1 + (p.metrics.likes || 0))), rnd);
   }
 
-  /**
-   * Weighted shuffle for "Shuffle play": unseen posts are 3× as likely as seen ones, starred
-   * posts get a small boost, unavailable ones are skipped, and the result is spread so the
-   * same creator never plays twice in a row when it can be avoided. Deterministic for a seed.
-   */
-  function weightedShuffle(posts, ctx, { seed = Date.now() % 1e6, limit = 200 } = {}) {
-    const rnd = util.seededRandom(seed);
-    const weight = (p) => (ctx.isUnavailable?.(p.id) ? 0 : 1) * (ctx.isSeen(p.id) ? 1 : 3) * (ctx.isStarred(p.id) ? 1.5 : 1);
-    /* Efraimidis–Spirakis: key = rnd^(1/w), take the largest keys */
-    const keyed = posts.map((p) => { const w = weight(p); return w > 0 ? { p, k: Math.pow(rnd(), 1 / w) } : null; }).filter(Boolean);
-    keyed.sort((a, b) => b.k - a.k);
-    const picked = keyed.slice(0, limit).map((x) => x.p);
-    /* spread creators: greedy pass that pushes an immediate repeat further down */
-    const out = [];
-    const rest = picked.slice();
-    while (rest.length) {
-      let i = 0;
-      if (out.length) { const last = out[out.length - 1].author.username; while (i < rest.length && rest[i].author.username === last && i < 8) i++; if (i >= rest.length) i = 0; }
-      out.push(rest.splice(i, 1)[0]);
-    }
-    return out;
-  }
-
-  return { build, spotlight, weightedShuffle, LIMIT, COUNT, POOL };
+  return { build, spotlight, LIMIT, COUNT, POOL };
 });

@@ -11,6 +11,8 @@
   XR.bind("app.ports.router", "infra.router.hash");
   XR.bind("app.ports.mediaResolver", "infra.media.twimg");
   XR.bind("app.ports.playerEngine", "infra.media.player");
+  XR.bind("app.ports.mediaPrefetch", "infra.media.prefetch");
+  XR.bind("app.ports.offlineCache", "infra.media.offline");
   XR.bind("app.ports.platform", "infra.platform");
   XR.bind("app.ports.dataSources", "infra.datasources");
 
