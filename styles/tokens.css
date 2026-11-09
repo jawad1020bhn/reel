@@ -129,6 +129,10 @@
   --z-lock: 100;
   --z-splash: 110;
   --z-preview: 120;
+  /* The markup placeholder in index.html, shown before any module runs. It sits above
+     everything the app can paint, so nothing can cover it — and it must be removed by
+     whoever takes the screen over (see shell.splash.clear). */
+  --z-boot: 9999;
 
   --hero-h: clamp(430px, 72vh, 740px);
 }

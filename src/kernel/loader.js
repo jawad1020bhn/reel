@@ -49,12 +49,59 @@
     s.async = false;                       // preserves execution order across the whole chain
     if (opts && opts.defer) s.defer = true;
     s.onerror = function () { errors.push({ file: src, message: "failed to load" }); };
+    /* `loaded` also lets the boot deadline tell "still arriving" from "arrived, app is slow" */
+    s.onload = function () { try { s.dataset.loaded = "1"; } catch (e) { /* no dataset */ } };
     document.head.appendChild(s);
     return s;
   }
 
   M.styles.forEach(addStyle);
-  M.scripts.forEach(function (src) { addScript(src); });
+  var tags = M.scripts.map(function (src) { return addScript(src); });
+
+  /* A hung request (a proxy that never answers, a captive portal, a flaky mobile link) fires
+     neither onload nor onerror — the chain then stops silently and the page sits on the boot
+     splash forever. If the last script has not finished by the deadline, say so on the screen
+     the visitor is actually looking at, with a reload button. Slow is fine; stuck is not. */
+  var BOOT_DEADLINE_MS = 20000;
+  setTimeout(function () {
+    if (window.XREELS_READY) return;
+    var last = tags[tags.length - 1];
+    if (!last || last.dataset.loaded === "1") {
+      /* every file arrived, so the delay is boot work: leave the app's own splash alone */
+      if (last) return;
+    }
+    var pending = tags.filter(function (t) { return t.dataset.loaded !== "1"; })
+      .map(function (t) { return String(t.src || "").replace(base, ""); })
+      .filter(Boolean);
+    var boot = document.getElementById("boot-splash");
+    if (!boot) return;
+    var wrap = boot.querySelector(".bs-wrap") || boot;
+    wrap.innerHTML = "";
+    var title = document.createElement("p");
+    title.style.cssText = "margin:0 0 10px;font:600 15px/1.4 system-ui,sans-serif;color:#f2f2f4";
+    title.textContent = "Still opening…";
+    var note = document.createElement("p");
+    note.style.cssText = "margin:0 0 16px;max-width:34em;text-align:center;font:400 13px/1.6 system-ui,sans-serif;color:#8b8b92";
+    note.textContent = pending.length
+      ? "Some files are taking unusually long to arrive. Check your connection, then try again."
+      : "Your library is taking longer than usual to read.";
+    wrap.appendChild(title);
+    wrap.appendChild(note);
+    if (pending.length) {
+      var list = document.createElement("p");
+      list.style.cssText = "margin:0 0 16px;font:400 12px/1.6 ui-monospace,Menlo,monospace;color:#6f6f76";
+      list.textContent = pending.slice(0, 6).join(" · ");
+      wrap.appendChild(list);
+    }
+    var btn = document.createElement("button");
+    btn.textContent = "Try again";
+    btn.style.cssText = "padding:10px 18px;border-radius:999px;border:0;background:#e50914;color:#fff;font:600 13px system-ui,sans-serif;cursor:pointer";
+    btn.onclick = function () { location.reload(); };
+    wrap.appendChild(btn);
+    boot.style.zIndex = "9999";
+  }, BOOT_DEADLINE_MS);
+
+  /* boot.js sets this once it has taken over; until then the deadline above stays armed. */
 
   /* Warm the first documents a visitor is most likely to ask for. Cheap (same-origin, only
      when the tag is missing) and it overlaps the script chain: the library JSON is usually
