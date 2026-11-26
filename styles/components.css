@@ -546,3 +546,26 @@ img.is-broken:not(.avatar) { opacity: 0; }
 .pull-to-shuffle.is-armed { background: var(--accent); color: #fff; border-color: transparent; transform: translate(-50%, var(--pull, 0px)) scale(1); }
 .pull-to-shuffle .icon { transition: transform 240ms var(--ease); }
 .pull-to-shuffle.is-armed .icon { transform: rotate(180deg); }
+
+/* Media feedback reports observed waits, never download percentages or deletion guesses.
+   A delayed, compact status leaves playback controls and thumb rails unobstructed. */
+.media-feedback {
+  position: absolute; z-index: 6; left: 50%; top: 44%; transform: translate(-50%, -50%);
+  width: min(380px, calc(100% - 116px)); padding: 16px; display: flex;
+  flex-direction: column; align-items: center; gap: 10px; text-align: center;
+  border: 1px solid rgb(255 255 255 / 0.16); border-radius: var(--r-lg);
+  background: rgb(14 14 16 / 0.96); color: #fff;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.4);
+}
+.media-feedback[hidden], .media-feedback [hidden] { display: none !important; }
+.media-feedback-message { min-width: 0; }
+.media-feedback-title { font-size: 15px; line-height: 1.35; font-weight: 600; }
+.media-feedback .media-feedback-note { margin: 6px 0 0; font-size: 13px; line-height: 1.45; color: rgb(255 255 255 / 0.86); text-wrap: pretty; }
+.media-feedback .spinner { width: 24px; height: 24px; }
+.media-feedback-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; }
+.media-feedback-actions .btn { min-height: 44px; height: auto; padding: 10px 14px; white-space: normal; }
+.media-feedback[data-state="loading"], .media-feedback[data-state="buffering"] { width: auto; max-width: calc(100% - 116px); padding: 12px 16px; }
+@media (max-height: 500px) and (orientation: landscape) {
+  .media-feedback { top: 45%; width: min(480px, calc(100% - 124px)); padding: 12px 16px; gap: 8px; }
+  .media-feedback .media-feedback-note { margin-top: 4px; }
+}

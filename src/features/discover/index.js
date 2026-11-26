@@ -73,7 +73,6 @@ XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "
         post.metrics.likes ? [h("i.dot", "•"), h("span.billboard-likes", icons.icon("heart", 12, { filled: true }), dom.compact(post.metrics.likes))] : []);
 
       /* description: only the part the headline did not already say */
-      const descText = (post.text || "").trim();
       const title = headlineOf(post);
       const descBody = descBodyOf(post, title);
       const clipped = descBody.length > 160;
@@ -217,12 +216,6 @@ XR.define("features.discover", ["ui.dom", "ui.icons", "ui.widgets", "ui.rail", "
     function shelfBar(n) {
       return h("div.discover-bar",
         h("p.discover-bar-note", t("{n} shelves picked for this visit", { n })));
-    }
-
-    function startList(spec, label) {
-      const ids = catalog.query(spec).items.map((p) => p.id);
-      if (!ids.length) return actions.toast("Nothing matches right now");
-      actions.watch(ids, 0, { label, spec });
     }
 
     function rail(r, railIndex = 99) {

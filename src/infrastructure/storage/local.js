@@ -18,7 +18,7 @@ XR.define("infra.storage.local", [], function () {
     async set(key, value) {
       if (!ok) { mem.set(key, value); return true; }
       try { localStorage.setItem(PREFIX + key, JSON.stringify(value)); mem.delete(key); return true; }
-      catch (err) { console.warn("[storage.local] quota — keeping in memory", key); mem.set(key, value); return false; }
+      catch { console.warn("[storage.local] quota — keeping in memory", key); mem.set(key, value); return false; }
     },
     async remove(key) { mem.delete(key); if (ok) localStorage.removeItem(PREFIX + key); return true; },
     async keys() { const out = new Set(mem.keys()); if (ok) for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith(PREFIX)) out.add(k.slice(PREFIX.length)); } return [...out]; },

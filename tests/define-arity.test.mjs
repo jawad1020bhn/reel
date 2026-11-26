@@ -5,11 +5,12 @@
    mis-bound port. This test is the cheap guard against that. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { execSync } from "node:child_process";
 
-const files = execSync("git ls-files 'src/**/*.js' 'data/*.js'", { cwd: new URL("..", import.meta.url) })
-  .toString().trim().split("\n").filter(Boolean);
+// Check the working tree too: new modules count and removed files must not be read.
+const files = [...new Set(execSync("git ls-files --cached --others --exclude-standard 'src/**/*.js' 'data/*.js'", { cwd: new URL("..", import.meta.url) })
+  .toString().trim().split("\n").filter(file => file && existsSync(new URL(`../${file}`, import.meta.url))))];
 
 /** Split a comma-separated parameter/dependency list, ignoring commas inside strings. */
 function splitList(text) {

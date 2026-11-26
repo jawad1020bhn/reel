@@ -512,7 +512,6 @@ function normalizeTweet(tweet) {
   const userResult = tweet.core && tweet.core.user_results && tweet.core.user_results.result;
   const user = resolveUser(userResult);
   const authorId = user.id;
-  const outerUsername = user.screen_name;
 
   const legacy = tweet.legacy || {};
   const type =

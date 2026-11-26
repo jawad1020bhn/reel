@@ -36,7 +36,7 @@ XR.define("ui.tile", ["ui.dom", "ui.icons", "ui.preview"], function (dom, icons,
       const src = ctx.thumb(media, width);
       if (opts.lazy && ctx.lazy) ctx.lazy(img, src); else img.src = src;
       if (img.complete && img.naturalWidth > 0) reveal();
-      img.addEventListener("error", (e) => { if (!img.dataset.fallback && media.poster && media.poster !== media.thumb) { img.dataset.fallback = "1"; img.src = ctx.thumb({ ...media, thumb: media.poster }, width); } else { reveal(); el.classList.add("tile-broken"); } }, { once: false });
+      img.addEventListener("error", () => { if (!img.dataset.fallback && media.poster && media.poster !== media.thumb) { img.dataset.fallback = "1"; img.src = ctx.thumb({ ...media, thumb: media.poster }, width); } else { reveal(); el.classList.add("tile-broken"); } }, { once: false });
     } else reveal();
 
     /* dark meta chips, bottom-left over the scrim */
