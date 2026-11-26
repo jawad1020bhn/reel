@@ -25,7 +25,7 @@ XR.define("ui.masonry", ["ui.dom"], function (dom) {
     const scroller = o.scroller || findScroller(host);
     const isWin = scroller === window;
     host.classList.add("masonry");
-    let items = [], pos = [], order = [], cols = 1, colWidth = 0, hostWidth = 0;
+    let items = [], pos = [], order = [], cols = 1, colWidth = 0, hostWidth = 0, maxTileHeight = 0;
     const mounted = new Map(); // index → api
     let destroyed = false, raf = 0;
     const KEYS = { ArrowDown: "down", ArrowUp: "up", ArrowRight: "right", ArrowLeft: "left" };
@@ -55,9 +55,11 @@ XR.define("ui.masonry", ["ui.dom"], function (dom) {
       colWidth = (hostWidth - o.gap * (cols - 1)) / cols;
       const heights = new Array(cols).fill(0);
       pos = new Array(items.length);
+      maxTileHeight = 0;
       for (let i = 0; i < items.length; i++) {
         const it = items[i];
         const hgt = Math.round(colWidth / Math.min(2.2, Math.max(0.5, o.aspectOf(it) || 1))) + (o.extraHeight(it) || 0);
+        maxTileHeight = Math.max(maxTileHeight, hgt);
         let c = 0; for (let k = 1; k < cols; k++) if (heights[k] < heights[c] - 0.5) c = k;
         pos[i] = { x: Math.round(c * (colWidth + o.gap)), y: Math.round(heights[c]), w: Math.round(colWidth), h: hgt };
         heights[c] += hgt + o.gap;
@@ -75,8 +77,9 @@ XR.define("ui.masonry", ["ui.dom"], function (dom) {
       const off = hostOffset();
       const top = viewportTop() - off - o.overscan, bottom = viewportTop() - off + viewportH() + o.overscan;
       const want = new Set();
-      // items are column-packed so a tile can start above `top` yet still be visible: scan back a bit
-      let start = lowerBound(top - 1600); if (start < 0) start = 0;
+      // Only inspect rows that could intersect the window, not a fixed 1600px
+      // tail on every scroll frame. Derived from layout, so tall tiles stay visible.
+      const start = lowerBound(top - maxTileHeight);
       for (let k = start; k < order.length; k++) {
         const i = order[k], p = pos[i];
         if (p.y > bottom) break;

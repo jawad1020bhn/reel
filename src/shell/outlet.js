@@ -8,13 +8,14 @@
 XR.define("shell.outlet", ["ui.dom", "ui.widgets", "ui.imageload", "app.features", "app.nav", "app.playback", "shell.theme", "core.events", "core.domain.events"],
   function (dom, W, imageload, features, nav, playback, theme, events, EV) {
     "use strict";
-    let host = null, current = null, currentKey = "", booted = false, routeLoadSeq = 0;
+    let host = null, current = null, currentKey = "", currentPageKey = "", booted = false, routeLoadSeq = 0;
     let wanted = null; /* the most recent route the shell was asked to show */
     const scrollMemo = new Map();
     const mq = typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)") : null;
     let vtRunning = null, vtSeq = 0, loadingTimer = null;
 
-    const keyOf = (route) => route.name + JSON.stringify(route.params);
+    const pageKeyOf = (route) => route.name + JSON.stringify(route.params);
+    const keyOf = (route) => pageKeyOf(route) + JSON.stringify(Object.entries(route.query || {}).sort(([a], [b]) => a.localeCompare(b)));
     const reduced = () => (mq && mq.matches) || document.documentElement.dataset.motion === "reduce";
     const canTransition = () =>
       booted &&
@@ -69,6 +70,9 @@ XR.define("shell.outlet", ["ui.dom", "ui.widgets", "ui.imageload", "app.features
       if (current) scrollMemo.set(currentKey, host.scrollTop);
       playback.pauseAll();
       unmountCurrent();
+      // Capture the old scroll before changing chrome geometry. Hiding the dock
+      // first can clamp a near-bottom Library position by its 84px reserve.
+      theme.setLayout?.(f);
 
       if (!f || !f.mount) {
         host.dataset.feature = "notfound";
@@ -80,7 +84,7 @@ XR.define("shell.outlet", ["ui.dom", "ui.widgets", "ui.imageload", "app.features
         }));
         theme.setTitle("");
       } else {
-        current = f; currentKey = key;
+        current = f; currentKey = key; currentPageKey = pageKeyOf(route);
         host.dataset.feature = f.id;
         try { f.mount(host, route); }
         catch (err) {
@@ -183,7 +187,9 @@ XR.define("shell.outlet", ["ui.dom", "ui.widgets", "ui.imageload", "app.features
       const key = keyOf(route);
       /* query-only updates (filters, sort) re-render in place — never animate those,
          it would make every chip press feel like a page load */
-      if (f && current && current.id === f.id && key === currentKey && typeof f.update === "function") {
+      if (f && current && current.id === f.id && pageKeyOf(route) === currentPageKey && typeof f.update === "function") {
+        if (key !== currentKey) scrollMemo.set(currentKey, host.scrollTop);
+        currentKey = key;
         try { f.update(route); } catch (err) { console.error(`[outlet] update ${f.id} failed`, err); }
         return;
       }
