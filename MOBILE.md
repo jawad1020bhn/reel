@@ -704,3 +704,36 @@ emulator was available, so every `[verify]` item below remains **unverified on h
 
 `[verify]` rows from §3 (gestures, keyboard, Android Back, lock screen, install, 320 px labels and
 performance) need a real phone. Static checks prove the rules exist, not that a drag completes.
+
+## 8. Library continuity and bounded loading follow-up (2026-11-26)
+
+- Returning from Watch restores the last Library spec and surviving tile order in
+  memory. Current filters and deletions are still applied; new matching posts append.
+  Explicit shuffle/filter changes still run a fresh query. The mobile Library tab
+  retains its last query rather than opening an unfiltered archive.
+- Scroll memos distinguish queries. Immersive chrome now changes only after the
+  outlet captures the outgoing position: hiding the dock earlier clamped a
+  near-bottom Library position by 84px in the synthetic phone test.
+- Unmount cancels pending search debounces so they cannot update the Watch URL.
+- Masonry derives its visibility look-back from actual maximum tile height instead
+  of scanning a fixed 1600px tail on each scroll frame. Overscan remains unchanged.
+- Speculative media warm-up skips Save-Data, offline, and reported slow-2g/2g/3g
+  connections. Normal native video streaming and already-cached playback remain
+  available. Requests use low fetch priority; unknown-length responses stop after
+  crossing the 14MiB entry limit instead of buffering the entire response first.
+  Clearing media aborts active warm-ups and resolves queued jobs.
+
+### Verification and limits
+
+- `npm run check`: pass; `npm run test:unit`: 162/162 pass.
+- New Chromium phone tests: Watch → Back preserves query, tile order and scroll;
+  Library tab preserves filters and scroll. Both pass at 390×844.
+- Synthetic 10,000-item masonry probe: 28 tiles mounted at deep scroll, 74 total
+  renders across initial layout and three jumps; initial layout ~4–7ms in this
+  sandbox. This is a bounded-DOM regression probe, **not** a physical-phone frame
+  rate, network, memory, or battery benchmark.
+- Full Chromium UI run: 20/23 pass. Desktop hover capability assertion and two
+  site-gate verification tests also fail on an untouched HEAD archive with the
+  same browser/environment (3/3 reproduced). They are not counted as passes.
+- Rendered phone Library screenshot inspected; no visual redesign was intended.
+  Physical Android testing, cellular playback latency, and rotation remain open.

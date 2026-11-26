@@ -34,6 +34,12 @@ XR.define("infra.media.prefetch", [], function () {
   /** @type {Map<string, {blob: Blob, url: string, size: number, type: string, at: number}>} */
   const entries = new Map();
   const inflight = new Map();
+  const controllers = new Map();
+  const mayWarm = () => {
+    const connection = typeof navigator !== "undefined" && navigator.connection;
+    return enabled && !(typeof navigator !== "undefined" && navigator.onLine === false) &&
+      !connection?.saveData && !["slow-2g", "2g", "3g"].includes(connection?.effectiveType);
+  };
   let bytes = 0;
   let enabled = true;
   let hits = 0, misses = 0, warmed = 0, warmedBytes = 0;
@@ -90,7 +96,7 @@ XR.define("infra.media.prefetch", [], function () {
    * Safe to call repeatedly: a second call for the same URL joins the first request.
    */
   function warm(url, { type = "video/mp4", expectedBytes = 0 } = {}) {
-    if (!enabled || !isMediaUrl(url)) return Promise.resolve(null);
+    if (!mayWarm() || !isMediaUrl(url)) return Promise.resolve(null);
     const hit = touch(url);
     if (hit) return Promise.resolve(hit.url);
     if (inflight.has(url)) return inflight.get(url);
@@ -98,12 +104,30 @@ XR.define("infra.media.prefetch", [], function () {
        case a clip that can never fit is refused before it costs a request. The authoritative
        check is still the response's own size, below. */
     if (expectedBytes > MAX_ENTRY_BYTES) return Promise.resolve(null);
-    const job = fetch(url, { mode: "cors", credentials: "omit", cache: "force-cache" })
+    const controller = new AbortController();
+    controllers.set(url, controller);
+    const job = fetch(url, { mode: "cors", credentials: "omit", cache: "force-cache", signal: controller.signal, priority: "low" })
       .then(async (res) => {
         if (!res.ok) throw new Error("HTTP " + res.status);
         const length = Number(res.headers.get("content-length")) || 0;
-        if (length > MAX_ENTRY_BYTES) throw new Error("too large");
-        const blob = await res.blob();
+        if (length > MAX_ENTRY_BYTES) { controller.abort(); throw new Error("too large"); }
+        // Bound unknown-length responses too: res.blob() would first buffer the
+        // entire download before discovering that it exceeds the mobile budget.
+        let blob;
+        if (res.body?.getReader) {
+          const reader = res.body.getReader();
+          const chunks = [];
+          let size = 0;
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            size += value.byteLength;
+            if (size > MAX_ENTRY_BYTES) { controller.abort(); await reader.cancel(); throw new Error("too large"); }
+            chunks.push(value);
+          }
+          blob = new Blob(chunks, { type: res.headers.get("content-type") || type });
+        } else blob = await res.blob();
+        if (controller.signal.aborted || !mayWarm()) return null;
         if (blob.size > MAX_ENTRY_BYTES) throw new Error("too large");
         if (!blob.size) throw new Error("empty");
         evictToFit(blob.size);
@@ -114,7 +138,7 @@ XR.define("infra.media.prefetch", [], function () {
         return objectUrl;
       })
       .catch(() => null)
-      .finally(() => inflight.delete(url));
+      .finally(() => { inflight.delete(url); controllers.delete(url); });
     inflight.set(url, job);
     return job;
   }
@@ -137,7 +161,7 @@ XR.define("infra.media.prefetch", [], function () {
 
   /** Queue a warm-up. priority 0 = next clip (front of the queue), 1 = later (back). */
   function prefetch(url, opts = {}, { priority = 1 } = {}) {
-    if (!enabled || !isMediaUrl(url) || entries.has(url) || inflight.has(url)) return Promise.resolve(null);
+    if (!mayWarm() || !isMediaUrl(url) || entries.has(url) || inflight.has(url)) return Promise.resolve(null);
     if (queue.some((j) => j.url === url)) return Promise.resolve(null);
     let resolve;
     const promise = new Promise((r) => { resolve = r; });
@@ -160,7 +184,7 @@ XR.define("infra.media.prefetch", [], function () {
   const AHEAD_MAX_SECONDS = 8 * 60;
   const aheadInFlight = new Set();
   function warmAhead(video, url, { duration = 0, bitrate = 0 } = {}) {
-    if (!enabled || !isMediaUrl(url)) return;
+    if (!mayWarm() || !isMediaUrl(url)) return;
     if (duration > AHEAD_MAX_SECONDS) return;             // long form streams natively
     if (entries.has(url) || aheadInFlight.has(url)) return;
     /* bits per second × seconds ÷ 8, when both are known: refuse an obviously oversized
@@ -175,7 +199,8 @@ XR.define("infra.media.prefetch", [], function () {
     for (const [, e] of entries) { try { URL.revokeObjectURL(e.url); } catch { /* ignore */ } }
     entries.clear();
     bytes = 0;
-    queue.length = 0;
+    for (const job of queue.splice(0)) job.resolve(null);
+    for (const controller of controllers.values()) controller.abort();
   }
 
   function setEnabled(on) {

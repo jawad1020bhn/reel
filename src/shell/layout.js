@@ -150,7 +150,11 @@ XR.define("shell.layout", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu", "app.f
          Tapping the current destination again returns the page to the top. */
       const phoneIds = ["discover", "library", "watch", "collections"];
       const goTab = (id) => {
-        if (nav.current?.name !== id) { nav.go(id); return; }
+        if (nav.current?.name !== id) {
+          if (id === "library" && libraryRoute) nav.go("library", libraryRoute.params, libraryRoute.query);
+          else nav.go(id);
+          return;
+        }
         const reduce = document.documentElement.dataset.motion === "reduce" || matchMedia("(prefers-reduced-motion: reduce)").matches;
         outlet.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
       };
@@ -220,7 +224,9 @@ XR.define("shell.layout", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu", "app.f
       els.source.title = `${s.label || "No data"} · ${s.count || 0} posts · click to manage`;
     }
 
+    let libraryRoute = null;
     function setActive(route) {
+      if (route.name === "library") libraryRoute = route;
       if (!els) return;
       const f = features.get(route.name);
       els.context.textContent = f ? i18n.t(f.title) : "";
@@ -237,7 +243,7 @@ XR.define("shell.layout", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu", "app.f
          this route is about to publish can't be wiped by that timer a beat later. */
       els.closeSearch({ instant: true, restore: false });
       els.app.dataset.feature = route.name;
-      els.app.classList.toggle("app-immersive", !!(f && f.layout === "immersive"));
+
       /* back only exists where there is somewhere to go back to (detail pages) */
       const detail = Object.keys(route.params || {}).length > 0 || [].concat(route.query?.q || [], route.query?.state || []).some(Boolean);
       els.header.classList.toggle("has-back", !!(f && f.back && detail));

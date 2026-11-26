@@ -694,3 +694,57 @@ test("cancelling deletion and incorrect passwords leave the post untouched", asy
   assert.equal(shared.size, 0);
   await page.close();
 });
+
+test("Library returns from Watch with its deck, query and scroll; mobile tab keeps filters", async (t) => {
+  const page = await pageFor(t);
+  await open(page, "library?kind=video&sort=smart&q=Test");
+  const before = await page.evaluate(() => {
+    const grid = document.querySelector('.lib-grid .masonry') || document.querySelector('.lib-grid');
+    const outlet = document.querySelector('.outlet');
+    outlet.scrollTop = 500;
+    return { y: outlet.scrollTop, query: location.hash, tiles: [...grid.querySelectorAll('[data-index]')].map(e => [e.dataset.index, e.dataset.id]) };
+  });
+  assert.ok(before.y > 0, 'fixture can scroll');
+  await page.evaluate(() => XR.resolve('app.actions').watch(['clip-1', 'clip-2'], 0, { label: 'Test' }));
+  await page.waitForSelector('.watch');
+  await page.evaluate(() => XR.resolve('app.nav').back());
+  await page.waitForSelector('.library');
+  await page.waitForFunction(y => Math.abs(document.querySelector('.outlet').scrollTop - y) < 3, {}, before.y);
+  assert.equal(await page.evaluate(() => location.hash), before.query);
+  assert.equal(await page.$eval('.lib-search', e => e.value), 'Test');
+  const after = await page.$$eval('.lib-grid [data-index]', els => els.map(e => [e.dataset.index, e.dataset.id]));
+  assert.deepEqual(after, before.tiles, 'the same tiles keep their positions after playback');
+  await page.evaluate(() => XR.resolve('app.nav').go('collections'));
+  await page.waitForSelector('.outlet[data-feature="collections"] > :not(.feature-loading)');
+  await tap(page, '.mobile-nav-link[data-feature="library"]');
+  await page.waitForSelector('.library');
+  assert.equal(await page.evaluate(() => location.hash), before.query);
+  await page.waitForFunction(y => Math.abs(document.querySelector('.outlet').scrollTop - y) < 3, {}, before.y);
+});
+
+test("large mobile Library keeps a bounded DOM during a deep scroll", async (t) => {
+  const page = await pageFor(t);
+  await open(page, 'library?sort=saved');
+  const result = await page.evaluate(async () => {
+    const { createMasonry } = XR.resolve('ui.masonry');
+    const host = document.createElement('div');
+    const scroller = document.querySelector('.outlet');
+    scroller.replaceChildren(host);
+    let renders = 0;
+    const grid = createMasonry(host, {
+      scroller, minCols: 2, extraHeight: () => 0,
+      render: (_, i) => { renders++; const el = document.createElement('div'); el.dataset.index = i; return { el, destroy: () => el.remove() }; },
+    });
+    const start = performance.now();
+    grid.setItems(Array.from({ length: 10000 }, (_, id) => ({ id })));
+    const layoutMs = performance.now() - start;
+    for (const i of [1000, 5000, 9000]) { grid.scrollToIndex(i); await new Promise(requestAnimationFrame); }
+    const result = { mounted: grid.mounted(), renders, layoutMs, height: host.offsetHeight };
+    grid.destroy();
+    return result;
+  });
+  assert.ok(result.mounted < 80, `bounded mounted tiles: ${JSON.stringify(result)}`);
+  assert.ok(result.renders < 240, `only nearby tiles rendered: ${JSON.stringify(result)}`);
+  assert.ok(result.height > 100000, 'full scroll geometry retained');
+  t.diagnostic(JSON.stringify(result));
+});

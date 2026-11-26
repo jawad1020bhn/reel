@@ -26,6 +26,10 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
     const newSeed = () => 1 + Math.floor(Math.random() * 2147483646);
     const LOAD_SEED = newSeed();
     let firstMount = true;
+    // Keep only the last visited view: no private library copies in persistent storage.
+    let resume = null;
+    const queryKey = (query) => JSON.stringify(Object.entries(query || {}).sort(([a], [b]) => a.localeCompare(b)));
+    let activeQueryKey = "";
     const specFrom = (query, { freshDeck = false } = {}) => {
       const spec = engine.fromParams(query);
       /* preference: keep one deck across reloads (off) or deal a new one every load (on) */
@@ -46,7 +50,9 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
     /* ------------------------------------------------------------ render -- */
     function mount(outlet, route) {
       S.host = outlet;
-      S.spec = specFrom(route.query, { freshDeck: firstMount });
+      activeQueryKey = queryKey(route.query);
+      const returning = resume?.key === activeQueryKey;
+      S.spec = returning ? { ...resume.spec } : specFrom(route.query, { freshDeck: firstMount });
       firstMount = false;
       const page = h("div.library");
       const toolbar = h("div.lib-toolbar");
@@ -68,7 +74,7 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
         aspectOf: (p) => tiles.aspectOf(p), extraHeight: tileExtra,
         render: (post, i, w) => tiles.make(post, { ids: S.ids, index: i, label: label(), width: w, ...selectOpts() }),
       });
-      runQuery();
+      runQuery(true, returning ? resume.ids : null);
       S.offs = [
         pullToShuffle.attach(outlet, () => { platform.vibrate?.(10); shuffle(); actions.toast("Library reshuffled"); }),
         events.bus.on(EV.ACTIVITY_CHANGED, onActivity),
@@ -92,6 +98,8 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
     const tileExtra = () => (innerWidth < 768 ? 0 : tiles.infoHeight());
 
     function unmount() {
+      clearTimeout(S.queryTimer);
+      resume = { key: activeQueryKey, spec: { ...S.spec }, ids: [...S.ids] };
       for (const off of S.offs) off(); S.offs = [];
       keys.pop("library"); keys.unbindScope("library");
       S.els.bulkBar?.remove();
@@ -99,6 +107,7 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
       S.grid?.destroy(); S.grid = null; S.host = null; S.ids = [];
     }
     function update(route) {
+      activeQueryKey = queryKey(route.query);
       const next = specFrom(route.query);
       const changed = JSON.stringify(next) !== JSON.stringify(S.spec);
       S.spec = next;
@@ -232,11 +241,21 @@ XR.define("features.library", ["ui.dom", "ui.icons", "ui.widgets", "ui.masonry",
     const SESSION_SEEN_MAX = 400;
     const sessionSeen = [];
 
-    function runQuery(resetScroll = true) {
+    function runQuery(resetScroll = true, previousIds = null) {
       if (!S.host) return;
       /* smart shuffle learns from this session: pass a ctx that knows what was already shown */
       const ctx = S.spec.sort === "smart" && sessionSeen.length ? catalog.withSessionSeen(sessionSeen) : catalog.ctx;
       S.result = catalog.query(S.spec, ctx);
+      if (previousIds) {
+        // Reapply current filters/deletions, but do not move surviving tiles merely
+        // because watching a clip changed the smart-shuffle activity signals.
+        const remaining = new Map(S.result.items.map((post) => [post.id, post]));
+        const ordered = [];
+        for (const id of previousIds) {
+          if (remaining.has(id)) { ordered.push(remaining.get(id)); remaining.delete(id); }
+        }
+        S.result.items = ordered.concat([...remaining.values()]);
+      }
       if (S.spec.sort === "smart") {
         /* the deck the Library deals is a deck: remember its opening so the next shuffle
            (here or in the feed) does not open with the same posts */

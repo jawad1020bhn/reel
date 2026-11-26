@@ -27,6 +27,10 @@ XR.define("shell.theme", ["app.prefs", "app.ports.platform", "core.i18n"], funct
     setTitle();
   }
   /* The Watch route is full black; the rest of the app keeps the near-black bar. */
+  function setLayout(feature) {
+    document.querySelector(".app")?.classList.toggle("app-immersive", feature?.layout === "immersive");
+    syncChrome();
+  }
   function syncChrome() {
     const meta = document.querySelector('meta[name="theme-color"]');
     if (!meta) return;
@@ -56,5 +60,5 @@ XR.define("shell.theme", ["app.prefs", "app.ports.platform", "core.i18n"], funct
       mq.addEventListener?.("change", () => { /* dark-only */ });
     }
   }
-  return { start, apply, setTitle, resolvedTheme, APP_TITLE };
+  return { start, apply, setTitle, setLayout, resolvedTheme, APP_TITLE };
 });
