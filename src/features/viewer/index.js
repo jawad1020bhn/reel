@@ -3,8 +3,8 @@
    with ZERO unwanted cropping or zooming. Information and actions float gracefully
    without eating valuable screen estate.
    Opened from anywhere through EV.VIEWER_OPEN { ids, index, label }. */
-XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu", "ui.mediaFeedback", "ui.postMenu", "ui.tiles", "ui.keys", "app.catalog", "app.activity", "app.actions", "app.playback", "app.prefs", "app.media", "app.ports.platform", "core.events", "core.domain.events", "core.util"],
-  function (dom, icons, W, menu, mediaFeedback, postMenu, tiles, keys, catalog, activity, actions, playback, prefs, media, platform, events, EV, util) {
+XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.mediaFeedback", "ui.postMenu", "ui.tiles", "ui.keys", "app.catalog", "app.activity", "app.actions", "app.playback", "app.prefs", "app.media", "app.ports.platform", "core.events", "core.domain.events", "core.util"],
+  function (dom, icons, W, mediaFeedback, postMenu, tiles, keys, catalog, activity, actions, playback, prefs, media, platform, events, EV, util) {
     "use strict";
     const h = dom.h;
     const S = {
@@ -82,13 +82,13 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu", "ui
         /* Top bar (fit lives in the rail / keyboard) */
         h("header.viewer-top",
           h("div.viewer-top-left",
-            h("button.viewer-close.btn.btn-icon", { title: "Close (Esc)", "aria-label": "Close viewer", onclick: () => close() }, icons.icon("x", 22)),
+            h("button.viewer-close.btn.btn-icon", { title: "Close (Esc)", onclick: () => close() }, icons.icon("x", 22)),
             h("span.viewer-pos.badge.badge-dark"))),
 
-        /* Post navigation stays available alongside touch gestures. */
-        h("nav.viewer-vnav", { "aria-label": "Posts" },
-          h("button.viewer-vnav-btn.viewer-vnav-up.btn.btn-icon", { title: "Previous post (↑)", "aria-label": "Previous post", onclick: () => step(-1) }, icons.icon("chevronUp", 24), h("span.viewer-nav-label", "Previous")),
-          h("button.viewer-vnav-btn.viewer-vnav-down.btn.btn-icon", { title: "Next post (↓)", "aria-label": "Next post", onclick: () => step(1) }, icons.icon("chevronDown", 24), h("span.viewer-nav-label", "Next"))),
+        /* Vertical feed arrows (desktop ≥900px only — mobile/touch feeds use swipes, see viewer.css) */
+        h("div.viewer-vnav",
+          h("button.viewer-vnav-btn.viewer-vnav-up.btn.btn-icon", { title: "Previous post (↑)", onclick: () => step(-1) }, icons.icon("chevronUp", 24)),
+          h("button.viewer-vnav-btn.viewer-vnav-down.btn.btn-icon", { title: "Next post (↓)", onclick: () => step(1) }, icons.icon("chevronDown", 24))),
 
         /* Central Theatre Stage */
         h("div.viewer-stage",
@@ -154,13 +154,8 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu", "ui
     function stepMedia(d) {
       const p = current();
       if (!p || p.media.length <= 1) return;
-      const focused = S.el?.querySelector(".viewer-media-nav")?.contains(document.activeElement);
       S.mediaIndex = (S.mediaIndex + d + p.media.length) % p.media.length;
       render();
-      if (focused) {
-        const preferred = S.el.querySelector(d > 0 ? ".viewer-frame-next" : ".viewer-frame-prev");
-        (preferred?.disabled ? S.el.querySelector(".viewer-media-nav button:not(:disabled)") : preferred)?.focus({ preventScroll: true });
-      }
     }
 
     function toggleFit() {
@@ -221,7 +216,7 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu", "ui
 
       /* Update top counters & nav buttons */
       posBadge.replaceChildren(
-        `Post ${S.index + 1} / ${S.ids.length}`,
+        `${S.index + 1} / ${S.ids.length}`,
         S.label ? h("span.viewer-pos-label", " · " + S.label) : "");
       S.el.querySelector(".viewer-vnav-up").disabled = S.index === 0;
       S.el.querySelector(".viewer-vnav-down").disabled = S.index >= S.ids.length - 1;
@@ -342,16 +337,18 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu", "ui
 
         /* Carousel arrows for multi-media posts */
         if (post.media.length > 1) {
-          mediaBox.appendChild(h("nav.viewer-media-nav", { "aria-label": "Media in this post" },
+          mediaBox.appendChild(
             h("button.viewer-frame-arrow.viewer-frame-prev", {
-              "aria-label": "Previous media", disabled: S.mediaIndex === 0,
+              title: "Previous media",
               onclick: (e) => { e.stopPropagation(); stepMedia(-1); },
-            }, icons.icon("chevronLeft", 22)),
-            h("span.viewer-media-count", { role: "status", "aria-live": "polite", "aria-atomic": "true" }, `Media ${S.mediaIndex + 1} / ${post.media.length}`),
+            }, icons.icon("chevronLeft", 22))
+          );
+          mediaBox.appendChild(
             h("button.viewer-frame-arrow.viewer-frame-next", {
-              "aria-label": "Next media", disabled: S.mediaIndex === post.media.length - 1,
+              title: "Next media",
               onclick: (e) => { e.stopPropagation(); stepMedia(1); },
-            }, icons.icon("chevronRight", 22))));
+            }, icons.icon("chevronRight", 22))
+          );
         }
       } else {
         mediaBox.appendChild(h("div.viewer-textonly", h("p", post.text)));
@@ -517,7 +514,7 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu", "ui
       const starred = activity.isStarred(post.id);
 
       const creatorBtn = h("button.viewer-rail-btn.viewer-rail-creator", {
-        title: "View profile", "aria-label": "View creator profile",
+        title: "View profile",
         onclick: (e) => {
           e.stopPropagation();
           close();
@@ -529,12 +526,11 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu", "ui
 
       const starBtn = h("button.viewer-rail-btn.viewer-rail-star", {
         class: starred ? "is-active" : "",
-        title: "Star (s)", "aria-label": "Star post", "aria-pressed": String(starred),
+        title: "Star (s)",
         onclick: (e) => {
           e.stopPropagation();
           const on = actions.star(post);
           starBtn.classList.toggle("is-active", on);
-          starBtn.setAttribute("aria-pressed", String(on));
         },
       }, icons.icon("star", 24, { filled: starred }), h("span.viewer-rail-label", "Star"));
 
@@ -557,7 +553,7 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu", "ui
 
       const infoBtn = h("button.viewer-rail-btn.viewer-rail-info", {
         class: S.showInfo ? "on" : "",
-        title: "Caption & details (i)", "aria-label": "Caption and details",
+        title: "Caption & details (i)",
         onclick: (e) => {
           e.stopPropagation();
           toggleInfo();
@@ -565,23 +561,16 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu", "ui
       }, icons.icon("info", 22), h("span.viewer-rail-label", "Info"));
 
       const moreBtn = h("button.viewer-rail-btn.viewer-rail-more", {
-        title: "More", "aria-label": "More playback and post actions", "aria-haspopup": "menu",
+        title: "More",
         onclick: (e) => {
           e.stopPropagation();
-          const opts = {
+          postMenu.open(post, e.currentTarget, {
             ids: S.ids,
             index: S.index,
             label: S.label,
             noOpen: true,
             mediaIndex: S.mediaIndex,
-          };
-          if (innerWidth < 900 || !platform.canHover()) {
-            menu.open(e.currentTarget, [
-              { label: "Fit / fill", icon: "fit", run: toggleFit },
-              { label: "Watch in feed", icon: "play", run: () => { close(false); actions.watch(S.ids, S.index, { label: S.label }); } },
-              { sep: true }, ...postMenu.items(post, { ...opts, noWatch: true }),
-            ], { title: "Playback & post actions" });
-          } else postMenu.open(post, e.currentTarget, opts);
+          });
         },
       }, icons.icon("more", 22), h("span.viewer-rail-label", "More"));
 
@@ -596,7 +585,6 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu", "ui
       if (starBtn) {
         const on = activity.isStarred(post.id);
         starBtn.classList.toggle("is-active", on);
-        starBtn.setAttribute("aria-pressed", String(on));
         starBtn.innerHTML = "";
         starBtn.appendChild(icons.icon("star", 24, { filled: on }));
         starBtn.appendChild(h("span.viewer-rail-label", "Star"));
@@ -683,7 +671,7 @@ XR.define("features.viewer", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu", "ui
       el.addEventListener("touchstart", (e) => {
         if (e.touches.length !== 1) { active = false; return; }
         /* native scrolling stays native */
-        if (e.target.closest("button, a, .viewer-info-card.on, .viewer-caption.expanded, .viewer-scrub")) { active = false; return; }
+        if (e.target.closest(".viewer-info-card.on, .viewer-caption.expanded, .viewer-scrub")) { active = false; return; }
         startX = e.touches[0].clientX;
         startY = e.touches[0].clientY;
         startT = Date.now();

@@ -99,6 +99,8 @@
 .watch-arrow:hover { background: transparent; opacity: 0.78; }
 .watch-arrow:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 
+[data-touch="on"] .watch-arrows { display: none; }   /* touch devices of any size */
+
 /* HUD + heart */
 .watch-hud { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.9); z-index: 6; padding: 10px 18px; border-radius: var(--r-pill); background: rgb(10 10 13 / 0.7); font-weight: 800; font-size: 20px; font-variant-numeric: tabular-nums; opacity: 0; pointer-events: none; transition: opacity 120ms var(--ease), transform 120ms var(--ease); }
 .watch-hud.on { opacity: 1; transform: translate(-50%, -50%); }
@@ -185,6 +187,8 @@
   .carousel-next { right: 100px; }
 }
 @media (max-width: 899px) {
+  /* mobile: no up/down arrows — the feed is swiped (keyboard ↑/↓ still work) */
+  .watch-arrows { display: none; }
   .cell-bar { bottom: 0; padding: 8px 12px calc(4px + env(safe-area-inset-bottom, 0px)); }
   .watch-side { bottom: calc(58px + env(safe-area-inset-bottom, 0px)); gap: 10px; }
   .watch-top { padding: calc(10px + env(safe-area-inset-top, 0px)) 10px 10px; gap: 8px; }
@@ -340,46 +344,3 @@
 .cell.has-media-feedback .cell-pauseglyph { display: none; }
 .cell .media-feedback.cell-unplayable { z-index: 6; }
 .cell .media-feedback-actions .btn { min-height: 44px; }
-
-/* Explicit tap navigation supplements, rather than replaces, the two swipe axes. */
-.watch-nav-label { display: none; }
-.watch-arrow { display: inline-flex; align-items: center; justify-content: center; }
-.carousel-navigation { display: contents; }
-.carousel-arrow:disabled, .watch-arrow:disabled { opacity: 0.35; cursor: default; }
-.carousel-arrow:focus-visible { opacity: 1; outline: 2px solid #fff; outline-offset: 2px; }
-@media (max-width: 899px), (hover: none) {
-  .watch-arrows {
-    display: flex; flex-direction: row; gap: 8px; left: max(12px, env(safe-area-inset-left, 0px)); right: auto;
-    top: auto; bottom: calc(62px + env(safe-area-inset-bottom, 0px)); transform: none;
-  }
-  .watch-arrows .watch-arrow { width: 76px; height: 48px; flex-direction: column; gap: 1px; border: 1px solid rgb(255 255 255 / 0.18); border-radius: 12px; background: rgb(14 14 16 / 0.9); }
-  .watch-nav-label { display: block; font-size: 11px; line-height: 1.2; }
-  .watch-upnext, .watch-upnext.on { display: none; } /* Next is now explicit; the queue remains in More. */
-  .side-btn.side-post-actions, .watch-top-actions { display: none; }
-  .side-btn.side-options { display: flex; }
-  .side-btn.side-options .side-label { display: block; }
-  .side-btn { min-width: 48px; min-height: 48px; }
-  .watch-side { right: max(12px, env(safe-area-inset-right, 0px)); gap: 8px; }
-  .watch-back, .cell-bar .cell-play, .cell-speed { min-width: 48px; min-height: 48px; }
-  .carousel-navigation {
-    display: flex; align-items: center; justify-content: space-between; gap: 4px;
-    position: absolute; z-index: 5; left: max(12px, env(safe-area-inset-left, 0px));
-    bottom: calc(122px + env(safe-area-inset-bottom, 0px)); width: min(244px, calc(100% - 88px));
-    border: 1px solid rgb(255 255 255 / 0.18); border-radius: 12px; background: rgb(14 14 16 / 0.9);
-  }
-  .carousel-navigation .carousel-arrow { display: inline-flex; position: static; transform: none; opacity: 1; width: 48px; height: 48px; flex: none; }
-  .carousel-navigation .carousel-arrow:disabled { opacity: 0.35; }
-  .carousel-navigation .carousel-counter { position: static; font-size: 12px; padding: 0; border: 0; background: none; white-space: nowrap; }
-  .carousel-dots { display: none; }
-  .is-idle .carousel-navigation { opacity: 0; pointer-events: none; }
-  .watch:focus-within .watch-arrows, .watch:focus-within .carousel-navigation { opacity: 1; pointer-events: auto; }
-  .watch-info-card .btn, .watch-info-card .wi-close, .watch-nextup .btn, .wi-tags .chip { min-height: 44px; min-width: 44px; }
-}
-@media (max-width: 899px), (hover: none) {
-  .watch-side .side-label { display: block; }
-}
-@media (max-height: 520px) and (orientation: landscape) {
-  /* Failed media has no seek bar: use that space, not the recovery card. */
-  .cell.is-unplayable .carousel-navigation { bottom: calc(62px + env(safe-area-inset-bottom, 0px)); }
-  .watch:has(.cell.is-active.is-unplayable) .watch-arrows { bottom: calc(6px + env(safe-area-inset-bottom, 0px)); }
-}

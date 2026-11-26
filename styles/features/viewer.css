@@ -716,39 +716,3 @@
 
 /* Keep the reserved stage, but never leave a broken-image glyph behind recovery. */
 .viewer-frame.is-unplayable .viewer-img { visibility: hidden; }
-
-/* Labels and generous hit areas stay quiet over the artwork. */
-.viewer-nav-label, .viewer-media-count { display: none; }
-.viewer-media-nav { display: contents; }
-.viewer-frame-arrow:disabled { opacity: 0.35; cursor: default; }
-.viewer-frame-arrow:focus-visible { opacity: 1; outline: 2px solid #fff; outline-offset: 2px; }
-@media (max-width: 899px), (hover: none) {
-  .viewer-vnav {
-    display: flex; flex-direction: row; gap: 8px; left: max(12px, env(safe-area-inset-left, 0px));
-    top: auto; bottom: calc(124px + env(safe-area-inset-bottom, 0px)); transform: none;
-  }
-  .viewer-vnav-btn { min-width: 76px; min-height: 48px; display: inline-flex; flex-direction: column; justify-content: center; align-items: center; gap: 1px; width: 76px; height: 48px; border: 1px solid rgb(255 255 255 / 0.18); border-radius: 12px; background: rgb(14 14 16 / 0.9); }
-  .viewer-nav-label { display: block; font-size: 11px; line-height: 1.2; }
-  .viewer-vnav-btn:hover, .viewer-vnav-btn:active { transform: none; }
-  .viewer-vnav-btn:disabled { opacity: 0.35; }
-  .viewer-rail-creator, .viewer-rail-watch, .viewer-rail-fit { display: none; }
-  .viewer-rail { display: flex; flex-direction: column; gap: 8px; right: max(12px, env(safe-area-inset-right, 0px)); bottom: calc(124px + env(safe-area-inset-bottom, 0px)); }
-  .viewer-rail-btn { min-width: 48px; min-height: 48px; gap: 2px; }
-  .viewer-rail .viewer-rail-label { display: block; font-size: 11px; line-height: 1.2; }
-  .viewer-media-nav {
-    position: absolute; z-index: 7; display: flex; align-items: center; justify-content: space-between; gap: 4px;
-    left: max(12px, env(safe-area-inset-left, 0px)); bottom: calc(184px + env(safe-area-inset-bottom, 0px));
-    width: min(244px, calc(100% - 88px)); border: 1px solid rgb(255 255 255 / 0.18); border-radius: 12px; background: rgb(14 14 16 / 0.9);
-  }
-  .viewer-media-nav .viewer-frame-arrow { display: inline-flex; position: static; transform: none; opacity: 1; width: 48px; height: 48px; border: 0; background: transparent; flex: none; }
-  .viewer-media-nav .viewer-frame-arrow:disabled { opacity: 0.35; }
-  .viewer-media-count { display: block; font-size: 12px; white-space: nowrap; }
-  .viewer-close, .viewer-controls .btn, .viewer-info-close { min-width: 48px; min-height: 48px; }
-  .viewer-tags .chip { min-height: 44px; }
-  .viewer-thumb { min-width: 48px; min-height: 48px; }
-}
-@media (max-height: 520px) and (orientation: landscape) {
-  .viewer-frame.is-unplayable .viewer-media-nav { bottom: calc(62px + env(safe-area-inset-bottom, 0px)); }
-  .viewer:has(.viewer-frame.is-unplayable) .viewer-vnav { bottom: calc(6px + env(safe-area-inset-bottom, 0px)); }
-  .viewer-frame.is-unplayable .viewer-strip { display: none !important; } /* media buttons retain every album item */
-}

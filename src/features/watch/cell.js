@@ -189,11 +189,10 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu",
       });
       stage.appendChild(scroller);
       const dots = h("div.carousel-dots", post.media.map((_, i) => h("i", { class: i === 0 ? "on" : "" })));
-      const counter = h("span.badge.badge-dark.carousel-counter", { role: "status", "aria-live": "polite", "aria-atomic": "true" }, `Media 1 / ${post.media.length}`);
-      const prevMedia = h("button.carousel-arrow.carousel-prev", { "aria-label": "Previous media", disabled: true, onclick: (e) => { e.stopPropagation(); setSlide(slideIndex - 1); } }, icons.icon("chevronLeft", 22));
-      const nextMedia = h("button.carousel-arrow.carousel-next", { "aria-label": "Next media", onclick: (e) => { e.stopPropagation(); setSlide(slideIndex + 1); } }, icons.icon("chevronRight", 22));
-      stage.appendChild(dots);
-      stage.appendChild(h("nav.carousel-navigation", { "aria-label": "Media in this post" }, prevMedia, counter, nextMedia));
+      const counter = h("span.badge.badge-dark.carousel-counter", `1 / ${post.media.length}`);
+      stage.appendChild(dots); stage.appendChild(counter);
+      stage.appendChild(h("button.carousel-arrow.carousel-prev", { "aria-label": "Previous image", onclick: (e) => { e.stopPropagation(); api.carousel.prev(); } }, icons.icon("chevronLeft", 24)));
+      stage.appendChild(h("button.carousel-arrow.carousel-next", { "aria-label": "Next image", onclick: (e) => { e.stopPropagation(); api.carousel.next(); } }, icons.icon("chevronRight", 24)));
       if (slides.some((s) => s.hd)) { stage.appendChild(h("div.cell-pauseglyph", icons.icon("play", 44, { filled: true }))); }
       scroller.addEventListener("scroll", () => { clearTimeout(scrollT); scrollT = setTimeout(() => setSlide(Math.round(scroller.scrollLeft / scroller.clientWidth), false), 80); }, { passive: true });
       function setSlide(i, scroll = true) {
@@ -205,8 +204,7 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu",
         if (prev?.hd) prev.hd.deactivate();
         slideIndex = i;
         [...dots.children].forEach((d, k) => d.classList.toggle("on", k === i));
-        counter.textContent = `Media ${i + 1} / ${slides.length}`;
-        prevMedia.disabled = i === 0; nextMedia.disabled = i === slides.length - 1;
+        counter.textContent = `${i + 1} / ${slides.length}`;
         handle = slides[i].hd || null;
         selectedMediaEl = slides[i].target;
         el.classList.remove("has-media-feedback");

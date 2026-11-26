@@ -149,11 +149,9 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
       const side = h("div.watch-side",
         h("button.side-btn.side-mute", { "aria-label": "Mute / unmute", title: "Mute (m)", onclick: () => playback.toggleMuted() }, icons.icon(playback.muted ? "mute" : "volume", 26), h("span.side-label", "Sound")),
         h("button.side-btn.side-info", { "aria-label": "Caption and details", title: "Caption & details (i)", onclick: (e) => { e.stopPropagation(); toggleInfo(); } }, icons.icon("info", 26), h("span.side-label", "Info")),
-        h("button.side-btn.side-options", { "aria-label": "More playback and post actions", "aria-haspopup": "menu", title: "More playback and post actions", onclick: (e) => { e.stopPropagation(); playerOptions(e.currentTarget); } }, icons.icon("more", 26), h("span.side-label.side-options-label", "More")),
-        h("button.side-btn.side-post-actions", { "aria-label": "Post actions", title: "More", onclick: (e) => { const p = current(); if (p) postMenu.open(p, e.currentTarget, { ids: S.ids, index: S.index, label: S.label, noWatch: true, noOpen: true }); } }, icons.icon("more", 26), h("span.side-label", "More")));
-      const arrows = h("nav.watch-arrows", { "aria-label": "Posts" },
-        h("button.watch-arrow.watch-arrow-up", { "aria-label": "Previous post", onclick: () => go(-1) }, icons.icon("chevronUp", 20), h("span.watch-nav-label", "Previous")),
-        h("button.watch-arrow.watch-arrow-down", { "aria-label": "Next post", onclick: () => go(1) }, icons.icon("chevronDown", 20), h("span.watch-nav-label", "Next")));
+        h("button.side-btn.side-options", { "aria-label": "Player options", title: "Player options", onclick: (e) => { e.stopPropagation(); playerOptions(); } }, icons.icon("sliders", 26), h("span.side-label", "Options")),
+        h("button.side-btn", { "aria-label": "Post actions", title: "More", onclick: (e) => { const p = current(); if (p) postMenu.open(p, e.currentTarget, { ids: S.ids, index: S.index, label: S.label, noWatch: true, noOpen: true }); } }, icons.icon("more", 26), h("span.side-label", "More")));
+      const arrows = h("div.watch-arrows", W.iconBtn("chevronUp", "Previous (↑)", () => go(-1), { cls: "watch-arrow watch-arrow-up", size: 24 }), W.iconBtn("chevronDown", "Next (↓)", () => go(1), { cls: "watch-arrow watch-arrow-down", size: 24 }));
       const hud = h("div.watch-hud");
       const upnext = h("button.watch-upnext", { title: "Up next (↓)", onclick: () => go(1) });
       const info = h("div.watch-info-card");
@@ -286,7 +284,7 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
         if (i === S.index) c.activate();
         else { c.deactivate(); if (Math.abs(i - S.index) === 1) c.prepare(); }
       }
-      S.els.counter.textContent = S.ids.length ? S.index < S.ids.length ? `Post ${S.index + 1} / ${S.ids.length}` : "All caught up" : "";
+      S.els.counter.textContent = S.ids.length ? `${S.index + 1} / ${S.ids.length}` : "";
       renderUpNext();
       S.els.arrows.querySelector(".watch-arrow-up").disabled = S.index <= 0;
       S.els.arrows.querySelector(".watch-arrow-down").disabled = S.index >= S.ids.length;
@@ -514,18 +512,13 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
       clearTimeout(seekFlashTimer); seekFlashTimer = setTimeout(() => el.classList.remove("pop"), 700);
     }
     let seekFlashTimer = 0;
-    function playerOptions(anchor = null) {
+    function playerOptions() {
       const items = [
         { label: "Fit / fill", icon: "fit", run: cycleFit },
         { label: "Up next", icon: "list", run: () => queueSheet() },
       ];
-      const compact = !platform.canHover() || innerWidth < 900;
-      const post = current();
-      if (compact && post) items.push({ sep: true }, ...postMenu.items(post, {
-        ids: S.ids, index: S.index, label: S.label, noWatch: true, noOpen: true,
-        mediaIndex: S.cells.get(S.index)?.carousel?.index || 0,
-      }));
-      menu.open(anchor || S.root?.querySelector(platform.canHover() ? ".watch-options" : ".side-options"), items, { title: compact ? "Playback & post actions" : "Player options" });
+      /* Anchor on the control that is actually visible for this input mode. */
+      menu.open(S.root?.querySelector(platform.canHover() ? ".watch-options" : ".side-options"), items, { title: "Player options" });
     }
     function cycleFit() {
       const cell = S.cells.get(S.index);
