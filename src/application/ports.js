@@ -23,7 +23,8 @@
    MediaPrefetchPort { blobUrl(url)→blob: URL of an already-warm clip, or "",
                        warm(url,opts)→Promise<blobUrl|null>, prefetch(url,opts,{priority})→Promise,
                        warmAhead(video,url,{duration,bitrate}), has(url)→bool,
-                       stats()→{entries,bytes,hits,misses,…}, clear(), setEnabled(on) }
+                       stats()→{entries,bytes,hits,misses,…}, clear(), setEnabled(on),
+                       retain?(urls) cancels obsolete speculative jobs without evicting cached clips }
    OfflineCachePort  { start({enabled})→Promise<state>, warmShell()→Promise<bool>,
                        usage()→Promise<{bytes,entries}|null>, clearMedia()→Promise<bool> }
    PlatformPort      { copy(text)→Promise<bool>, share(data)→Promise<bool>, download(url,name)→Promise<bool>,

@@ -131,12 +131,12 @@ test("a clip already in the warm cache plays from its blob URL, with no request"
   assert.equal(video.assigned.length, 1, "exactly one source assignment: no fallback request");
 });
 
-test("a clip that is not cached plays from the CDN and is warmed for next time", () => {
+test("a cache miss streams without an unsolicited second whole-file download", () => {
   const player = load();
   const video = fakeVideo({ nativeHls: true });
   player.attach(video, { sources: [{ url: MP4(480), type: "video/mp4", bitrate: 480000 }] });
   assert.equal(video.assigned[0], MP4(480), "streams from the network now");
-  assert.deepEqual(player.__warmCalls, [MP4(480)], "and asks the cache to keep it");
+  assert.deepEqual(player.__warmCalls, [], "attachment leaves speculative downloads to playback policy");
 });
 
 test("HLS playlists are never warmed (they are manifests, not bytes)", () => {

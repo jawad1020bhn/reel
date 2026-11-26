@@ -73,6 +73,36 @@ XR.define("core.query.engine", ["core.query.search", "core.util"], function (sea
     }
   }
 
+  /** Exact stable top-K for small sorted shelves: O(n log k), O(k) extra
+      memory instead of sorting an entire archive just to display 24 results.
+      The original index breaks comparator ties exactly as stable Array.sort does. */
+  function topK(items, limit, compare) {
+    const heap = [];
+    const cmp = (a, b) => compare(a.post, b.post) || a.index - b.index;
+    for (let index = 0; index < items.length; index++) {
+      const candidate = { post: items[index], index };
+      if (heap.length < limit) {
+        heap.push(candidate);
+        let i = heap.length - 1;
+        while (i > 0) {
+          const parent = (i - 1) >> 1;
+          if (cmp(heap[parent], heap[i]) >= 0) break;
+          [heap[parent], heap[i]] = [heap[i], heap[parent]]; i = parent;
+        }
+      } else if (cmp(candidate, heap[0]) < 0) {
+        heap[0] = candidate;
+        let i = 0;
+        while (i * 2 + 1 < heap.length) {
+          let child = i * 2 + 1;
+          if (child + 1 < heap.length && cmp(heap[child + 1], heap[child]) > 0) child++;
+          if (cmp(heap[i], heap[child]) >= 0) break;
+          [heap[i], heap[child]] = [heap[child], heap[i]]; i = child;
+        }
+      }
+    }
+    return heap.sort(cmp).map((entry) => entry.post);
+  }
+
   /**
    * Smart shuffle — a deterministic (per seed) order that feels curated rather than random:
    *   1. weight each post: unseen ×3, in progress ×2, starred ×1.5, fresh saves up to ×1.8
@@ -382,11 +412,12 @@ XR.define("core.query.engine", ["core.query.search", "core.util"], function (sea
     if (spec.savedMonth) tests.push((p) => util.monthKey(p.savedAt) === spec.savedMonth);
 
     let items = posts.filter((p) => tests.every((t) => t(p, ctx)));
+    const total = items.length;
     const sort = compiled.hints.sort && SORTS.includes(compiled.hints.sort) ? compiled.hints.sort : spec.sort;
     if (sort === "random") items = util.shuffle(items, spec.seed || 1);
     else if (sort === "smart") items = smartShuffle(items, spec.seed, ctx, { explain: !!rawSpec.explain });
+    else if (spec.limit > 0 && Number.isInteger(spec.limit) && spec.limit * 2 < items.length) items = topK(items, spec.limit, comparator(sort, spec.seed, ctx));
     else items.sort(comparator(sort, spec.seed, ctx));
-    const total = items.length;
     /* explain mode travels with the result, before the limit trims the array */
     const explain = sort === "smart" && rawSpec.explain ? items.explain || null : null;
     if (spec.limit > 0) items = items.slice(0, spec.limit);
