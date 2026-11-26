@@ -344,7 +344,7 @@ test("carousel horizontal drag and feed vertical swipe do not steal each other's
   await open(page, "watch?post=mixed");
   assert.equal(await page.$eval(".cell.is-active .cell-bar", (el) => el.hidden), true, "photo has no video bar");
   await drag(page, { x: 305, y: 340 }, { x: 65, y: 342 });
-  await page.waitForFunction(() => document.querySelector(".cell.is-active .carousel-counter")?.textContent === "2 / 3");
+  await page.waitForFunction(() => document.querySelector(".cell.is-active .carousel-counter")?.textContent === "Media 2 / 3");
   await readyVideo(page);
   assert.equal(await page.$eval(".cell.is-active .cell-bar", (el) => el.hidden), false, "video after a photo gains controls");
   await drag(page, { x: 190, y: 520 }, { x: 192, y: 230 });
@@ -772,4 +772,215 @@ test('Watch starts only the visible video; fresh neighbours do not attach source
   await page.evaluate(() => XR.resolve('app.nav').go('library'));
   await page.waitForSelector('.library');
   assert.equal(await page.$$eval('.watch video, audio', nodes => nodes.length), 0, 'media elements are released on exit');
+});
+
+test('media loading becomes a recoverable slow wait, then clears on actual playback', { timeout: 30000 }, async (t) => {
+  const page = await pageFor(t);
+  await open(page, 'library');
+  await page.setRequestInterception(true);
+  let hold = true;
+  const held = [];
+  page.on('request', req => {
+    if (hold && req.url().includes('/__fixtures/clip.webm')) held.push(req);
+    else void req.continue().catch(() => {});
+  });
+  await page.evaluate(() => XR.resolve('app.actions').watch(['clip-1', 'clip-2']));
+  const panel = '.cell.is-active .media-feedback';
+  await page.waitForSelector(panel + '[data-state="loading"]', { visible: true });
+  assert.equal(await page.$eval(panel + ' [role="status"]', e => e.getAttribute('aria-live')), 'polite');
+  assert.equal(await page.$eval(panel + ' .media-feedback-title', e => e.textContent), 'Loading video…');
+  await page.screenshot({ path: resolve(SHOTS, '390-media-loading.png') });
+  await page.waitForSelector(panel + '[data-state="slow"]', { visible: true });
+  assert.equal(await page.$eval('.cell.is-active', e => e.classList.contains('is-unplayable')), false, 'a slow request is not declared failed');
+  assert.ok(await page.$eval(panel, e => /Retry/.test(e.textContent) && /Next/.test(e.textContent)));
+  hold = false;
+  await Promise.all(held.map(req => req.continue().catch(() => {})));
+  await readyVideo(page);
+  await page.waitForFunction(() => document.querySelector('.cell.is-active .media-feedback').hidden);
+  await page.setOfflineMode(true);
+  await page.waitForFunction(() => !navigator.onLine);
+  assert.equal(await page.$eval(panel, e => e.hidden), true, 'going offline does not cover a buffered playing video');
+});
+
+test('offline media has honest copy, reconnect does not imply recovery, and Retry loads again', async (t) => {
+  for (const [width, height] of [[320, 568], [844, 390]]) {
+    const page = await pageFor(t, width, height);
+    await open(page, 'library');
+    await page.setOfflineMode(true);
+    await page.evaluate(() => XR.resolve('app.actions').watch(['clip-1', 'clip-2']));
+    const panel = '.cell.is-active .media-feedback';
+    await page.waitForSelector(panel + '[data-state="offline"]', { visible: true });
+    const copy = await page.$eval(panel, e => e.textContent);
+    assert.match(copy, /isn't necessarily downloaded/);
+    assert.doesNotMatch(copy, /deleted|refused|available offline/);
+    const box = await (await page.$(panel)).boundingBox();
+    assert.ok(box.x >= 0 && box.y >= 0 && box.x + box.width <= width && box.y + box.height <= height, 'offline recovery stays on screen');
+    await page.screenshot({ path: resolve(SHOTS, `${width}-media-offline.png`) });
+    await page.setOfflineMode(false);
+    await page.waitForSelector(panel + '[data-state="reconnect"]', { visible: true });
+    const retry = await page.evaluateHandle(selector => [...document.querySelectorAll(selector + ' .btn')].find(btn => btn.textContent === 'Retry'), panel);
+    await retry.asElement().click();
+    await readyVideo(page);
+    await page.waitForFunction(() => document.querySelector('.cell.is-active .media-feedback').hidden);
+    await page.close();
+  }
+});
+
+test('Viewer reports exhausted image fallbacks and Retry clears failure on a real image load', async (t) => {
+  const page = await pageFor(t);
+  await open(page, 'library');
+  await page.evaluate(async () => {
+    await XR.resolve('app.features').load('viewer');
+    const m = XR.resolve('app.catalog').post('clip-4').media[0];
+    window.originalImage = { thumb: m.thumb, poster: m.poster };
+    m.thumb = '/__fixtures/missing-image.jpg'; m.poster = '/__fixtures/missing-preview.jpg';
+    XR.resolve('app.actions').view(['clip-4', 'clip-1']);
+  });
+  const panel = '.viewer .media-feedback';
+  await page.waitForSelector(panel + '[data-state="error"]', { visible: true });
+  assert.match(await page.$eval(panel, e => e.textContent), /Couldn't load this image/);
+  await page.screenshot({ path: resolve(SHOTS, '390-viewer-image-error.png') });
+  await page.evaluate(() => {
+    Object.assign(XR.resolve('app.catalog').post('clip-4').media[0], window.originalImage);
+    [...document.querySelectorAll('.viewer .media-feedback .btn')].find(btn => btn.textContent === 'Retry').click();
+  });
+  await page.waitForFunction(() => {
+    const img = document.querySelector('.viewer-img');
+    return img?.complete && img.naturalWidth > 0 && document.querySelector('.viewer .media-feedback').hidden;
+  });
+  assert.equal(await page.$eval('.viewer-frame', el => el.classList.contains('is-unplayable')), false);
+});
+
+test('Watch album feedback follows only the selected image or video', async (t) => {
+  const page = await pageFor(t);
+  await open(page, 'library');
+  await page.evaluate(() => {
+    const m = XR.resolve('app.catalog').post('mixed').media[0];
+    m.thumb = '/__fixtures/missing-image.jpg'; m.poster = '/__fixtures/missing-preview.jpg';
+    XR.resolve('app.actions').watch(['mixed', 'clip-1']);
+  });
+  await page.waitForSelector('.cell.is-active .media-feedback[data-state="error"]', { visible: true });
+  await drag(page, { x: 325, y: 600 }, { x: 65, y: 600 });
+  await readyVideo(page);
+  await page.waitForFunction(() => !document.querySelector('.cell.is-active').classList.contains('is-unplayable'));
+  assert.equal(await page.$$eval('.cell.is-active .media-feedback', nodes => nodes.every(node => node.hidden)), true, 'old image error does not cover the playing album video');
+});
+
+async function assertPlayerTargets(page, selectors, width, height) {
+  const targets = await page.$$eval(selectors, els => els.filter(el => el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden').map(el => {
+    const r = el.getBoundingClientRect();
+    return { label: el.getAttribute('aria-label') || el.title || el.textContent.trim(), x: r.x, y: r.y, width: r.width, height: r.height };
+  }));
+  assert.ok(targets.length > 0);
+  for (const r of targets) {
+    assert.ok(r.label, 'each action has an accessible name');
+    assert.ok(r.width >= 44 && r.height >= 44, `${r.label}: at least 44px target (${r.width}×${r.height})`);
+    assert.ok(r.x >= 0 && r.y >= 0 && r.x + r.width <= width + 1 && r.y + r.height <= height + 1, `${r.label}: target inside viewport`);
+  }
+  for (let i = 0; i < targets.length; i++) for (let j = i + 1; j < targets.length; j++) {
+    const a = targets[i], b = targets[j];
+    const overlap = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x) > 1 && Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y) > 1;
+    assert.equal(overlap, false, `${a.label} and ${b.label} do not overlap`);
+  }
+}
+
+test('mobile Watch provides separate tap navigation for posts and album media with comfortable targets', { timeout: 60000 }, async (t) => {
+  for (const [width, height] of [[320, 568], [390, 844], [844, 390]]) {
+    const page = await pageFor(t, width, height);
+    await open(page, 'library');
+    await page.evaluate(() => XR.resolve('app.actions').watch(['mixed', 'clip-4']));
+    assert.equal(await page.$eval('.watch-arrow-up', el => el.disabled), true);
+    assert.equal(await page.$eval('.watch-upnext', el => !!el.getClientRects().length), false, 'old up-next pill cannot overlap post navigation');
+    assert.equal(await page.$eval('.cell.is-active .carousel-prev', el => el.disabled), true);
+    await assertPlayerTargets(page, '.watch-arrows button, .watch-back, .watch-side button, .cell.is-active .carousel-arrow', width, height);
+    await tap(page, '.cell.is-active .carousel-next');
+    await readyVideo(page);
+    assert.equal(await page.$eval('.cell.is-active .carousel-counter', el => el.textContent), 'Media 2 / 3');
+    await assertPlayerTargets(page, '.watch-arrows button, .watch-side button, .cell.is-active .carousel-arrow, .cell.is-active .cell-play, .cell.is-active .cell-seek, .cell.is-active .cell-speed', width, height);
+    await page.screenshot({ path: resolve(SHOTS, `${width}-watch-tap-navigation.png`) });
+    await tap(page, '.cell.is-active .carousel-next');
+    assert.equal(await page.$eval('.cell.is-active .carousel-next', el => el.disabled), true);
+    assert.equal((await state(page)).id, 'mixed', 'last album item does not unexpectedly advance the feed');
+    await tap(page, '.watch-arrow-down');
+    await page.waitForFunction(() => document.querySelector('.cell.is-active')?.dataset.id === 'clip-4');
+    await tap(page, '.watch-arrow-up');
+    await page.waitForFunction(() => document.querySelector('.cell.is-active')?.dataset.id === 'mixed');
+    await page.close();
+  }
+});
+
+test('mobile player More sheets retain secondary actions and restore focus', async (t) => {
+  const page = await pageFor(t);
+  await open(page, 'watch?post=clip-1');
+  assert.equal(await page.$eval('.side-post-actions', el => !!el.getClientRects().length), false, 'one More entry point, not duplicate action rails');
+  await tap(page, '.side-options');
+  const text = await page.$eval('.menu', el => el.textContent);
+  for (const action of ['Fit / fill', 'Up next', 'Star', 'Add to collection', 'Copy link']) assert.ok(text.includes(action), `${action} remains available`);
+  await page.keyboard.press('Escape');
+  assert.equal(await page.evaluate(() => document.activeElement.classList.contains('side-options')), true);
+  await page.evaluate(async () => { await XR.resolve('app.features').load('viewer'); XR.resolve('app.actions').view(['mixed', 'clip-4']); });
+  await page.waitForSelector('.viewer.in');
+  await tap(page, '.viewer-rail-more');
+  const viewerText = await page.$eval('.menu', el => el.textContent);
+  for (const action of ['Fit / fill', 'Watch in feed', 'Add to collection', 'Copy link']) assert.ok(viewerText.includes(action));
+  await page.keyboard.press('Escape');
+  assert.equal(await page.evaluate(() => document.activeElement.classList.contains('viewer-rail-more')), true);
+  await tap(page, '.viewer-rail-star');
+  assert.equal(await page.$eval('.viewer-rail-star', el => el.getAttribute('aria-pressed')), 'true');
+});
+
+test('mobile Viewer tap navigation preserves media/post boundaries and readable action labels', { timeout: 60000 }, async (t) => {
+  for (const [width, height] of [[320, 568], [390, 844], [844, 390]]) {
+    const page = await pageFor(t, width, height);
+    await open(page, 'library');
+    await page.evaluate(async () => { await XR.resolve('app.features').load('viewer'); XR.resolve('app.actions').view(['mixed', 'clip-4']); });
+    await page.waitForSelector('.viewer.in');
+    assert.equal(await page.$eval('.viewer-vnav-up', el => el.disabled), true);
+    await assertPlayerTargets(page, '.viewer-vnav button, .viewer-media-nav button, .viewer-close, .viewer-rail button, .viewer-thumb', width, height);
+    const labels = await page.$$eval('.viewer-rail-label', els => els.filter(el => el.getClientRects().length).map(el => el.textContent));
+    assert.deepEqual(labels, ['Star', 'Info', 'More']);
+    await tap(page, '.viewer-frame-next');
+    await page.waitForFunction(() => document.querySelector('.viewer video')?.readyState >= 2);
+    assert.equal(await page.$eval('.viewer-media-count', el => el.textContent), 'Media 2 / 3');
+    await assertPlayerTargets(page, '.viewer-vnav button, .viewer-media-nav button, .viewer-rail button, .viewer-controls button, .viewer-seek', width, height);
+    await page.screenshot({ path: resolve(SHOTS, `${width}-viewer-tap-navigation.png`) });
+    await tap(page, '.viewer-frame-next');
+    assert.equal(await page.$eval('.viewer-frame-next', el => el.disabled), true);
+    await tap(page, '.viewer-vnav-down');
+    assert.equal(await page.$eval('.viewer-vnav-down', el => el.disabled), true);
+    assert.equal(await page.$('.viewer-media-nav'), null);
+    await tap(page, '.viewer-vnav-up');
+    assert.equal(await page.$eval('.viewer-media-count', el => el.textContent), 'Media 1 / 3');
+    await page.close();
+  }
+});
+
+test('album navigation never obscures media recovery actions on short phones', async (t) => {
+  for (const viewer of [false, true]) {
+    const page = await pageFor(t, 844, 390);
+    await open(page, 'library');
+    await page.evaluate(async viewer => {
+      const m = XR.resolve('app.catalog').post('mixed').media[0];
+      m.thumb = '/__fixtures/missing.jpg'; m.poster = '/__fixtures/missing-preview.jpg';
+      if (viewer) { await XR.resolve('app.features').load('viewer'); XR.resolve('app.actions').view(['mixed', 'clip-4']); }
+      else XR.resolve('app.actions').watch(['mixed', 'clip-4']);
+    }, viewer);
+    const panel = viewer ? '.viewer .media-feedback' : '.cell.is-active .media-feedback';
+    await page.waitForSelector(panel + '[data-state="error"]', { visible: true });
+    const covered = await page.$$eval(panel + ' .btn', buttons => buttons.filter(btn => btn.getClientRects().length).filter(btn => {
+      const r = btn.getBoundingClientRect();
+      return !btn.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));
+    }).map(btn => btn.textContent));
+    assert.deepEqual(covered, [], `${viewer ? 'Viewer' : 'Watch'} recovery remains tappable`);
+    const navOverlaps = await page.evaluate(({ panel, viewer }) => {
+      const p = document.querySelector(panel).getBoundingClientRect();
+      return [...document.querySelectorAll(viewer ? '.viewer-media-nav, .viewer-vnav' : '.cell.is-active .carousel-navigation, .watch-arrows')].some(el => {
+        const r = el.getBoundingClientRect();
+        return Math.min(p.right, r.right) > Math.max(p.left, r.left) && Math.min(p.bottom, r.bottom) > Math.max(p.top, r.top);
+      });
+    }, { panel, viewer });
+    assert.equal(navOverlaps, false, 'navigation does not overlap the recovery card');
+    await page.screenshot({ path: resolve(SHOTS, viewer ? '844-viewer-album-recovery.png' : '844-watch-album-recovery.png') });
+    await page.close();
+  }
 });

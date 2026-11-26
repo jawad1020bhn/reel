@@ -61,7 +61,7 @@ XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.po
     const activeId = async () => (await loadIndex()).active;
 
     /* ----------------------------------------------------------- analyse -- */
-    async function normalizeInput(input, label) {
+    async function normalizeInput(input) {
       const json = registry.parseInput(input);
       const detected = registry.detect(json);
       // Deleting the last post leaves a valid, intentionally empty library.
@@ -83,7 +83,7 @@ XR.define("app.importer", ["app.ports.storage", "app.ports.dataSources", "app.po
      * against the current library so the Import page can say what is new / gone / changed.
      */
     async function analyze(input, { label = "import" } = {}) {
-      const { json, result } = await normalizeInput(input, label);
+      const { json, result } = await normalizeInput(input);
       const withMedia = result.posts.filter((p) => p.media.length).length;
       const videos = result.posts.filter((p) => p.media.some((m) => m.kind !== "photo")).length;
       return { ...result, label, fingerprint: fingerprintOf(json), withMedia, videos, creators: new Set(result.posts.map((p) => p.author.username)).size, diff: diffAgainstCatalog(result.posts) };

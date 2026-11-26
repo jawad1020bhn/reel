@@ -30,7 +30,6 @@
   }, true);
 
   var base = (document.currentScript && document.currentScript.src || "").replace(/src\/kernel\/loader\.js.*$/, "");
-  var esc = function (s) { return String(s).replace(/"/g, "&quot;"); };
 
   /* --- styles: download in parallel, apply when they land (no render block) --- */
   function addStyle(href) {
@@ -50,7 +49,7 @@
     if (opts && opts.defer) s.defer = true;
     s.onerror = function () { errors.push({ file: src, message: "failed to load" }); };
     /* `loaded` also lets the boot deadline tell "still arriving" from "arrived, app is slow" */
-    s.onload = function () { try { s.dataset.loaded = "1"; } catch (e) { /* no dataset */ } };
+    s.onload = function () { try { s.dataset.loaded = "1"; } catch { /* no dataset */ } };
     document.head.appendChild(s);
     return s;
   }
@@ -117,7 +116,7 @@
 
   /* Mark the moment the whole chain was announced: boot.js compares it with
      performance.now() to report how much of the wait was script fetching. */
-  try { performance.mark("xreels:chain-announced"); } catch (e) { /* older engines */ }
+  try { performance.mark("xreels:chain-announced"); } catch { /* older engines */ }
 
   /* Optional vendors (hls.js) are requested by the feature that needs them — never here. */
 })();

@@ -1,7 +1,7 @@
 /* features.watch.cell — renders one post as a full-screen cell for the Watch feed.
    createCell(post, env) → { el, post, activate(), deactivate(), destroy(), fit(mode), carousel: {next, prev}|null, seekBy(s), togglePlay(), handle }
    env: { playback, media, prefs, catalog, onEnded(), onVideoEnded(), onProgress(t,d), onTap(), onOpenCreator(u), onTag(t), onUnplayable(), fitMode() } */
-XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu", "core.util", "core.events", "core.domain.events", "core.domain.model"], function (dom, icons, W, menu, util, events, EV, model) {
+XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu", "ui.mediaFeedback", "core.util", "core.events", "core.domain.events", "core.domain.model"], function (dom, icons, W, menu, mediaFeedback, util, events, EV, model) {
   "use strict";
   const h = dom.h;
 
@@ -13,7 +13,8 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu",
     const stage = h("div.cell-stage");
     el.appendChild(stage);
     let handle = null, slides = [], slideIndex = 0, imageTimer = 0, active = false, destroyed = false, carousel = null;
-    const bufferEl = h("div.cell-buffer", W.spinner());
+    const feedbacks = new Map();
+    let selectedMediaEl = null;
     const failedVideos = new WeakSet();
     let scrubbing = false, resumeAfterSeek = false, scrollT = 0;
     const progressBuffer = h("div.cell-progress-buffer");
@@ -77,12 +78,11 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu",
 
     function syncControls() {
       const video = handle?.video;
-      const failed = !!video && failedVideos.has(video);
+      const failed = feedbacks.get(selectedMediaEl)?.state.failed || (!!video && failedVideos.has(video));
       const playing = !!video && !video.paused && !video.ended;
       bar.hidden = !video;
       el.classList.toggle("is-unplayable", failed);
       el.classList.toggle("is-paused", active && !!video && video.paused && !failed);
-      if (!video || failed) el.classList.remove("is-buffering");
       seek.disabled = !duration() || failed;
       const rate = String(playback.speed || 1) + "×";
       speedBtn.textContent = rate;
@@ -93,7 +93,26 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu",
     }
 
     /* ------------------------------------------------------------- media -- */
-    let lastTriedEl = null; // the unplayable card's URL line, filled by xr:unplayable below
+    function syncFeedback() {
+      for (const [target, feedback] of feedbacks) feedback.setActive(active && target === selectedMediaEl);
+    }
+    function addFeedback(target, imageMedia = null) {
+      const feedback = mediaFeedback.create(target, {
+        image: !!imageMedia, fallback: imageMedia ? media.poster(imageMedia, 1200) : "",
+        failureClass: "cell-unplayable", actionsClass: "cell-unplayable-actions",
+        retry: () => env.onRetry?.(post), next: () => env.onNext?.(),
+        open: () => env.onOpenX?.(post), openLabel: `Open on ${model.platformLabel(post)}`,
+        hide: () => env.onHide?.(post),
+        onChange(state) {
+          if (!active || target !== selectedMediaEl) return;
+          el.classList.toggle("has-media-feedback", state.phase !== "idle");
+          if (target.tagName === "VIDEO") { if (state.failed) failedVideos.add(target); else failedVideos.delete(target); }
+          syncControls();
+        },
+      });
+      feedbacks.set(target, feedback); stage.appendChild(feedback.el);
+      return feedback;
+    }
     function videoNode(m, { primary = true } = {}) {
       const video = h("video.cell-video", { preload: "none", disablePictureInPicture: true, controlsList: "nodownload" });
       const hd = playback.wire(video, m, {
@@ -102,20 +121,16 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu",
         onEnded: () => { if (!video.loop) env.onVideoEnded?.(); },
         onProgress: (t, d) => { if (handle !== hd) return; if (!scrubbing) updateProgress(t, d); env.onProgress?.(t, d); },
       });
-      video.addEventListener("waiting", () => el.classList.add("is-buffering"));
-      video.addEventListener("playing", () => { el.classList.remove("is-buffering"); el.classList.remove("is-paused"); syncControls(); env.onPlayState?.(true, el); });
-      video.addEventListener("canplay", () => el.classList.remove("is-buffering"));
+      video.addEventListener("playing", () => { el.classList.remove("is-paused"); syncControls(); env.onPlayState?.(true, el); });
       video.addEventListener("pause", () => { if (active) el.classList.add("is-paused"); syncControls(); env.onPlayState?.(false, el); });
       video.addEventListener("play", () => { el.classList.remove("is-paused"); syncControls(); });
       const metadata = () => { if (handle === hd) { updateProgress(video.currentTime, duration()); syncControls(); } };
       video.addEventListener("loadedmetadata", metadata);
       video.addEventListener("durationchange", metadata);
       video.addEventListener("progress", () => { try { if (handle === hd && video.buffered.length && Number.isFinite(video.duration) && video.duration > 0) progressBuffer.style.width = (video.buffered.end(video.buffered.length - 1) / video.duration * 100) + "%"; } catch { /* not buffered yet */ } });
-      video.addEventListener("xr:unplayable", (e) => {
+      video.addEventListener("xr:unplayable", () => {
         failedVideos.add(video);
         if (handle !== hd) return;
-        const url = e?.detail?.url || "";
-        if (url && lastTriedEl) lastTriedEl.textContent = "Last tried: " + url.replace(/^https?:\/\//, "").slice(0, 90);
         syncControls();
         /* keep the frame's poster as a still so the stage reads as a lost clip,
            not a hole in the layout */
@@ -131,21 +146,23 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu",
         el.classList.add("is-quiet");
         if (!stage.querySelector(".cell-quiet")) {
           stage.appendChild(h("button.cell-quiet", { type: "button", title: "Open on Reddit for sound", onclick: (e) => { e.stopPropagation(); env.onOpenX?.(post); } },
-            icons.icon("mute", 14), h("span", "No sound — Reddit blocked this audio track")));
+            icons.icon("mute", 14), h("span", "Audio unavailable — playing without sound")));
         }
       });
-      if (primary) handle = hd;
+      if (primary) { handle = hd; selectedMediaEl = video; }
+      addFeedback(video);
       return { video, hd };
     }
-    function imageNode(m) {
+    function imageNode(m, primary = true) {
       const img = h("img.cell-img", { src: media.full(m), alt: m.alt || "", draggable: false, decoding: "async" });
-      img.addEventListener("error", () => { if (!img.dataset.fb) { img.dataset.fb = "1"; img.src = media.poster(m, 1200); } });
+      if (primary) selectedMediaEl = img;
+      addFeedback(img, m);
       return img;
     }
     function backdrop(m) { const src = media.poster(m, 300); return h("div.cell-bg", { style: { backgroundImage: `url("${src}")` } }); }
 
     const fitBox = (m) => h("div.cell-fit", { style: { "--ar": (m.aspect || 1).toFixed(4) } });
-    /* a 403/404 poster usually means the post is gone on X: show a visible placeholder instead of black */
+    /* A failed poster needs a visible fallback; it does not prove the post was deleted. */
     function probePoster(url) { if (!url) return; const probe = new Image(); probe.onerror = () => el.classList.add("is-posterless"); probe.src = url; }
 
     if (!isCarousel) {
@@ -155,7 +172,7 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu",
       if (m.kind === "photo") box.appendChild(imageNode(m));
       else { const { video } = videoNode(m); video.poster = media.poster(m, 900); box.appendChild(video); probePoster(media.poster(m, 300)); }
       stage.appendChild(box);
-      if (m.kind !== "photo") { stage.appendChild(bufferEl); stage.appendChild(h("div.cell-pauseglyph", icons.icon("play", 44, { filled: true }))); }
+      if (m.kind !== "photo") { stage.appendChild(h("div.cell-pauseglyph", icons.icon("play", 44, { filled: true }))); }
     } else {
       /* carousel: horizontal snap scroller of slides; only the visible slide's video plays */
       const scroller = h("div.carousel", { tabindex: "-1" });
@@ -164,19 +181,20 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu",
         slide.appendChild(backdrop(m));
         const box = fitBox(m);
         let hd = null;
-        if (m.kind === "photo") box.appendChild(imageNode(m));
+        if (m.kind === "photo") box.appendChild(imageNode(m, i === 0));
         else { const v = videoNode(m, { primary: i === 0 }); v.video.poster = media.poster(m, 900); box.appendChild(v.video); hd = v.hd; }
         slide.appendChild(box);
         scroller.appendChild(slide);
-        slides.push({ el: slide, media: m, hd });
+        slides.push({ el: slide, media: m, hd, target: box.querySelector("video, img") });
       });
       stage.appendChild(scroller);
       const dots = h("div.carousel-dots", post.media.map((_, i) => h("i", { class: i === 0 ? "on" : "" })));
-      const counter = h("span.badge.badge-dark.carousel-counter", `1 / ${post.media.length}`);
-      stage.appendChild(dots); stage.appendChild(counter);
-      stage.appendChild(h("button.carousel-arrow.carousel-prev", { "aria-label": "Previous image", onclick: (e) => { e.stopPropagation(); api.carousel.prev(); } }, icons.icon("chevronLeft", 24)));
-      stage.appendChild(h("button.carousel-arrow.carousel-next", { "aria-label": "Next image", onclick: (e) => { e.stopPropagation(); api.carousel.next(); } }, icons.icon("chevronRight", 24)));
-      if (slides.some((s) => s.hd)) { stage.appendChild(bufferEl); stage.appendChild(h("div.cell-pauseglyph", icons.icon("play", 44, { filled: true }))); }
+      const counter = h("span.badge.badge-dark.carousel-counter", { role: "status", "aria-live": "polite", "aria-atomic": "true" }, `Media 1 / ${post.media.length}`);
+      const prevMedia = h("button.carousel-arrow.carousel-prev", { "aria-label": "Previous media", disabled: true, onclick: (e) => { e.stopPropagation(); setSlide(slideIndex - 1); } }, icons.icon("chevronLeft", 22));
+      const nextMedia = h("button.carousel-arrow.carousel-next", { "aria-label": "Next media", onclick: (e) => { e.stopPropagation(); setSlide(slideIndex + 1); } }, icons.icon("chevronRight", 22));
+      stage.appendChild(dots);
+      stage.appendChild(h("nav.carousel-navigation", { "aria-label": "Media in this post" }, prevMedia, counter, nextMedia));
+      if (slides.some((s) => s.hd)) { stage.appendChild(h("div.cell-pauseglyph", icons.icon("play", 44, { filled: true }))); }
       scroller.addEventListener("scroll", () => { clearTimeout(scrollT); scrollT = setTimeout(() => setSlide(Math.round(scroller.scrollLeft / scroller.clientWidth), false), 80); }, { passive: true });
       function setSlide(i, scroll = true) {
         i = util.clamp(i, 0, slides.length - 1);
@@ -187,12 +205,16 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu",
         if (prev?.hd) prev.hd.deactivate();
         slideIndex = i;
         [...dots.children].forEach((d, k) => d.classList.toggle("on", k === i));
-        counter.textContent = `${i + 1} / ${slides.length}`;
+        counter.textContent = `Media ${i + 1} / ${slides.length}`;
+        prevMedia.disabled = i === 0; nextMedia.disabled = i === slides.length - 1;
         handle = slides[i].hd || null;
+        selectedMediaEl = slides[i].target;
+        el.classList.remove("has-media-feedback");
+        syncFeedback();
         updateProgress(handle?.video.currentTime || 0, duration());
         progressBuffer.style.width = "0%";
         syncControls(); fit(env.fitMode());
-        if (active && handle) handle.activate();
+        if (active && handle) { feedbacks.get(selectedMediaEl)?.begin(); handle.activate(); }
       }
       carousel = { next: () => { if (slideIndex < slides.length - 1) setSlide(slideIndex + 1); else env.onCarouselEnd?.(); }, prev: () => { if (slideIndex > 0) setSlide(slideIndex - 1); else env.onCarouselStart?.(); }, get index() { return slideIndex; }, get length() { return slides.length; } };
     }
@@ -202,24 +224,6 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu",
     stage.appendChild(h("div.cell-gradient"));
     if (post.media.some((m) => m.kind !== "photo")) el.append(bar);
     syncControls();
-    /* The card says what actually happened, per platform, and shows the last URL the
-       player tried — the difference between "gone" and "blocked" is actionable. */
-    const isReddit = post.platform === "reddit";
-    const legacyReddit = isReddit && m0 && m0.kind === "video" && !m0.audio && (m0.sources || []).every((s) => /\/DASH_\d+\.mp4$/.test(s.url));
-    const unplayableText = legacyReddit
-      ? "This video was saved before rich video capture existed. Capture Reddit again with the updated extension and re-import the export to make it playable."
-      : isReddit
-        ? "Reddit refused to serve this video."
-        : "This video can't be played — it may have been deleted on X.";
-    const unplayable = h("div.cell-unplayable", icons.icon("alert", 28), h("p", unplayableText), h("p.cell-unplayable-url"),
-      h("div.cell-unplayable-actions",
-        W.btn("Next", { icon: "arrowDown", kind: "primary", onClick: (e) => { e.stopPropagation(); env.onNext?.(); } }),
-        W.btn("Retry", { icon: "refresh", onClick: (e) => { e.stopPropagation(); el.classList.remove("is-unplayable"); env.onRetry?.(post); } }),
-        W.btn(`Open on ${model.platformLabel(post)}`, { icon: "external", onClick: (e) => { e.stopPropagation(); env.onOpenX?.(post); } }),
-        W.btn("Hide post", { icon: "eyeOff", onClick: (e) => { e.stopPropagation(); env.onHide?.(post); } })));
-    lastTriedEl = unplayable.querySelector(".cell-unplayable-url");
-    stage.appendChild(unplayable);
-
     function updateProgress(t, d) {
       const elapsed = Number.isFinite(t) ? t : 0;
       const total = Number.isFinite(d) && d > 0 ? d : 0;
@@ -248,7 +252,8 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu",
       el.inert = false; el.removeAttribute("aria-hidden");
       el.classList.add("is-active");
       fit(env.fitMode());
-      if (handle) handle.activate();
+      syncFeedback();
+      if (handle) { feedbacks.get(selectedMediaEl)?.begin(); handle.activate(); }
       else if (m0?.kind === "photo" || (isCarousel && !slides[slideIndex].hd)) {
         env.markSeen?.(post);
         const secs = Number(prefs.get("imageSeconds")) || 0;
@@ -258,6 +263,7 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu",
     }
     function deactivate() {
       active = false;
+      syncFeedback(); el.classList.remove("has-media-feedback");
       el.inert = true; el.setAttribute("aria-hidden", "true");
       endSeek(false);
       el.classList.remove("is-active", "is-paused");
@@ -275,6 +281,7 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu",
       if (destroyed) return; destroyed = true;
       deactivate();
       offPlayback(); clearTimeout(scrollT);
+      for (const feedback of feedbacks.values()) feedback.destroy(); feedbacks.clear();
       if (handle) handle.destroy();
       for (const s of slides) s.hd?.destroy();
       el.remove();

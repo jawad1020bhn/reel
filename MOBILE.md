@@ -737,3 +737,33 @@ performance) need a real phone. Static checks prove the rules exist, not that a 
   same browser/environment (3/3 reproduced). They are not counted as passes.
 - Rendered phone Library screenshot inspected; no visual redesign was intended.
   Physical Android testing, cellular playback latency, and rotation remain open.
+
+## Player navigation and touch hierarchy (2026-11-26)
+
+Scope: mobile proposal #1 (tap navigation), #2 (player action hierarchy), and #5
+(player touch targets). No Library redesign, quality/source-order changes, or new
+runtime dependencies.
+
+- Watch and Viewer expose labeled Previous/Next post buttons on narrow and touch
+  layouts. Album navigation has a separate Media n / total row with 48px arrow
+  targets and disabled boundary buttons. Existing swipe and keyboard shortcuts
+  remain available; tapping an album boundary never advances the post.
+- Watch keeps Sound, Info, and one More action. More combines Fit/Fill, Up next,
+  and the existing post actions. The old Up next pill is hidden in this mode to
+  avoid overlapping explicit post navigation. Desktop post actions remain intact.
+- Viewer keeps Star, Info, and More with visible compact labels. Creator actions,
+  Fit/Fill, Watch in feed, collections, and existing post actions remain accessible
+  in More; desktop retains the expanded rail.
+- Navigation/playback actions use 48px minimum hit areas where practical, retaining
+  the 44px native seek track. Visible targets are checked for viewport bounds and
+  mutual overlap at 320×568, 390×844, and 844×390. Short-landscape failed-media
+  navigation uses the space vacated by playback controls so recovery stays clear.
+- Browser regressions cover tap navigation independently of gestures, mixed-album
+  playback, boundary states, action availability, More-sheet focus restoration,
+  star pressed state, and recovery-card overlap. Screenshots are generated under
+  ignored `.audit/tests/` and inspected at portrait and landscape sizes.
+- The dependency-arity test now checks existing working-tree files (including new
+  modules), rather than attempting to read files already removed during cleanup.
+
+Physical iOS/Safari and Android/Chrome validation remains outstanding; emulated
+Chromium checks are not a substitute for real-device touch or safe-area testing.
