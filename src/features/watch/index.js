@@ -53,31 +53,53 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
     /* ------------------------------------------------------------ warm -- */
     /* The feed is what makes the cache useful: it knows exactly which clips come next, so
        it warms them before the swipe. Depth follows the connection — two clips ahead on a
-       good link, one on a slow one, and nothing at all when "Preload neighbours" is off or
-       the browser reports Save-Data. The clip right after this one jumps the queue. */
+       good link, one when connection details are unavailable, and none on reported
+       slow links, Save-Data, or when "Preload neighbours" is off. The clip right after this one jumps the queue. */
     function warmDepth() {
-      if (!prefs.get("preload")) return 0;
+      if (!prefs.get("preload") || document.hidden || navigator.onLine === false) return 0;
       const c = typeof navigator !== "undefined" ? navigator.connection : null;
       if (c?.saveData) return 0;
       if (!c) return 1;
       if (c.effectiveType && /(^|-)2g$/.test(c.effectiveType)) return 0;
-      if (c.effectiveType === "3g") return 1;
+      if (c.effectiveType === "3g") return 0;
       return prefs.get("preloadDepth") === "deep" ? 3 : 2;
     }
     function warmPost(post, priority = 1) {
       const depth = warmDepth();
       if (!depth || !post) return;
       const src = playerSource(post);
-      if (src) prefetch.prefetch(src.url, { type: src.type }, { priority });
+      if (src) {
+        const duration = post.media[0]?.duration || 0;
+        prefetch.prefetch(src.url, { type: src.type, expectedBytes: duration && src.bitrate ? duration * src.bitrate / 8 : 0 }, { priority });
+      }
     }
     function playerSource(post) {
       const media = post?.media?.[0];
-      if (!media || media.kind === "photo" || media.kind === "carousel") return null;
+      if (!media || prefs.get("localMediaDir") || media.hlsFirst || media.kind === "photo" || media.kind === "carousel") return null;
       const list = media.sources || [];
       return list.find((s) => s && s.url && !/\.m3u8(\?|$)/i.test(s.url)) || null;
     }
+    function retainWarmWindow() {
+      const depth = warmDepth();
+      const retained = [];
+      // Keep every possible current source (including carousel slides/fallbacks),
+      // but only the chosen remote source for each speculative neighbour.
+      const currentMedia = depth ? catalog.post(S.ids[S.index])?.media || [] : [];
+      for (const m of currentMedia) {
+        for (const src of m.sources || []) retained.push(src.url);
+      }
+      if (depth) {
+        for (let d = -1; d <= depth; d++) {
+          if (!d) continue;
+          const src = playerSource(catalog.post(S.ids[S.index + d]));
+          if (src) retained.push(src.url);
+        }
+      }
+      prefetch.retain?.(retained);
+    }
     /** Warm the neighbours around the current post: next first, then the one after. */
     function warmWindow() {
+      retainWarmWindow();
       const depth = warmDepth();
       if (!depth) return;
       for (let d = 1; d <= depth; d++) {
@@ -156,11 +178,12 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
         events.bus.on(EV.POST_DELETED, ({ id }) => { if (S.ids.includes(id)) { feed.clear(); nav.go("library"); } }),
         events.bus.on(EV.ACTIVITY_CHANGED, () => { if (S.infoOpen) renderInfo(); }),
         events.bus.on(EV.PLAYBACK_CHANGED, ({ muted }) => dom.replace(side.querySelector(".side-mute"), icons.icon(muted ? "mute" : "volume", 26), h("span.side-label", muted ? "Muted" : "Sound"))),
-        events.bus.on(EV.PREFS_CHANGED, ({ patch }) => { if ("fit" in patch) { S.fitOverride = null; S.cells.forEach((c) => c.fit(fitMode())); } }),
+        events.bus.on(EV.PREFS_CHANGED, ({ patch }) => { if ("fit" in patch) { S.fitOverride = null; S.cells.forEach((c) => c.fit(fitMode())); } if ("preload" in patch || "preloadDepth" in patch) warmWindow(); }),
         dom.on(window, "resize", dom.rafThrottle(() => S.cells.forEach((c) => c.fit(fitMode())))),
         dom.on(window, "keydown", () => { S.lastAct = Date.now(); }),
         dom.on(document, "visibilitychange", () => {
-          if (document.hidden) { stopClock(); setWake(false); return; }
+          if (document.hidden) { stopClock(); setWake(false); prefetch.retain?.([]); return; }
+          warmWindow();
           const cellNow = S.cells.get(S.index);
           if (!cellNow?.video || !cellNow.video.paused) startClock();
           const c = S.cells.get(S.index);
@@ -187,6 +210,7 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
       clearTimeout(S.seenTimer); clearTimeout(S.wheelTimer); clearTimeout(flashTimer);
       menu.close();
       for (const c of S.cells.values()) c.destroy(); S.cells.clear();
+      prefetch.retain?.([]);
       feed.setIndex(S.index);
       S.endCard?.remove(); S.endCard = null;
       S.root = null; S.host = null; S.track = null;
@@ -235,6 +259,7 @@ XR.define("features.watch", ["features.watch.cell", "ui.dom", "ui.icons", "ui.wi
     }
     function renderWindow(initial = false, reuse = false) {
       if (!S.track) return;
+      retainWarmWindow();
       const lo = Math.max(0, S.index - WINDOW), hi = Math.min(S.ids.length - 1, S.index + WINDOW);
       for (const [i, c] of S.cells) if (i < lo || i > hi) { c.destroy(); S.cells.delete(i); }
       for (let i = lo; i <= hi; i++) {

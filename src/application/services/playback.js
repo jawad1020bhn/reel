@@ -32,7 +32,7 @@ XR.define("app.playback", ["app.ports.playerEngine", "app.ports.mediaResolver", 
       video.loop = opts.loop ?? (prefs.get("loopShorts") && media.duration > 0 && media.duration <= 60);
       if (media.poster) video.poster = resolver.poster(media, opts.posterSize || "medium");
 
-      let attached = false, destroyed = false, lastSave = 0, seenTimer = 0, playPromise = null, engineAttachment = null;
+      let attached = false, destroyed = false, lastSave = 0, seenTimer = 0, playPromise = null, playSeq = 0, resumeListener = null, engineAttachment = null;
       const h = {
         video, media, post: opts.post || null,
         get isActive() { return state.active === h; },
@@ -44,32 +44,41 @@ XR.define("app.playback", ["app.ports.playerEngine", "app.ports.mediaResolver", 
           if (opts.resume !== false && prefs.get("rememberProgress")) {
             const e = activity.progressEntry(media.id);
             if (e && e.t > 3) {
-              const apply = () => { try { video.currentTime = e.t; } catch { /* not seekable yet */ } };
-              if (video.readyState >= 1) apply(); else video.addEventListener("loadedmetadata", apply, { once: true });
+              const apply = () => { if (destroyed) return; try { video.currentTime = e.t; } catch { /* not seekable yet */ } };
+              if (video.readyState >= 1) apply(); else { resumeListener = apply; video.addEventListener("loadedmetadata", apply, { once: true }); }
             }
           }
           return engineAttachment;
         },
         play() {
           if (destroyed) return Promise.resolve();
+          if (playPromise) return playPromise;
+          const seq = ++playSeq;
           const attachment = h.attach();
           const attemptPlay = () => {
-            if (destroyed) return Promise.resolve();
+            if (destroyed || seq !== playSeq) return Promise.resolve();
             return video.play().catch((err) => {
-              if (err && err.name === "NotAllowedError" && !video.muted) { // autoplay with sound blocked → retry muted
+              if (!destroyed && seq === playSeq && err && err.name === "NotAllowedError" && !video.muted) { // autoplay with sound blocked → retry muted
                 state.muted = true; video.muted = true; emit();
                 return video.play().catch(() => {});
               }
             });
           };
           const ready = attachment && attachment.ready;
-          playPromise = ready && typeof ready.then === "function"
+          const pending = ready && typeof ready.then === "function"
             ? ready.then((canPlay) => canPlay === false ? undefined : attemptPlay())
             : attemptPlay();
-          return playPromise;
+          const tracked = Promise.resolve(pending).finally(() => { if (playPromise === tracked) playPromise = null; });
+          playPromise = tracked;
+          return tracked;
         },
-        pause() { if (!destroyed) { const p = playPromise; if (p) p.then(() => video.pause(), () => {}); else video.pause(); } },
-        toggle() { return video.paused ? h.play() : h.pause(); },
+        pause() {
+          // Pause now, not after an asynchronous attach/play settles. A later
+          // activation must not be paused by a stale promise from the last swipe.
+          ++playSeq; playPromise = null;
+          if (!destroyed) video.pause();
+        },
+        toggle() { return video.paused && !playPromise ? h.play() : h.pause(); },
         seek(sec) { try { video.currentTime = util.clamp(sec, 0, video.duration || media.duration || sec); } catch { /* ignore */ } },
         seekBy(delta) { h.seek((video.currentTime || 0) + delta); },
         activate() {
@@ -91,6 +100,7 @@ XR.define("app.playback", ["app.ports.playerEngine", "app.ports.mediaResolver", 
           destroyed = true;
           h.deactivate();
           handles.delete(h);
+          if (resumeListener) video.removeEventListener("loadedmetadata", resumeListener);
           video.removeEventListener("timeupdate", onTime);
           video.removeEventListener("ended", onEnded);
           engine.detach(video);
@@ -110,7 +120,7 @@ XR.define("app.playback", ["app.ports.playerEngine", "app.ports.mediaResolver", 
          something that could never fit before it costs a request. */
       let warmTried = false;
       function warmThis() {
-        if (warmTried || !prefs.get("preload")) return;
+        if (destroyed || video.paused || warmTried || !prefs.get("preload")) return;
         const src = engine.currentSource ? engine.currentSource(video) : null;
         const url = src && src.type !== "hls" ? src.url : "";
         if (!url) return;
@@ -149,6 +159,7 @@ XR.define("app.playback", ["app.ports.playerEngine", "app.ports.mediaResolver", 
            carries its own sound — the side track must not double it. */
         const nowOnHls = engine.currentSource?.(video)?.type === "hls" || /\.m3u8(\?|$)/i.test(video.currentSrc || "");
         if (nowOnHls) return killAudio(false);
+        if (!audioEl.src) audioEl.src = audioCandidates[audioIdx].url;
         audioEl.muted = state.muted;
         audioEl.playbackRate = state.speed;
         try { audioEl.currentTime = video.currentTime; } catch { /* not seekable yet */ }
@@ -162,7 +173,7 @@ XR.define("app.playback", ["app.ports.playerEngine", "app.ports.mediaResolver", 
       const onAudioPause = () => audioEl?.pause();
       if (audioCandidates.length && typeof document !== "undefined") {
         audioEl = document.createElement("audio");
-        audioEl.preload = "auto";
+        audioEl.preload = "none";
         audioEl.muted = state.muted;
         audioEl.playbackRate = state.speed;
         audioEl.loop = video.loop;
@@ -172,7 +183,6 @@ XR.define("app.playback", ["app.ports.playerEngine", "app.ports.mediaResolver", 
         video.addEventListener("ended", onAudioPause);
         video.addEventListener("seeked", onAudioSeeked);
         video.addEventListener("timeupdate", onAudioDrift);
-        audioEl.src = audioCandidates[0].url;
         document.body.appendChild(audioEl); /* a detached element would play, but an attached one is visible to devtools and dies with the page */
       }
       /* The handle grows audio awareness without the features knowing. */

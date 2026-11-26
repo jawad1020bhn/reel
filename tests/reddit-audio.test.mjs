@@ -31,7 +31,7 @@ class FakeMedia extends EventTarget {
   remove() { /* not interesting here */ }
 }
 
-function setup() {
+function setup({ ready = null } = {}) {
   const { XR, load } = createXR();
   load("src/core/util/index.js");
   load("src/core/events.js");
@@ -45,7 +45,7 @@ function setup() {
 
   let currentSource = null;
   XR.provide("app.ports.playerEngine", {
-    attach: () => ({ ready: null }),
+    attach: () => ({ ready }),
     detach: () => {},
     currentSource: () => currentSource,
   });
@@ -71,7 +71,7 @@ const videoMedia = (audio) => ({
   audio, width: 1280, height: 720, aspect: 16 / 9, duration: 41, alt: "",
 });
 
-test("a silent-file video wires a synced audio element: local file first, then the remote track", () => {
+test("a silent-file video defers its synced audio request until play, then tries local first", async () => {
   const s = setup();
   s.candidates = [
     { url: "media/t3_x_1-audio.mp4", type: "audio/mp4", local: true },
@@ -81,6 +81,9 @@ test("a silent-file video wires a synced audio element: local file first, then t
   playback_wire(s, video, videoMedia("https://v.redd.it/x/CMAF_AUDIO_64.mp4"));
   const audio = s.created.find((el) => el.tag === "audio");
   assert.ok(audio, "an audio element was created");
+  assert.equal(audio.src, "", "off-screen cells do not request audio");
+  assert.equal(audio.preload, "none");
+  await video.play();
   assert.equal(audio.src, "media/t3_x_1-audio.mp4", "the downloaded local file is tried first");
 });
 
@@ -177,3 +180,81 @@ test("destroy tears the track down with the video", async () => {
 function playback_wire(s, video, media) {
   return s.playback.wire(video, media, {});
 }
+
+test('a swipe away while the engine attaches never starts a stale video', async () => {
+  let resolve;
+  const ready = new Promise(r => { resolve = r; });
+  const s = setup({ ready });
+  const video = new FakeMedia('video');
+  const handle = playback_wire(s, video, videoMedia(''));
+  const pending = handle.play();
+  assert.equal(handle.play(), pending, 'repeated activation joins pending play');
+  handle.deactivate();
+  assert.equal(video.paused, true);
+  resolve(true);
+  await pending;
+  assert.equal(video.plays, 0);
+  handle.destroy();
+});
+
+test('an old pending play cannot pause a newly reactivated video', async () => {
+  let resolve;
+  const ready = new Promise(r => { resolve = r; });
+  const s = setup({ ready });
+  const video = new FakeMedia('video');
+  const handle = playback_wire(s, video, videoMedia(''));
+  const first = handle.play();
+  handle.pause();
+  const second = handle.play();
+  resolve(true);
+  await Promise.all([first, second]);
+  assert.equal(video.plays, 1);
+  assert.equal(video.paused, false);
+  handle.destroy();
+});
+
+test('pause is immediate and a late autoplay rejection cannot retry muted playback', async () => {
+  const s = setup();
+  const video = new FakeMedia('video');
+  let reject;
+  video.play = () => { video.paused = false; video.plays++; return new Promise((_, r) => { reject = r; }); };
+  const handle = playback_wire(s, video, videoMedia(''));
+  const pending = handle.play();
+  handle.pause();
+  assert.equal(video.paused, true, 'does not wait for play() to settle');
+  reject(Object.assign(new Error('blocked'), { name: 'NotAllowedError' }));
+  await pending;
+  assert.equal(video.plays, 1);
+  assert.equal(s.playback.muted, false, 'stale attempts do not change global audio state');
+  handle.destroy();
+});
+
+test('destroying during engine attachment prevents video and side-track playback', async () => {
+  let resolve;
+  const s = setup({ ready: new Promise(r => { resolve = r; }) });
+  s.candidates = [{ url: 'https://v.redd.it/test/audio.mp4' }];
+  const video = new FakeMedia('video');
+  const handle = playback_wire(s, video, videoMedia('audio'));
+  const pending = handle.play();
+  handle.destroy();
+  resolve(true);
+  await pending;
+  assert.equal(video.plays, 0);
+  assert.equal(s.created.find(el => el.tag === 'audio').plays, 0);
+});
+
+test('toggling while an engine is loading cancels pending playback intent', async () => {
+  let resolve;
+  const s = setup({ ready: new Promise(r => { resolve = r; }) });
+  const video = new FakeMedia('video');
+  const handle = playback_wire(s, video, videoMedia(''));
+  const pending = handle.toggle();
+  assert.equal(video.paused, true, 'native video is still waiting for the engine');
+  handle.toggle();
+  resolve(true);
+  await pending;
+  assert.equal(video.plays, 0, 'second toggle cancels instead of joining the pending play');
+  await handle.toggle();
+  assert.equal(video.plays, 1, 'a later toggle can still play normally');
+  handle.destroy();
+});

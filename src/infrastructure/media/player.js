@@ -77,8 +77,8 @@ XR.define("infra.media.player", ["app.ports.mediaResolver", "app.ports.mediaPref
     }
     if (ds.warm) delete ds.warm;
     video.src = s.url;
-    /* kick a background warm so the *next* visit to this clip is instant */
-    if (prefetch && prefetch.prefetch) prefetch.prefetch(s.url, { type: s.type || "video/mp4" }, { priority: 1 });
+    // Attachment must not launch a second whole-file download alongside native
+    // streaming. The feed schedules neighbours; playback warms only after progress.
     return true;
   }
 

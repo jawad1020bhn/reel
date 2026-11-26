@@ -748,3 +748,28 @@ test("large mobile Library keeps a bounded DOM during a deep scroll", async (t) 
   assert.ok(result.height > 100000, 'full scroll geometry retained');
   t.diagnostic(JSON.stringify(result));
 });
+
+test('Watch starts only the visible video; fresh neighbours do not attach sources', async (t) => {
+  const page = await pageFor(t);
+  await open(page, 'library?sort=saved');
+  await page.evaluate(() => {
+    XR.resolve('app.actions').watch(['clip-1', 'clip-2', 'clip-3', 'clip-5', 'clip-6', 'clip-7'], 0);
+  });
+  await page.waitForSelector('.watch');
+  await readyVideo(page);
+  const fresh = await page.$$eval('.cell:not(.is-active) video', videos => videos.map(video => ({ src: video.getAttribute('src'), paused: video.paused })));
+  assert.ok(fresh.length >= 2);
+  assert.ok(fresh.every(video => !video.src && video.paused), 'neighbours use only the bounded warm queue, not native media loading');
+  for (let i = 0; i < 4; i++) {
+    await page.keyboard.press('ArrowDown');
+    await sleep(220);
+  }
+  await page.waitForFunction(() => document.querySelector('.cell.is-active')?.dataset.id === 'clip-6');
+  await readyVideo(page);
+  const counts = await page.$$eval('.watch video', videos => ({ total: videos.length, playing: videos.filter(video => !video.paused).length }));
+  assert.ok(counts.total <= 5, 'decoder elements remain windowed');
+  assert.equal(counts.playing, 1, 'no stale play promise restarts a previous clip');
+  await page.evaluate(() => XR.resolve('app.nav').go('library'));
+  await page.waitForSelector('.library');
+  assert.equal(await page.$$eval('.watch video, audio', nodes => nodes.length), 0, 'media elements are released on exit');
+});

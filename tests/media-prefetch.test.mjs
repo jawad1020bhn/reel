@@ -60,5 +60,65 @@ test('clearing aborts active downloads and settles queued promises', async () =>
   assert.deepEqual(await Promise.all(jobs), [null, null, null, null]);
   assert.equal(signals.length, 2);
   assert.ok(signals.every(s => s.aborted));
+  await new Promise(setImmediate);
   assert.equal(h.api.stats().pending, 0);
+});
+
+test('warm, warmAhead and prefetch share one two-request scheduler and one promise per URL', async () => {
+  let active = 0, peak = 0;
+  const complete = [];
+  const h = harness({}, (_, { signal }) => new Promise(resolve => {
+    active++; peak = Math.max(peak, active);
+    complete.push(() => { active--; resolve(new Response(new Uint8Array(10))); });
+  }));
+  const first = h.api.warm(url);
+  assert.equal(h.api.prefetch(url), first, 'duplicate caller joins existing work');
+  h.api.warmAhead(null, url + '?second', { duration: 20 });
+  const third = h.api.warm(url + '?third');
+  const fourth = h.api.prefetch(url + '?fourth');
+  assert.equal(h.requests(), 2);
+  assert.equal(h.api.stats().queued, 2);
+  complete.shift()(); complete.shift()();
+  await new Promise(setImmediate);
+  assert.equal(h.requests(), 4);
+  complete.shift()(); complete.shift()();
+  await Promise.all([first, third, fourth]);
+  assert.equal(peak, 2);
+});
+
+test('retaining a new swipe window aborts old work, preserves cache, and accepts a replacement URL safely', async () => {
+  const pending = [];
+  const h = harness({}, (requestUrl, { signal }) => new Promise(resolve => pending.push({ requestUrl, signal, resolve })));
+  const old = h.api.warm(url);
+  const keep = h.api.warm(url + '?keep');
+  const queued = h.api.warm(url + '?obsolete');
+  h.api.retain([url + '?keep']);
+  assert.equal(await old, null);
+  assert.equal(await queued, null);
+  assert.equal(pending[0].signal.aborted, true);
+  assert.equal(pending[1].signal.aborted, false);
+  const replacement = h.api.warm(url);
+  // Simulate a fetch implementation that finishes despite cancellation. It must
+  // not publish bytes or delete the replacement job for the same URL.
+  pending[0].resolve(new Response(new Uint8Array(10)));
+  pending[1].resolve(new Response(new Uint8Array(10)));
+  await keep; await new Promise(setImmediate);
+  assert.equal(h.api.has(url), false);
+  assert.equal(h.api.has(url + '?keep'), true);
+  assert.equal(h.api.warm(url), replacement);
+  pending[2].resolve(new Response(new Uint8Array(10)));
+  assert.equal(await replacement, 'blob:test');
+  assert.equal(h.api.stats().entries, 2);
+});
+
+test('queued requests stop when Save-Data changes before a slot opens', async () => {
+  const connection = {};
+  const pending = [];
+  const h = harness(connection, () => new Promise(resolve => pending.push(resolve)));
+  const jobs = [1, 2, 3].map(i => h.api.warm(url + i));
+  connection.saveData = true;
+  for (const resolve of pending) resolve(new Response(new Uint8Array(10)));
+  assert.deepEqual(await Promise.all(jobs), [null, null, null]);
+  assert.equal(h.requests(), 2);
+  assert.equal(h.api.stats().entries, 0);
 });

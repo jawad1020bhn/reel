@@ -266,10 +266,9 @@ XR.define("features.watch.cell", ["ui.dom", "ui.icons", "ui.widgets", "ui.menu",
       for (const s of slides) s.hd?.deactivate();
       syncControls();
     }
-    /** Preload a neighbour: attach the source (metadata) and warm its bytes in the cache. */
+    /** Warm neighbours through the bounded queue, without also fetching metadata/HLS. */
     function prepare() { // preload neighbour
       if (!prefs.get("preload")) return;
-      if (handle) handle.attach();
       env.warm?.(post);
     }
     function destroy() {
